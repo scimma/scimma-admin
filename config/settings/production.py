@@ -4,34 +4,48 @@ import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
+import boto3
+
 from .base import *  # noqa
 from .base import env
+
+def get_secret(name):
+    session = boto3.session.Session()
+    client = session.client(
+        "secretsmanager",
+        region_name="us-west-2",
+    )
+    resp = client.get_secret_value(name)
+    return resp.get("SecretString")
+
 
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
-SECRET_KEY = env("DJANGO_SECRET_KEY")
+SECRET_KEY = get_secret("scimma-admin-django-secret")
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["admin.scimma.org"])
 
 # DATABASES
 # ------------------------------------------------------------------------------
-DATABASES["default"] = env.db("DATABASE_URL")  # noqa F405
-DATABASES["default"]["ATOMIC_REQUESTS"] = True  # noqa F405
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)  # noqa F405
+
+db_pass = get_secret("scimma-admin-db-password")
+DATABASEs["default"] = {
+    "ENGINE": "django.db.backends.postgresql",
+    "NAME": "scimma-admin-db",
+    "USER": "scimma_admin",
+    "PASSWORD": get_secret("scimma-admin-db-password"),
+    "HOST": "scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com",
+    "PORT": "5432",
+    "ATOMIC_REQUESTS": True,
+    "CONN_MAX_AGE": 60,
+}
 
 # CACHES
 # ------------------------------------------------------------------------------
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            # Mimicing memcache behavior.
-            # http://jazzband.github.io/django-redis/latest/#_memcached_exceptions_behavior
-            "IGNORE_EXCEPTIONS": True,
-        },
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
 
