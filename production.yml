@@ -1,9 +1,0 @@
-version: '3'
-
-services:
-  django:
-    build:
-      context: .
-      dockerfile: ./compose/production/django/Dockerfile
-    image: 585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin-web
-    command: /start

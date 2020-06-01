@@ -1,7 +1,0 @@
-# PostgreSQL
-# ------------------------------------------------------------------------------
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DB=scimma_admin
-POSTGRES_USER=lyQIkQgnYCvonAPCgokIuqgMfCujUMeB
-POSTGRES_PASSWORD=sel5ehkrAkLdDIfdDiGtrwBdPvikcFFFd05zNjBB0vUeRfgwiKPRXeGE1NSIl2nJ
