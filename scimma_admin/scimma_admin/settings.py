@@ -11,6 +11,23 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import boto3
+
+
+def get_secret(name):
+    sm = boto3.client("secretsmanager", region_name="us-west-2")
+    return sm.get_secret_value(SecretId=name)["SecretString"]
+
+
+def get_rds_db(db_instance_id):
+    rds = boto3.client("rds", region_name="us-west-2")
+    resp = rds.describe_db_instances(Filters=[
+        {"Name": "db-instance-id", "Values": [db_instance_id]},
+    ])
+    return resp['DBInstances'][0]
+
+
+PRODUCTION = os.getenv("SCIMMA_ADMIN_PROD") is not None
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,10 +37,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '0+ob93-2rj!#4b&2dc$31eo(a65_cy!&w_hg=&3w1cau$o3ja%'
+if PRODUCTION:
+    SECRET_KEY = get_secret("scimma-admin-django-secret")
+else:
+    SECRET_KEY = "zzzlocal"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = not PRODUCTION
 
 ALLOWED_HOSTS = []
 
@@ -73,12 +93,22 @@ WSGI_APPLICATION = 'scimma_admin.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
+DATABASES = {'default': {}}
+if PRODUCTION:
+    rds_db = get_rds_db("scimma-admin-postgres")
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': rds_db['DBName'],
+        'USER': rds_db['MasterUsername'],
+        'PASSWORD': get_secret("scimma-admin-db-password"),
+        'HOST': rds_db['Endpoint']['Address'],
+        'PORT': str(rds_db['Endpoint']['Port']),
+    }
+else:
+    DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
-}
 
 
 # Password validation
