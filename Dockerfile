@@ -1,23 +1,11 @@
-FROM ubuntu:20.04
+FROM python:3.8-slim-buster
 
 RUN apt-get update -y \
-    && DEBIAN_FRONTEND="noninteractive" \
-       apt-get install -y python3 \
-                          python3-pip \
-                          build-essential \
-                          libpq-dev \
-                          apache2 \
-                          libapache2-mod-wsgi-py3
-
-RUN ln -s /usr/bin/python3 /usr/bin/python
-RUN pip3 install pip --upgrade
-COPY ./requirements.txt /tmp/requirements.txt
-RUN pip install -r /tmp/requirements.txt
-COPY apache.conf /etc/apache2/sites-available/scimma_admin.conf
-RUN a2dissite 000-default
-RUN a2enmod wsgi md ssl
-RUN a2ensite scimma_admin
+    && apt-get install -y build-essential \
+                          libpq-dev
 
 COPY . /app
+
+RUN pip install -r /app/requirements.txt
 WORKDIR /app/scimma_admin
-CMD apache2ctl -D FOREGROUND
+CMD gunicorn scimma_admin.wsgi:application --bind 0.0.0.0:8000
