@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 import boto3
+import requests
 
 
 def get_secret(name):
@@ -46,7 +47,10 @@ else:
 DEBUG = not PRODUCTION
 
 if PRODUCTION:
-    ALLOWED_HOSTS = ['admin.dev.hop.scimma.org']
+    ALLOWED_HOSTS = [
+        'admin.dev.hop.scimma.org',
+        requests.get("http://169.254.169.254/latest/meta-data/local-ipv4").text
+    ]
 else:
     ALLOWED_HOSTS = []
 
