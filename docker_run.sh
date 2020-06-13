@@ -4,5 +4,4 @@ docker run \
        --rm \
        --interactive \
        --tty \
-       585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin \
-       /bin/bash
+       585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin-web

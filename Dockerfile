@@ -5,7 +5,7 @@ RUN apt-get update -y \
                           libpq-dev
 
 COPY . /app
-WORKDIR /app/scimma_admin
 
 RUN pip install -r /app/requirements.txt
+WORKDIR /app/scimma_admin
 CMD gunicorn scimma_admin.wsgi:application --bind 0.0.0.0:8000

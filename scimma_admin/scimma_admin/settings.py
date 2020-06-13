@@ -45,8 +45,10 @@ else:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = not PRODUCTION
 
-ALLOWED_HOSTS = []
-
+if PRODUCTION:
+    ALLOWED_HOSTS = ['admin.dev.hop.scimma.org']
+else:
+    ALLOWED_HOSTS = []
 
 # Application definition
 
