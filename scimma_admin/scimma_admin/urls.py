@@ -15,8 +15,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.http import HttpResponse
+
+def OK(request):
+    return HttpResponse("OK")
 
 urlpatterns = [
+    path('', OK),
     path('admin/', admin.site.urls),
-    path('auth/', include("hopskotch_auth.urls")),
+    path('hopauth/', include("hopskotch_auth.urls")),
+    path('auth/', include('mozilla_django_oidc.urls')),
 ]
