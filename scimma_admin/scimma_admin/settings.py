@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'mozilla_django_oidc',
 ]
 
 MIDDLEWARE = [
@@ -118,24 +119,22 @@ else:
     }
 
 
-# Password validation
-# https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
+# Authentication
+# https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
 
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
+AUTHENTICATION_BACKENDS = (
+    'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+)
+OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
+OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
+OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
+OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+OIDC_RP_SIGN_ALGO = 'RS256'
+OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 
+LOGIN_REDIRECT_URL = '/hopauth/login'
+LOGOUT_REDIRECT_RUL = '/hopauth/logout'
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
@@ -155,3 +154,27 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+
+# Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'formatters': {
+        'console': {
+            'format': '%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(module)s %(process)d %(thread)d %(message)s',
+        },
+    },
+}
+
+# TLS termination is handled by an AWS ALB in production
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
