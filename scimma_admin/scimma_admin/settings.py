@@ -125,7 +125,7 @@ else:
 AUTHENTICATION_BACKENDS = (
     'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
 )
-OIDC_RP_CLIENT_ID = "cilogon:/client_id/29ad6d4e4198bd207e916128fec3c656"
+OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
 OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
 OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
