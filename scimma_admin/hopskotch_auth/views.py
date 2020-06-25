@@ -8,7 +8,7 @@ def index(request):
 
 
 def login(request):
-    return HttpResponse("you're logged in!")
+    return render(request, 'hopskotch_auth/login.html')
 
 
 def logout(request):
