@@ -1,1 +1,81 @@
-<h1> Hello, world. </h1>
+<html>
+  <style>
+   table {
+       width: 640px;
+   }
+   td.info  {
+       text-align: center;
+   }
+   th, td {
+       border: 1px solid black;
+   }
+   td form {
+       margin: 0;
+   }
+   col#cred-username {
+       width: 40%;
+   }
+   col#cred-created-on {
+       width: 40%;
+   }
+   col#cred-action {
+       width: 20%
+   }
+  </style>
+  <body>
+    {% if user.is_authenticated %}
+    <h1>SCIMMA Auth</h1>
+    <div class="logged-in-status">
+      <p>Current user: {{ user.email }}</p>
+      <form action="{% url 'oidc_logout' %}" method="post">
+        {% csrf_token %}
+        <input type="submit" value="logout">
+      </form>
+    </div>
+    <h2>active credentials</h2>
+    <table>
+      <thead>
+        <colgroup>
+          <col id="cred-username">
+          <col id="cred-created-on">
+          <col id="cred-action">
+        </colgroup>
+        <tr>
+          <th>Kafka Username</th>
+          <th>Created On</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cred in credentials %}
+        <tr>
+          <td>cred.user.username</td>
+          <td>cred.created_at</td>
+          <td>
+            <form action="{% url 'delete' %}">
+              {% csrf_token %}
+              <input type="submit" value="delete">
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td class="info" colspan="3">no existing credentials found</td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td class="info" colspan="3">
+            <form action="{% url 'create' %}">
+              {% csrf_token %}
+              <input type="submit" value="create new credentials">
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </p>
+    {% else %}
+    <a href="{% url 'oidc_authentication_init' %}">Login</a>
+    {% endif %}
+  </body>
+</html>
