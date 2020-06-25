@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from django.db import models
+from django.conf import settings
 from django_enumfield import enum
 import hashlib
 import uuid
@@ -13,11 +14,13 @@ import hmac
 import hashlib
 
 
-# Create your models here.
 class KafkaIdentity(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=256, unique=True)  # Limit chosen pretty arbitrarily.
-
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
 
 class SCRAMAlgorithm(enum.Enum):
     SHA256 = 1
@@ -76,6 +79,8 @@ class SCRAMCredentials(models.Model):
     iterations = models.IntegerField(
         editable=False,
     )
+
+    created_at = models.DateTimeField(auto_now_add=True)
 
     @classmethod
     def generate(cls, password: str, user: KafkaIdentity, alg: SCRAMAlgorithm,
