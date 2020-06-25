@@ -123,7 +123,7 @@ else:
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
 
 AUTHENTICATION_BACKENDS = (
-    'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+    'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
 OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
 OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
@@ -133,8 +133,9 @@ OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
 OIDC_RP_SIGN_ALGO = 'RS256'
 OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 
-LOGIN_REDIRECT_URL = '/hopauth/login'
-LOGOUT_REDIRECT_RUL = '/hopauth/logout'
+LOGIN_URL ='/hopauth/login'
+LOGIN_REDIRECT_URL = '/hopauth'
+LOGOUT_REDIRECT_URL = '/hopauth/logout'
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
