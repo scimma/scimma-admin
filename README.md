@@ -29,3 +29,11 @@ You can log out, and log in as users at http://127.0.0.1:8000/admin/login. Don't
 try to go straight to http://127.0.0.1:8000/hopauth/ without being logged in, or
 you'll get an error because the local development server isn't set up to handle
 SCIMMA authentication.
+
+## Local Development: running tests
+
+With your service up and running in a terminal (with `docker-compose up`), open a new terminal. Run this:
+
+```
+docker-compose exec django python manage.py test
+```
