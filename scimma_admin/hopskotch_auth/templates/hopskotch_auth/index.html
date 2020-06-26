@@ -1,3 +1,5 @@
+{% load tz %}
+
 <html>
   <style>
    table {
@@ -25,55 +27,57 @@
   <body>
     {% if user.is_authenticated %}
     <h1>SCIMMA Auth</h1>
-    <div class="logged-in-status">
+    <section class="logged-in-status">
       <p>Current user: {{ user.email }}</p>
       <form action="{% url 'oidc_logout' %}" method="post">
         {% csrf_token %}
         <input type="submit" value="logout">
       </form>
-    </div>
-    <h2>active credentials</h2>
-    <table>
-      <thead>
-        <colgroup>
-          <col id="cred-username">
-          <col id="cred-created-on">
-          <col id="cred-action">
-        </colgroup>
-        <tr>
-          <th>Kafka Username</th>
-          <th>Created On</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for cred in credentials %}
-        <tr>
-          <td>cred.user.username</td>
-          <td>cred.created_at</td>
-          <td>
-            <form action="{% url 'delete' %}">
-              {% csrf_token %}
-              <input type="submit" value="delete">
-            </form>
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td class="info" colspan="3">no existing credentials found</td>
-        </tr>
-        {% endfor %}
-        <tr>
-          <td class="info" colspan="3">
-            <form action="{% url 'create' %}">
-              {% csrf_token %}
-              <input type="submit" value="create new credentials">
-            </form>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    </p>
+    </section>
+    <section class="creds-list">
+      <h2>active credentials</h2>
+      <table>
+        <thead>
+          <colgroup>
+            <col id="cred-username">
+            <col id="cred-created-on">
+            <col id="cred-action">
+          </colgroup>
+          <tr>
+            <th>Kafka Username</th>
+            <th>Created On (Pacific Time)</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cred in credentials %}
+          <tr>
+            <td>{{ cred.username }}</td>
+            <td>{{ cred.created_at|localtime }}</td>
+            <td>
+              <form action="{% url 'delete' %}">
+                {% csrf_token %}
+                <input type="submit" value="delete">
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td class="info" colspan="3">no existing credentials found</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <section class="create">
+      <h2>create credentials</h2>
+      <p>Click below to create a new set of Kafka credentials.</p>
+      <p>A username and password will be generated for you.</p>
+      <form action="{% url 'create' %}" method="post">
+        {% csrf_token %}
+        <input type="submit" value="create new credentials">
+      </form>
+    </section>
     {% else %}
     <a href="{% url 'oidc_authentication_init' %}">Login</a>
     {% endif %}

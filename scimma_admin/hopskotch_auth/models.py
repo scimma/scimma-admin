@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+import secrets
+import string
 from django.db import models
 from django.conf import settings
+from django.contrib.auth.models import User
 from django_enumfield import enum
 import hashlib
 import uuid
@@ -13,14 +16,6 @@ from passlib.utils import saslprep
 import hmac
 import hashlib
 
-
-class KafkaIdentity(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = models.CharField(max_length=256, unique=True)  # Limit chosen pretty arbitrarily.
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-    )
 
 class SCRAMAlgorithm(enum.Enum):
     SHA256 = 1
@@ -46,11 +41,15 @@ class SCRAMAlgorithm(enum.Enum):
 
 
 class SCRAMCredentials(models.Model):
-    user = models.ForeignKey(
-        "KafkaIdentity",
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        editable=False,
     )
+    username = models.CharField(
+        max_length=256,
+        unique=True,
+    )  # Limit chosen pretty arbitrarily.
+
     # The SCRAM hashing algorithm used, as defined in RFC5802.
     algorithm = enum.EnumField(
         SCRAMAlgorithm,
@@ -80,10 +79,10 @@ class SCRAMCredentials(models.Model):
         editable=False,
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, editable=False)
 
     @classmethod
-    def generate(cls, password: str, user: KafkaIdentity, alg: SCRAMAlgorithm,
+    def generate(cls, owner: User, username: str, password: str, alg: SCRAMAlgorithm,
                  salt: Optional[bytes] = None, iterations: int = 4096):
 
         """ Generate SCRAM credentials, hashing the given password using the given algorithm.
@@ -109,6 +108,8 @@ class SCRAMCredentials(models.Model):
         stored_key = hash_func(client_key).digest()
 
         val = cls(
+            owner=owner,
+            username=username,
             algorithm=alg,
             salt=salt,
             server_key=server_key,
@@ -151,3 +152,31 @@ class SCRAMCredentials(models.Model):
     @staticmethod
     def b64string(val: bytes) -> str:
         return base64.b64encode(val).decode("ascii")
+
+
+def new_credentials(owner):
+    username = rand_username(owner)
+
+    alphabet = string.ascii_letters + string.digits
+    rand_password = "".join(secrets.choice(alphabet) for i in range(32))
+    rand_salt = secrets.token_bytes(32)
+    creds = SCRAMCredentials.generate(
+        owner=owner,
+        username=username,
+        password=rand_password,
+        alg=SCRAMAlgorithm.SHA512,
+        salt=rand_salt,
+    )
+    creds.save()
+    return (creds, username, rand_password)
+
+
+def rand_username(owner: User) -> str:
+    """ Return a random username. It's the user's domain-less email address,
+    suffixed with 8 random hex characters.
+
+    For example, 'swnelson@uw.edu' might get 'swnelson-03ea65d4'.
+    """
+    owner_emailname = owner.email.split("@")[0]
+    rand_username_suffix = secrets.token_hex(nbytes=4)
+    return f"{owner_emailname}-{rand_username_suffix}"
