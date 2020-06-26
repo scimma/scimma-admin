@@ -10,4 +10,4 @@ RUN pip install -r /tmp/requirements.txt
 COPY . /app
 
 WORKDIR /app/scimma_admin
-CMD gunicorn scimma_admin.wsgi:application --bind 0.0.0.0:8000
+CMD gunicorn scimma_admin.wsgi:application --bind 0.0.0.0:8000 --access-logfile='-'

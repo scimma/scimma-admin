@@ -1,3 +1,4 @@
+from django.core.exceptions import SuspiciousOperation
 from mozilla_django_oidc import auth
 import logging
 
@@ -16,6 +17,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         return claims['vo_display_name']
 
     def verify_claims(self, claims):
+        logger.info(f"all claims: {claims}")
         for group in ['kafkaUsers', 'SCiMMA Institute Active Members']:
             if not is_member_of(claims, group):
                 name = claims.get('vo_display_name', 'Unknown')
@@ -33,9 +35,10 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         self.UserModel.objects.create(
             username=claims["vo_person_id"],
             email=claims["email"],
-            is_staff=is_member_of(claim, 'CO:COU:SCiMMA DevOps:members:active'),
+            is_staff=is_member_of(claims, 'CO:COU:SCiMMA DevOps:members:active'),
         )
 
 
 def is_member_of(claims, group):
-    return group in claims['is_member_of']
+    logger.info(f"all claims: {claims}")
+    return group in claims.get('is_member_of', [])
