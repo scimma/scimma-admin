@@ -1,8 +1,12 @@
 from django.core.exceptions import SuspiciousOperation
 from mozilla_django_oidc import auth
+from django.contrib import messages
 import logging
+import secrets
+
 
 logger = logging.getLogger(__name__)
+
 
 class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
     """Subclass Mozilla's OIDC Auth backend for custom hopskotch behavior. """
@@ -18,6 +22,11 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
     def verify_claims(self, claims):
         logger.info(f"all claims: {claims}")
+        if "is_member_of" not in claims:
+            log_event_id = secrets.token_hex(8)
+            messages.error("Your account is missing LDAP claims. Are you sure you used the account you use for SCIMMA? Error ID: {log_event_id}")
+            logger.error("account is missing LDAP claims, error_id={log_event_id}, claims={claims}")
+
         for group in ['kafkaUsers', 'SCiMMA Institute Active Members']:
             if not is_member_of(claims, group):
                 name = claims.get('vo_display_name', 'Unknown')
