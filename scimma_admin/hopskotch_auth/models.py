@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
+from dataclasses import dataclass
 
 import secrets
 import string
@@ -154,6 +155,14 @@ class SCRAMCredentials(models.Model):
         return base64.b64encode(val).decode("ascii")
 
 
+def delete_credentials(user, cred_username):
+    creds = SCRAMCredentials.objects.get(
+        username=cred_username,
+        owner_id=user.id,
+    )
+    creds.delete()
+
+
 def new_credentials(owner):
     username = rand_username(owner)
 
@@ -168,7 +177,20 @@ def new_credentials(owner):
         salt=rand_salt,
     )
     creds.save()
-    return (creds, username, rand_password)
+    bundle = CredentialGenerationBundle(
+        creds=creds,
+        username=username,
+        password=rand_password,
+    )
+    return bundle
+
+
+@dataclass
+class CredentialGenerationBundle:
+    """ The collection of data generated ephemerally for new user credentials. """
+    creds: SCRAMCredentials
+    username: str
+    password: str
 
 
 def rand_username(owner: User) -> str:

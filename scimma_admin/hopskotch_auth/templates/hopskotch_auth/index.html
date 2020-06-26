@@ -23,8 +23,29 @@
    col#cred-action {
        width: 20%
    }
+
+   .messages {
+       width: 80%;
+       border: 1px solid darkred;
+       background-color: lightgrey;
+   }
+   li.error, li.warning {
+       background-color: orange;
+   }
+
   </style>
   <body>
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+        {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+        {{ message }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
     {% if user.is_authenticated %}
     <h1>SCIMMA Auth</h1>
     <section class="logged-in-status">
@@ -57,6 +78,7 @@
             <td>
               <form action="{% url 'delete' %}">
                 {% csrf_token %}
+                <input type="hidden" value="{{ cred.username }}" name="cred_username">
                 <input type="submit" value="delete">
               </form>
             </td>

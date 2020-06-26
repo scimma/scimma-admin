@@ -1,10 +1,12 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.views.decorators.http import require_POST
 
-from .models import new_credentials
+from .models import new_credentials, delete_credentials
 
 import logging
 
@@ -33,14 +35,31 @@ def logout(request):
 @require_POST
 @login_required
 def create(request):
-    creds, username, rand_password = new_credentials(request.user)
+    bundle = new_credentials(request.user)
     return render(
         request, 'hopskotch_auth/create.html',
-        dict(username=username, password=rand_password),
+        dict(username=bundle.username, password=bundle.password),
     )
-
 
 
 @login_required
 def delete(request):
-    return HttpResponse("not implemented")
+    cred_username = request.GET.get('cred_username')
+    if cred_username is None:
+        logger.error(f"missing cred_username parameter in delete request")
+        messages.error(request, "missing cred_username parameter in delete request")
+        return redirect("index")
+
+    try:
+        delete_credentials(request.user, cred_username)
+    except ObjectDoesNotExist:
+        messages.error(request, "no such username found for your user")
+        return redirect("index")
+    except MultipleObjectsReturned:
+        messages.error(request, "Multiple credentials found with that username. Please report this to swnelson@uw.edu.")
+        return redirect("index")
+
+    logger.info(f"deleted creds associated with username: {cred_username}")
+    messages.info(request, f"deleted credentials with username {cred_username}")
+
+    return redirect("index")

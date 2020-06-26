@@ -1,5 +1,6 @@
 version: '3'
 
+# NB: Only use this during development.
 services:
   django:
     build: .
