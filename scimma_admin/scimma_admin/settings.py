@@ -114,24 +114,33 @@ if PRODUCTION:
     }
 else:
     DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres',
+        'USER': 'postgres',
+        'PASSWORD': 'postgres',
+        'HOST': 'db',
+        'PORT': 5432,
     }
 
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
+if PRODUCTION:
+    AUTHENTICATION_BACKENDS = (
+        'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
+    )
+    OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
+    OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
+    OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
+    OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
+    OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+    OIDC_RP_SIGN_ALGO = 'RS256'
+    OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
+else:
+    AUTHENTICATION_BACKENDS = (
+        'django.contrib.auth.backends.ModelBackend',
+    )
 
-AUTHENTICATION_BACKENDS = (
-    'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
-)
-OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
-OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
-OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
-OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
-OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
-OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 
 LOGIN_URL ='/hopauth/login'
 LOGIN_REDIRECT_URL = '/hopauth'
