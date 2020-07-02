@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import os
 import boto3
 import requests
+import configparser
 
 
 def get_secret(name):
@@ -26,6 +27,20 @@ def get_rds_db(db_instance_id):
         {"Name": "db-instance-id", "Values": [db_instance_id]},
     ])
     return resp['DBInstances'][0]
+
+
+def get_localdev_secret(name):
+    """Load a secret which has been stored in the localdev.conf INI file at the root
+    of the repo. This file's contents are set with 'make localdev-setup', using
+    the scripts/setup_localdev_secrets.py script.
+
+    """
+    cp = configparser.ConfigParser()
+    conf_file = os.path.join(os.path.dirname(BASE_DIR), "localdev.conf")
+    print(conf_file)
+    cp.read(os.path.join(conf_file))
+    print(cp.sections())
+    return cp["secrets"][name]
 
 
 PRODUCTION = os.getenv("SCIMMA_ADMIN_PROD") is not None
@@ -125,21 +140,20 @@ else:
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
+OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
+OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+OIDC_RP_SIGN_ALGO = 'RS256'
+OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
+AUTHENTICATION_BACKENDS = (
+    'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
+)
 if PRODUCTION:
-    AUTHENTICATION_BACKENDS = (
-        'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
-    )
     OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
     OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
-    OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
-    OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
-    OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
-    OIDC_RP_SIGN_ALGO = 'RS256'
-    OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 else:
-    AUTHENTICATION_BACKENDS = (
-        'django.contrib.auth.backends.ModelBackend',
-    )
+    OIDC_RP_CLIENT_ID = 'cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
+    OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
 
 
 LOGIN_URL ='/hopauth/login'
