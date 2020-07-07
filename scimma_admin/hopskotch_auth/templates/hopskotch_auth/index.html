@@ -49,7 +49,7 @@
     {% if user.is_authenticated %}
     <h1>SCIMMA Auth</h1>
     <section class="logged-in-status">
-      <p>Current user: {{ user.email }}</p>
+      <p>Current user: {{ user.email }} ({{ user.username }})</p>
       <form action="{% url 'oidc_logout' %}" method="post">
         {% csrf_token %}
         <input type="submit" value="logout">

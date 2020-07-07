@@ -12,13 +12,13 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
     """Subclass Mozilla's OIDC Auth backend for custom hopskotch behavior. """
 
     def filter_users_by_claims(self, claims):
-        email = claims.get("email")
-        if isinstance(email, list):
-            claims["email"] = email[0]
-        return super(HopskotchOIDCAuthenticationBackend, self).filter_users_by_claims(claims)
+        username = claims.get("vo_person_id")
+        if not username:
+            return self.UserModel.objects.none()
+        return self.UserModel.objects.filter(username=username)
 
     def get_username(self, claims):
-        return claims['vo_display_name']
+        return claims.get("vo_person_id")
 
     def verify_claims(self, claims):
         logger.info(f"all claims: {claims}")
