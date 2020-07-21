@@ -64,6 +64,7 @@ DEBUG = not PRODUCTION
 if PRODUCTION:
     ALLOWED_HOSTS = [
         'admin.dev.hop.scimma.org',
+        'admin-k8s.dev.hop.scimma.org',
         requests.get("http://169.254.169.254/latest/meta-data/local-ipv4").text
     ]
 else:
