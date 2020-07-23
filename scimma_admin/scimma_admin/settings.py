@@ -61,14 +61,10 @@ else:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = not PRODUCTION
 
-if PRODUCTION:
-    ALLOWED_HOSTS = [
-        'admin.dev.hop.scimma.org',
-        'admin-k8s.dev.hop.scimma.org',
-        requests.get("http://169.254.169.254/latest/meta-data/local-ipv4").text
-    ]
-else:
-    ALLOWED_HOSTS = []
+# This looks scary, but it's OK because we always run behind a load balancer
+# which verifies the HTTP Host header for us. In production, that's an EKS Load
+# Balancer.
+ALLOWED_HOSTS = ["*"]
 
 # Application definition
 
