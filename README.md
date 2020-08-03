@@ -5,6 +5,8 @@
 You'll need AWS credentials. Install
 [`scimma-aws`](https://github.com/scimma/scimma-aws-utils) first.
 
+If you will develop on Windows OS, you will have issues with uWSGI package in requirements.txt. You can remove it and download uwsgi.exe. For running makefiles on Windows, you will need to download MinGW (the easy way) or Cygwin. 
+
 ## Local Development: first-time setup
 
 Run `make localdev-setup`. This will download a few secrets from AWS, which will

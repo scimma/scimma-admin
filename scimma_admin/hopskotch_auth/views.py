@@ -5,6 +5,8 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.views.decorators.http import require_POST
+from wsgiref.util import FileWrapper
+from io import StringIO
 
 from .models import new_credentials, delete_credentials
 
@@ -63,3 +65,14 @@ def delete(request):
     messages.info(request, f"deleted credentials with username {cred_username}")
 
     return redirect("index")
+
+@login_required
+def download(request):
+    myfile = StringIO()
+    myfile.write("username,password\n")
+    myfile.write(f"{request.POST["username"]},{request.POST["password"]}")       
+    myfile.flush()
+    myfile.seek(0) # move the pointer to the beginning of the buffer
+    response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
+    response['Content-Disposition'] = 'attachment; filename=hop-credentials.csv'    
+    return response
