@@ -5,7 +5,7 @@
 You'll need AWS credentials. Install
 [`scimma-aws`](https://github.com/scimma/scimma-aws-utils) first.
 
-If you will develop on Windows OS, you will have issues with uWSGI package in requirements.txt. You can remove it and download uwsgi.exe. For running makefiles on Windows, you will need to download MinGW (the easy way) or Cygwin. 
+If you will develop on Windows OS, you will have issues with uWSGI package in requirements.txt. You can remove it and download uwsgi.exe. For running makefiles on Windows, you will need to download MinGW (the easy way) or Cygwin.
 
 ## Local Development: first-time setup
 
@@ -33,4 +33,17 @@ a new terminal. Run this:
 
 ```
 docker-compose exec django python manage.py test
+```
+
+## Deploying a new version
+
+
+This project is deployed on SCIMMA's Kubernetes cluster through
+https://github.com/scimma/aws-dev. To deploy a new version, you have to build
+the docker container, push it to our container registry, and then update the
+Kubernetes cluster. You can do this all in one pass by running [`./scripts/deploy/do_deploy.sh`](./scripts/deploy/do_deploy.sh).
+
+Check the logs of your deployment with this:
+```
+kubectl logs -f -l appName=hopdevel-scimma-admin
 ```

@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail
 aws ecr \
     get-login-password \
     --region us-west-2 \
