@@ -70,7 +70,7 @@ def delete(request):
 def download(request):
     myfile = StringIO()
     myfile.write("username,password\n")
-    myfile.write(f"{request.POST["username"]},{request.POST["password"]}")       
+    myfile.write(f"{request.POST['username']},{request.POST['password']}")       
     myfile.flush()
     myfile.seek(0) # move the pointer to the beginning of the buffer
     response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
