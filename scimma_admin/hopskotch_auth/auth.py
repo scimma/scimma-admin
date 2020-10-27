@@ -31,7 +31,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
             logger.error(f"account is missing LDAP claims, error_id={log_event_id}, claims={claims}")
             raise PermissionDenied(msg)
 
-        for group in ['kafkaUsers', 'SCiMMA Institute Active Members']:
+        for group in ['kafkaUsers']:
             if not is_member_of(claims, group):
                 name = claims.get('vo_display_name', 'Unknown')
                 id = claims.get('vo_person_id', 'Unknown')
