@@ -1,62 +1,27 @@
+{% extends "hopskotch_auth/base.html" %}
+
 {% load tz %}
 
-<html>
-  <style>
-   table {
+{% block page-style %}
+    table {
        width: 640px;
-   }
-   td.info  {
-       text-align: center;
-   }
-   th, td {
-       border: 1px solid black;
-   }
-   td form {
-       margin: 0;
-   }
-   col#cred-username {
+    }
+    col#cred-username {
        width: 40%;
-   }
-   col#cred-created-on {
+    }
+    col#cred-created-on {
        width: 40%;
-   }
-   col#cred-action {
+    }
+    col#cred-action {
        width: 20%
-   }
+    }
+{% endblock %}
 
-   .messages {
-       width: 80%;
-       border: 1px solid darkred;
-       background-color: lightgrey;
-   }
-   li.error, li.warning {
-       background-color: orange;
-   }
+{% block page-header %}SCIMMA Auth{% endblock %}
 
-  </style>
-  <body>
-    {% if messages %}
-    <ul class="messages">
-      {% for message in messages %}
-      <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
-        {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
-        {{ message }}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if user.is_authenticated %}
-    <h1>SCIMMA Auth</h1>
-    <section class="logged-in-status">
-      <p>Current user: {{ user.email }} ({{ user.username }})</p>
-      <form action="{% url 'oidc_logout' %}" method="post">
-        {% csrf_token %}
-        <input type="submit" value="logout">
-      </form>
-    </section>
+{% block page-body %}
     <section class="creds-list">
-      <h2>active credentials</h2>
+      <h2>Active credentials</h2>
       <table>
         <thead>
           <colgroup>
@@ -76,10 +41,14 @@
             <td>{{ cred.username }}</td>
             <td>{{ cred.created_at|localtime }}</td>
             <td>
+              <form action="{% url 'edit_credential' %}" method="get">
+                <input type="hidden" value="{{ cred.username }}" name="cred_username">
+                <input type="submit" value="Edit">
+              </form>
               <form action="{% url 'delete' %}">
                 {% csrf_token %}
                 <input type="hidden" value="{{ cred.username }}" name="cred_username">
-                <input type="submit" value="delete">
+                <input type="submit" value="Delete">
               </form>
             </td>
           </tr>
@@ -92,16 +61,69 @@
       </table>
     </section>
     <section class="create">
-      <h2>create credentials</h2>
+      <h2>Create credentials</h2>
       <p>Click below to create a new set of Kafka credentials.</p>
       <p>A username and password will be generated for you.</p>
       <form action="{% url 'create' %}" method="post">
         {% csrf_token %}
-        <input type="submit" value="create new credentials">
+        <input type="submit" value="Create new credentials">
       </form>
     </section>
-    {% else %}
-    <a href="{% url 'oidc_authentication_init' %}">Login</a>
+    <section class="groups-list">
+      <h2>Group memberships</h2>
+      <table>
+        <thead>
+          <colgroup>
+            <col id="group-name">
+            <col id="group-status">
+          </colgroup>
+          <tr>
+            <th>Group Name</th>
+            <th>Membership Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for membership in memberships %}
+          <tr>
+            <td>{{ membership.group_name }}</td>
+            <td>{{ membership.status }}</td>
+            <td>
+                {% if membership.status|stringformat:"s" == "Owner" %}
+                <form action="{% url 'edit_group' %}" method="get">
+                    <input type="hidden" name="group_id" value="{{ membership.group_id }}">
+                    <input type="submit" value="Edit">
+                </form>
+                {% endif %}
+                {% if request.user.is_staff %}
+                <form action="{% url 'delete_group' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="group_id" value="{{ membership.group_id }}">
+                    <input type="submit" value="Delete">
+                </form>
+                {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td class="info" colspan="3">This account does not currently belong to any groups</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% if user.is_staff %}
+    <section class="group-management">
+      <h2>Manage groups</h2>
+      <form action="{% url 'group_management' %}" method="get">
+          <input type="submit" value="Manage Groups">
+      </form>
+    </section>
+    <section class="cred-management">
+      <h2>Manage credentials</h2>
+      <form action="{% url 'credential_management' %}" method="get">
+          <input type="submit" value="Manage Credentials">
+      </form>
+    </section>
     {% endif %}
-  </body>
-</html>
+{% endblock %}

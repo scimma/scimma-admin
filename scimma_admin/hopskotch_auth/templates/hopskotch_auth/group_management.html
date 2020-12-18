@@ -1,0 +1,56 @@
+{% extends "hopskotch_auth/base.html" %}
+
+{% block page-header %}<a href="{% url 'index' %}">SCIMMA Auth</a>: Group management{% endblock %}
+
+{% block page-body %}
+        <section class="groups-list">
+            <h2>Existing Groups</h2>
+            <table>
+                <thead>
+                    <colgroup>
+                        <col id="group-name">
+                        <col id="group-edit">
+                        <col id="group-delete">
+                        </colgroup>
+                    <tr>
+                        <th>Group Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in groups %}
+                    <tr>
+                        <td>{{ group.name }}</td>
+                        <td>
+                            <form action="{% url 'edit_group' %}" method="get">
+                                <input type="hidden" name="group_id" value="{{ group.id }}">
+                                <input type="submit" value="Edit">
+                            </form>
+                        </td>
+                        <td>
+                            <form action="{% url 'delete_group' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="group_id" value="{{ group.id }}">
+                                <input type="submit" value="Delete">
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="info" colspan="3">There are currently no groups</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+        <section class="new-group">
+            <h2>Create new group</h2>
+            <form action="{% url 'create_group' %}" method="post">
+                {% csrf_token %}
+                <label class="required" for="id_name">Group Name</label>
+                <input type="text" name="name" class="vTextField" maxlength="256" required id="id_name">
+                <button type="submit" name="create" id="create">Create</button>
+            </form>
+        </section>
+        
+{% endblock %}

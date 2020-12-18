@@ -1,0 +1,58 @@
+{% load tz %}
+
+<html>
+    <style>
+        .messages {
+            width: 80%;
+            border: 1px solid darkred;
+            background-color: lightgrey;
+        }
+        li.error, li.warning {
+            background-color: orange;
+        }
+        td.info  {
+           text-align: center;
+        }
+        th, td {
+            border: 1px solid black;
+            padding-left: 1em;
+            padding-right: 1em;
+        }
+        td form {
+           margin: 0;
+           display: inline-block;
+        }
+        form#logout {
+           display: inline-block;
+        }
+        {% block page-style %}
+        {% endblock %}
+    </style>
+    <body>
+        {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+                {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+                {{ message }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        
+        <h1>{% block page-header %}{% endblock %}</h1>
+        {% if user.is_authenticated %}
+        <section class="logged-in-status">
+            Current user: {{ user.email }} ({{ user.username }})
+            <form id="logout" action="{% url 'oidc_logout' %}" method="post">
+                {% csrf_token %}
+                <input type="submit" value="Log out">
+            </form>
+        </section>
+        {% block page-body %}
+        {% endblock %}
+        {% else %} {# Not authenticated #}
+        <a href="{% url 'oidc_authentication_init' %}">Log in</a>
+        {% endif %}
+    </body>
+</html>

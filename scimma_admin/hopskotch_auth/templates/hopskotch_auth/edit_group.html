@@ -1,0 +1,128 @@
+{% extends "hopskotch_auth/base.html" %}
+
+{% block page-header %}<a href="{% url 'index' %}">SCIMMA Auth</a>: Edit Group: {{ group.name }}{% endblock %}
+
+{% block page-body %}
+        <section class="members-list">
+            <h2>Current Members</h2>
+            <table>
+                <thead>
+                    <colgroup>
+                        <col id="user-name">
+                        <col id="user-status">
+                        <col id="user-change">
+                        <col id="user-remove">
+                    </colgroup>
+                    <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>Change Status</th>
+                        <th>Remove</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for membership in memberships %}
+                    <tr>
+                        <td>{{ membership.user_name }} ({{ membership.user_email }})</td>
+                        <td>{{ membership.status }}</td>
+                        <td>
+                            <form action="{% url 'change_membership_status' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="group_id" value="{{ group.id }}">
+                                <input type="hidden" name="user_id" value="{{ membership.user_id }}">
+                                <select name="status">
+                                    <option value="Member">Member</option>
+                                    <option value="Owner">Owner</option>
+                                </select>
+                                <input type="submit" value="Change">
+                            </form>
+                        </td>
+                        <td>
+                            <form action="{% url 'remove_user' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="group_id" value="{{ group.id }}">
+                                <input type="hidden" name="user_id" value="{{ membership.user_id }}">
+                                <input type="submit" value="Remove">
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="info" colspan="4">This group has no members</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+        <section>
+            <h2>Add Member</h2>
+            <form action="{% url 'change_membership_status' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="group_id" value="{{ group.id }}">
+                <select name="user_id">
+                    {% for user in all_users %}
+                    <option value="{{ user.id }}">{{ user.username }} ({{ user.email }})</option>
+                    {% endfor %}
+                </select>
+                <select name="status">
+                    <option value="Member">Member</option>
+                    <option value="Owner">Owner</option>
+                </select>
+                <input type="submit" value="Add user">
+            </form>
+        </section>
+        
+        <section class="topics-list">
+            <h2>Topics</h2>
+            <table>
+                <thead>
+                    <colgroup>
+                        <col id="topic-name">
+                        <col id="topic-actions">
+                        <col id="topic-remove">
+                        </colgroup>
+                    <tr>
+                        <th>Topic</th>
+                        <th>Actions</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for topic in topics %}
+                    <tr>
+                        <td>{{ topic.name }}</td>
+                        <td>
+                            <form action="{% url 'edit_topic' %}" method="get">
+                                <input type="hidden" name="topic_id" value="{{ topic.id }}">
+                                <input type="submit" value="Edit">
+                            </form>
+                        </td>
+                        <td>
+                            <form action="{% url 'delete_topic' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="topic_id" value="{{ topic.id }}">
+                                <input type="submit" value="Delete">
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="info" colspan="4">This group has no Kafka topics</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+        <section>
+            <h2>Add Topic</h2>
+            <form action="{% url 'create_topic' %}" method="post">
+                {% csrf_token %}
+                <label class="required" for="id_name">Topic Name</label>
+                <input type="text" name="topic_name" class="vTextField" maxlength="249" required id="id_name">
+                <input type="hidden" name="group_id" value="{{ group.id }}">
+                <button type="submit" name="create">Create</button>
+            </form>
+        </section>
+{% endblock %}
