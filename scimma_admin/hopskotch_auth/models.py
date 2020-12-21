@@ -343,6 +343,24 @@ def removeKafkaPermissionForGroup(permission: GroupKafkaPermission, owning_group
     if permission.principal == owning_group_id: # refuse to take away access from the owning group
         return False
     permission.delete()
+    # clean up any uses by users in the group of this permission
+    for membership in GroupMembership.objects.filter(group_id=permission.principal):
+        user_creds = SCRAMCredentials.objects.filter(owner=membership.user)
+        user_memberships = GroupMembership.objects.filter(user=membership.user)
+        user_group_perms = {}
+        for cred in user_creds:
+            permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
+            # for each credential we must see if it has a permission which
+            # derives from the permission being removed
+            for cred_perm in permissions_to_check:
+                if cred_perm.parent!=permission:
+                    continue # great, this one is not affected by this change
+                # if affected, we need to check whether there is any other valid derivation for this 
+                # permission which could replace the one being removed
+                repairOrDeletePermission(cred_perm, 
+                                         lambda other_group_perm: other_group_perm==permission,
+                                         user_memberships, user_group_perms)
+
     return True
     
 
@@ -392,8 +410,8 @@ def decode_cred_permission(encoded: str):
 def supportingPermission(group_perm,cred_perm):
     if cred_perm.topic != group_perm.topic:
         return False
-    return group_perm.operation == KafkaPermission.All \
-      or cred_perm.operation == group_perm.operationt
+    return group_perm.operation == KafkaOperation.All \
+      or cred_perm.operation == group_perm.operation
 
 
 # returns tuples of (parent ID, topic ID, topic name, perm type)
@@ -428,4 +446,73 @@ def all_permissions_for_user(user):
             last=p
     
     return dedup
-                    
+
+
+# Find a new, non-excluded group permission which can support the given 
+# credential permission (permission), or delete it if none can be found.  
+# exclude is a callable which will be called with each relevant group permission 
+# whose return value should indicate whether it is to be ignored or not.
+# user_memberships should be the set of group memberships for the user who owns
+# permission
+# group_permissions is a cache of the permissions belonging to groups of which
+# the user is a member. It will be automatically updated. 
+def repairOrDeletePermission(permission, exclude, user_memberships, group_permissions):
+    amended = False
+    for membership in user_memberships:
+        # fetch permissions for this group if not already cached
+        if not membership.group_id in group_permissions:
+            group_permissions[membership.group_id] = GroupKafkaPermission.objects.filter(principal=membership.group_id)
+        for group_perm in group_permissions[membership.group_id]:
+            if exclude(group_perm):
+                continue # this is one of the permissions we cannot use
+            if supportingPermission(group_perm, permission):
+                # this other group permission is a valid substitute for the one which is 
+                #going away, so we can correct the credential permission instead of removing it
+                permission.parent = group_perm
+                permission.save()
+                amended = True
+                break
+        if amended:
+            break # if we fixed this permission we can stop working on it
+    if not amended:
+        # if we could not find a way to fix the permission we must delete it
+        permission.delete()
+    return amended
+
+
+# remove all permissions the given user recieved via the given group, either 
+# because the user is being removed from that group or the group is being
+# deleted entirely, retaining credential permissions if they can be equivalently 
+# constructed via another group permission
+def removeUserGroupPermissions(user_id, group_id):
+    # must check all credentials owned by this user
+    user_creds = SCRAMCredentials.objects.filter(owner=user_id)
+    print("User",user_id,"has",len(user_creds),"credentials")
+    # we will potentially need to know all other groups to which this user belongs
+    user_memberships = GroupMembership.objects.filter(user=user_id).exclude(group=group_id)
+    group_permissions = {} # a cache for permissions of groups to which the user belongs
+    for cred in user_creds:
+        permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
+        print(" credential",cred,"has",len(permissions_to_check),"permissions")
+        # for each credential we must see if it has a permission which derives from
+        # a group permission affected by this change
+        for permission in permissions_to_check:
+            print("  permission",permission,":",permission.parent.principal.id,group_id)
+            if permission.parent.principal.id!=int(group_id):
+                print("  permission",permission,"is not affected by this change")
+                continue # great, this one is not affected by this change 
+            # if affected, we need to check whether there is any other valid derivation for this 
+            # permission which could replace the one being removed
+            repairOrDeletePermission(permission, 
+                                     lambda group_perm: group_perm.principal==group_id,
+                                     user_memberships, group_permissions)
+
+
+# delete all permissions which refer to a given topic
+def deleteTopicPermissions(topic_id):
+    cred_perms = CredentialKafkaPermission.objects.filter(topic=topic_id)
+    for cred_perm in cred_perms:
+        cred_perm.delete()
+    group_perms = GroupKafkaPermission.objects.filter(topic=topic_id)
+    for group_perm in group_perms:
+        group_perm.delete()

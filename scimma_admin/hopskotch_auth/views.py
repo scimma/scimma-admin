@@ -215,6 +215,9 @@ def delete_group(request):
     
     try:
         group = Group.objects.get(id=request.POST["group_id"])
+        # clean up any permissions that users had by being in the group
+        for membership in GroupMembership.objects.filter(group_id=group.id):
+            removeUserGroupPermissions(membership.user, group.id)
         group_name = group.name
         group.delete()
         logger.info(f"Deleted group {group_name} with ID {group.id}")
@@ -360,13 +363,13 @@ def remove_user(request):
 
     try:
         membership = GroupMembership.objects.get(user_id=user_id, group_id=group_id)
-        # TODO: ccount for permissions changes resulting from the user no longer being in the group
+        removeUserGroupPermissions(user_id, group_id)
         membership.delete()
     except ObjectDoesNotExist as dne:
         # apparently we need do nothing
         pass
 
-    logger.info(f"Removed user {target_user.username} ({target_user.email}) from " \
+    logger.info(f"Removed user {target_user.username} ({target_user.email}) from" \
                 +f" group {group.name}")
     messages.info(request, "Removed user from group.")
     base_edit_url = reverse("edit_group")
@@ -547,6 +550,7 @@ def delete_topic(request):
         return redirect("index")
     
     topic_name = topic.name
+    deleteTopicPermissions(topic.id)
     topic.delete()
     logger.info(f"Deleted topic {topic_name}")
     messages.info(request, "Deleted topic \""+topic_name+'"')
