@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import secrets
 import string
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
@@ -219,6 +219,10 @@ class Group(models.Model):
         max_length=256,
         unique=True,
     )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, 
+        through='GroupMembership'
+    )
 
 
 class GroupMembership(models.Model):
@@ -236,22 +240,20 @@ class GroupMembership(models.Model):
     )
 
 
-def is_group_member(user, group):
-    try:
-        membership = GroupMembership.objects.get(user_id=user, group_id=group)
-        return membership.status == MembershipStatus.Member or membership.status == MembershipStatus.Owner
-    except ObjectDoesNotExist as dne:
-        # if there is no record the user is not in the group
-        return False
+def is_group_member(user_id, group_id) -> bool:
+    return GroupMembership.objects.filter(
+        models.Q(status=MembershipStatus.Member) | models.Q(status=MembershipStatus.Owner),
+        user_id=user_id,
+        group_id=group_id,
+    ).exists()
 
 
-def is_group_owner(user, group):
-    try:
-        membership = GroupMembership.objects.get(user_id=user, group_id=group)
-        return membership.status == MembershipStatus.Owner
-    except ObjectDoesNotExist as dne:
-        # if there is no record the user is not in the group and cannot be an owner
-        return False
+def is_group_owner(user_id, group_id) -> bool:
+    return GroupMembership.objects.filter(
+        models.Q(status=MembershipStatus.Owner),
+        user_id=user_id,
+        group_id=group_id,
+    ).exists()
 
 
 class KafkaTopic(models.Model):
@@ -302,15 +304,16 @@ class GroupKafkaPermission(models.Model):
         editable=False,
     )
 
+    def __eq__(self, other: GroupKafkaPermission) -> bool:
+        return self.principal==other.principal \
+           and self.topic==other.topic \
+           and self.operation==other.operation
 
-def equivalent_permission(p1: GroupKafkaPermission, 
-                          p2: GroupKafkaPermission) -> bool:
-    return p1.principal==p2.principal \
-           and p1.topic==p2.topic \
-           and p1.operation==p2.operation
+    def __hash__(self):
+        return hash((self.principal, self.topic, self.operation))
 
 
-def addKafkaPermissionForGroup(group_id: str, topic: KafkaTopic, operation: KafkaOperation):
+def add_kafka_permission_for_group(group_id: str, topic: KafkaTopic, operation: KafkaOperation):
     group = Group.objects.get(id=group_id)
     new_record = GroupKafkaPermission(principal=group, topic=topic, operation=operation)
     
@@ -318,8 +321,8 @@ def addKafkaPermissionForGroup(group_id: str, topic: KafkaTopic, operation: Kafk
     # redundant or some old ones need to be replaced
     existing = GroupKafkaPermission.objects.filter(principal=group_id, topic=topic.id)
     
-    if len(existing)>0:
-        if any(equivalent_permission(p, new_record) for p in existing):
+    if existing.exists():
+        if new_record in existing:
             # the exact permission we're trying to create already exists, 
             # so we can do nothing and declare success
             return
@@ -327,39 +330,41 @@ def addKafkaPermissionForGroup(group_id: str, topic: KafkaTopic, operation: Kafk
             # the existing permission is broader than the one being added,  
             # so we do not need to actually add it
             return
-        if operation==KafkaOperation.All:
-            # the new permission will supercede all existing permissions, so we remove them
-            for old in existing:
-                old.delete()
     
-    # any possible redundancy being resolved, we can now create the actual record
-    new_record.save()
+    # we do need to create a record
+    with transaction.atomic():
+        new_record.save()
+        # If we wrote an "All" permission, then clean up any other permissions since 
+        # they're redundant.
+        if existing.exists() and operation==KafkaOperation.All:
+            existing.delete()
 
 
-def removeKafkaPermissionForGroup(permission: GroupKafkaPermission, owning_group_id: str=None) -> bool:
+def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_group_id: str=None) -> bool:
     if owning_group_id is None:
         topic = permission.topic
         owning_group_id = topic.owning_group
     if permission.principal == owning_group_id: # refuse to take away access from the owning group
         return False
-    permission.delete()
-    # clean up any uses by users in the group of this permission
-    for membership in GroupMembership.objects.filter(group_id=permission.principal):
-        user_creds = SCRAMCredentials.objects.filter(owner=membership.user)
-        user_memberships = GroupMembership.objects.filter(user=membership.user)
-        user_group_perms = {}
-        for cred in user_creds:
-            permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
-            # for each credential we must see if it has a permission which
-            # derives from the permission being removed
-            for cred_perm in permissions_to_check:
-                if cred_perm.parent!=permission:
-                    continue # great, this one is not affected by this change
-                # if affected, we need to check whether there is any other valid derivation for this 
-                # permission which could replace the one being removed
-                repairOrDeletePermission(cred_perm, 
-                                         lambda other_group_perm: other_group_perm==permission,
-                                         user_memberships, user_group_perms)
+    with transaction.atomic():
+        permission.delete()
+        # clean up any uses by users in the group of this permission
+        for membership in GroupMembership.objects.filter(group_id=permission.principal):
+            user_creds = SCRAMCredentials.objects.filter(owner=membership.user)
+            user_memberships = GroupMembership.objects.filter(user=membership.user)
+            user_group_perms = {}
+            for cred in user_creds:
+                permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
+                # for each credential we must see if it has a permission which
+                # derives from the permission being removed
+                for cred_perm in permissions_to_check:
+                    if cred_perm.parent!=permission:
+                        continue # great, this one is not affected by this change
+                    # if affected, we need to check whether there is any other valid derivation for this 
+                    # permission which could replace the one being removed
+                    repair_or_delete_permission(cred_perm, 
+                                                lambda other_group_perm: other_group_perm==permission,
+                                                user_memberships, user_group_perms)
 
     return True
     
@@ -395,19 +400,18 @@ def encode_cred_permission(parent_id, topic_id, operation) -> str:
 
 # returns tuples of (parent ID, topic ID, operation type)
 def decode_cred_permission(encoded: str):
-    pattern = re.compile("([^"+cred_perm_encoding_separator+"]+)"+cred_perm_encoding_separator+"([^"+cred_perm_encoding_separator+"]+)"+cred_perm_encoding_separator+"([^"+cred_perm_encoding_separator+"]+)")
-    match = re.fullmatch(pattern, encoded)
-    if match is None or len(match.groups())!=3:
+    parts = encoded.split(cred_perm_encoding_separator, 3)
+    if len(parts) != 3:
         raise ValueError("Invalid encoded credential permission")
     try:
-        op = KafkaOperation[match[3]]
+        op = KafkaOperation[parts[2]]
     except KeyError:
         raise ValueError("Invalid encoded credential permission")
-    return (match[1],match[2],op)
+    return (parts[0], parts[1], op)
 
 
 # determine whether credential permission can be validly derived from the given group permission
-def supportingPermission(group_perm,cred_perm):
+def supporting_permission(group_perm: GroupKafkaPermission, cred_perm: CredentialKafkaPermission) -> bool:
     if cred_perm.topic != group_perm.topic:
         return False
     return group_perm.operation == KafkaOperation.All \
@@ -422,8 +426,8 @@ def all_permissions_for_user(user):
         group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
         for permission in group_permissions:
             if permission.operation==KafkaOperation.All:
-                for subpermission in KafkaOperation.__members__:
-                    possible_permissions.append((permission.id,permission.topic.id,permission.topic.name,subpermission))
+                for subpermission in KafkaOperation.__members__.items():
+                    possible_permissions.append((permission.id,permission.topic.id,permission.topic.name,subpermission[1]))
             else:
                 possible_permissions.append((permission.id,permission.topic.id,permission.topic.name,permission.operation))
     # sort and eliminate duplicates
@@ -433,11 +437,11 @@ def all_permissions_for_user(user):
     # between topic names and IDs this will place all matching topic IDs together in blocks 
     # in some order
     possible_permissions.sort(key=lambda p: p[2])
-
+    
     def equivalent(p1, p2):
         return p1[1] == p2[1] and p1[3]==p2[3];
-    
-    # lack of an obvious analogue to std::unique makes this awkward, and not in-place
+
+    # remove adjacent (practical) duplicates which have different permission IDs
     dedup = []
     last = None
     for p in possible_permissions:
@@ -456,8 +460,7 @@ def all_permissions_for_user(user):
 # permission
 # group_permissions is a cache of the permissions belonging to groups of which
 # the user is a member. It will be automatically updated. 
-def repairOrDeletePermission(permission, exclude, user_memberships, group_permissions):
-    amended = False
+def repair_or_delete_permission(permission, exclude, user_memberships, group_permissions):
     for membership in user_memberships:
         # fetch permissions for this group if not already cached
         if not membership.group_id in group_permissions:
@@ -465,54 +468,42 @@ def repairOrDeletePermission(permission, exclude, user_memberships, group_permis
         for group_perm in group_permissions[membership.group_id]:
             if exclude(group_perm):
                 continue # this is one of the permissions we cannot use
-            if supportingPermission(group_perm, permission):
+            if supporting_permission(group_perm, permission):
                 # this other group permission is a valid substitute for the one which is 
                 #going away, so we can correct the credential permission instead of removing it
                 permission.parent = group_perm
                 permission.save()
-                amended = True
-                break
-        if amended:
-            break # if we fixed this permission we can stop working on it
-    if not amended:
-        # if we could not find a way to fix the permission we must delete it
-        permission.delete()
-    return amended
+                return True
+    # if we could not find a way to fix the permission we must delete it
+    permission.delete()
+    return False
 
 
 # remove all permissions the given user recieved via the given group, either 
 # because the user is being removed from that group or the group is being
 # deleted entirely, retaining credential permissions if they can be equivalently 
 # constructed via another group permission
-def removeUserGroupPermissions(user_id, group_id):
+def remove_user_group_permissions(user_id, group_id):
     # must check all credentials owned by this user
     user_creds = SCRAMCredentials.objects.filter(owner=user_id)
-    print("User",user_id,"has",len(user_creds),"credentials")
     # we will potentially need to know all other groups to which this user belongs
     user_memberships = GroupMembership.objects.filter(user=user_id).exclude(group=group_id)
     group_permissions = {} # a cache for permissions of groups to which the user belongs
     for cred in user_creds:
         permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
-        print(" credential",cred,"has",len(permissions_to_check),"permissions")
         # for each credential we must see if it has a permission which derives from
         # a group permission affected by this change
         for permission in permissions_to_check:
-            print("  permission",permission,":",permission.parent.principal.id,group_id)
             if permission.parent.principal.id!=int(group_id):
-                print("  permission",permission,"is not affected by this change")
                 continue # great, this one is not affected by this change 
             # if affected, we need to check whether there is any other valid derivation for this 
             # permission which could replace the one being removed
-            repairOrDeletePermission(permission, 
-                                     lambda group_perm: group_perm.principal==group_id,
-                                     user_memberships, group_permissions)
+            repair_or_delete_permission(permission, 
+                                        lambda group_perm: group_perm.principal==group_id,
+                                        user_memberships, group_permissions)
 
 
 # delete all permissions which refer to a given topic
-def deleteTopicPermissions(topic_id):
-    cred_perms = CredentialKafkaPermission.objects.filter(topic=topic_id)
-    for cred_perm in cred_perms:
-        cred_perm.delete()
-    group_perms = GroupKafkaPermission.objects.filter(topic=topic_id)
-    for group_perm in group_perms:
-        group_perm.delete()
+def delete_topic_permissions(topic_id):
+    CredentialKafkaPermission.objects.filter(topic=topic_id).delete()
+    GroupKafkaPermission.objects.filter(topic=topic_id).delete()
