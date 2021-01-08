@@ -374,7 +374,7 @@ class CredentialKafkaPermission(models.Model):
         SCRAMCredentials,
         on_delete=models.CASCADE,
     )
-    # individual crentials derive their permissions from group permissions, 
+    # individual credentials derive their permissions from group permissions,
     # so we track that relationship in order to coordinate changes
     parent = models.ForeignKey(
         GroupKafkaPermission,
