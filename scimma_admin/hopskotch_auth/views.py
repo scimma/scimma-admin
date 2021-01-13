@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def redirect_with_error(request, operation, reason, redirect_to):
-    logger.info(f"Ignored request by user {request.user.username} ({request.user.email}. " \
-                + f"Operation={operation}, Reason={reason}")
+    logger.info(f"Ignored request by user {request.user.username} ({request.user.email}. "
+                f"Operation={operation}, Reason={reason}")
     messages.error(request, reason)
     return redirect(redirect_to)
 
@@ -53,9 +53,11 @@ def logout(request):
 @require_POST
 @login_required
 def create(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a new credential from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested "
+                f"to create a new credential from {request.META['REMOTE_ADDR']}")
     bundle = new_credentials(request.user)
-    logger.info(f"Created new credential {bundle.username} on behalf of user {request.user.username} ({request.user.email})")
+    logger.info(f"Created new credential {bundle.username} on behalf of user "
+                f"{request.user.username} ({request.user.email})")
     return render(
         request, 'hopskotch_auth/create.html',
         dict(username=bundle.username, password=bundle.password),
@@ -64,12 +66,12 @@ def create(request):
 
 @login_required
 def delete(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete credential " \
-                +request.GET.get("cred_username","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete credential "
+                f"{request.GET.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     cred_username = request.GET.get('cred_username')
     if cred_username is None:
-        return redirect_with_error(request, f"Delete a credential", 
+        return redirect_with_error(request, "Delete a credential", 
                                    "Missing cred_username parameter in delete request", 
                                    "index")
 
@@ -98,14 +100,15 @@ def download(request):
     myfile.seek(0) # move the pointer to the beginning of the buffer
     response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
     response['Content-Disposition'] = 'attachment; filename=hop-credentials.csv'
-    logger.info(f"Sent data for credential {request.POST['username']} to user " \
-                +"{request.user.username} ({request.user.email}) at "+request.META["REMOTE_ADDR"])
+    logger.info(f"Sent data for credential {request.POST['username']} to user "
+                f"{request.user.username} ({request.user.email}) at {request.META['REMOTE_ADDR']}")
     return response
 
 
 @login_required
 def group_management(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested the group management page from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested "
+                f"the group management page from {request.META['REMOTE_ADDR']}")
     
     # only staff can manage groups
     if not request.user.is_staff:
@@ -118,8 +121,8 @@ def group_management(request):
 @require_POST
 @login_required
 def create_group(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a group with name " \
-                +request.POST.get("name","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a group with name "
+                f"{request.POST.get('name','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     # only staff can create new groups
     if not request.user.is_staff:
@@ -147,8 +150,8 @@ def create_group(request):
 
 @login_required
 def edit_group(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit group ID " \
-                +request.GET.get("group_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit group ID "
+                f"{request.GET.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "group_id" in request.GET or len(request.GET["group_id"])==0:
         return redirect_with_error(request, "Edit a group", 
@@ -184,8 +187,8 @@ def edit_group(request):
 @require_POST
 @login_required
 def delete_group(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete group ID " \
-                +request.POST.get("group_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete group ID "
+                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     # only staff can delete groups
     if not request.user.is_staff:
@@ -215,7 +218,8 @@ def delete_group(request):
 
 @login_required
 def credential_management(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested the global credential management page from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested "
+                f"the global credential management page from {request.META['REMOTE_ADDR']}")
     
     # only staff can manage others' credentials
     if not request.user.is_staff:
@@ -231,10 +235,10 @@ def credential_management(request):
 @require_POST
 @login_required
 def change_membership_status(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to change user ID " \
-                +request.POST.get("user_id","<unset>")+"'s status in group ID " \
-                +request.POST.get("group_id","<unset>")+" to "+request.POST.get("status","<unset>") \
-                +" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to change user ID "
+                f"{request.POST.get('user_id','<unset>')}'s status in group ID "
+                f"{request.POST.get('group_id','<unset>')} to {request.POST.get('status','<unset>')}"
+                f" from {request.META['REMOTE_ADDR']}")
     
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
         return redirect_with_error(request, "Change a user's group membership status", 
@@ -291,9 +295,9 @@ def change_membership_status(request):
 @require_POST
 @login_required
 def remove_user(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to remove user ID " \
-                +request.POST.get("user_id","<unset>")+" from group ID " \
-                +request.POST.get("group_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to remove user ID "
+                f"{request.POST.get('user_id','<unset>')} from group ID "
+                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
         return redirect_with_error(request, "Remove a user from a group", 
@@ -335,8 +339,8 @@ def remove_user(request):
         # apparently we need do nothing
         pass
 
-    logger.info(f"Removed user {target_user.username} ({target_user.email}) from" \
-                +f" group {group.name}")
+    logger.info(f"Removed user {target_user.username} ({target_user.email}) from"
+                f" group {group.name}")
     messages.info(request, "Removed user from group.")
     base_edit_url = reverse("edit_group")
     return redirect(base_edit_url+"?group_id="+group_id)
@@ -345,9 +349,9 @@ def remove_user(request):
 @require_POST
 @login_required
 def create_topic(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a topic with name " \
-                +request.POST.get("topic_name","<unset>")+" owned by group ID " \
-                +request.POST.get("group_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a topic with name "
+                f"{request.POST.get('topic_name','<unset>')} owned by group ID "
+                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "group_id" in request.POST or not validate_topic_name(request.POST["group_id"]):
         return redirect_with_error(request, "Create a topic", 
@@ -392,8 +396,8 @@ def create_topic(request):
 
 @login_required
 def edit_topic(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit topic ID " \
-                +request.GET.get("topic_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit topic ID "
+                f"{request.GET.get('topic_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "topic_id" in request.GET:
         return redirect_with_error(request, "Edit a topic", 
@@ -429,9 +433,9 @@ def edit_topic(request):
 @require_POST
 @login_required
 def set_topic_public_read_access(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to set topic ID " \
-                +request.POST.get("topic_id","<unset>")+" public read access to " \
-                +request.POST.get("public","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to set topic ID "
+                f"{request.POST.get('topic_id','<unset>')} public read access to "
+                f"{request.POST.get('public','<unset>')} from {request.META['REMOTE_ADDR']}")
 
     if not "topic_id" in request.POST:
         return redirect_with_error(request, "Set public access to a topic", 
@@ -471,8 +475,8 @@ def set_topic_public_read_access(request):
 @require_POST
 @login_required
 def delete_topic(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete topic ID " \
-                +request.POST.get("topic_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete topic ID "
+                f"{request.POST.get('topic_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "topic_id" in request.POST:
         return redirect_with_error(request, "Delete a topic", 
@@ -502,10 +506,10 @@ def delete_topic(request):
 @require_POST
 @login_required
 def add_group_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to grant group ID " \
-                +request.POST.get("group_id","<unset>")+" " \
-                +request.POST.get("operation","<unset>")+" permission for topic ID " \
-                +request.POST.get("topic_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to grant group ID "
+                f"{request.POST.get('group_id','<unset>')} "
+                f"{request.POST.get('operation','<unset>')} permission for topic ID "
+                f"{request.POST.get('topic_id','<unset>')} from {request.META['REMOTE_ADDR']}")
                 
     if not "topic_id" in request.POST:
         return redirect_with_error(request, "Grant a group permission to access a topic", 
@@ -552,8 +556,8 @@ def add_group_permission(request):
 @require_POST
 @login_required
 def remove_group_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to revoke group permission with ID " \
-                +request.POST.get("perm_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to revoke group permission with ID "
+                f"{request.POST.get('perm_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "perm_id" in request.POST:
         return redirect_with_error(request, "Revoke a group's permission to access a topic", 
@@ -587,8 +591,8 @@ def remove_group_permission(request):
 
 @login_required
 def edit_credential(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit permissions for credential " \
-                +request.GET.get("cred_username","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit permissions for credential "
+                f"{request.GET.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "cred_username" in request.GET:
         return redirect_with_error(request, "Edit a credential", 
@@ -624,9 +628,9 @@ def edit_credential(request):
 @require_POST
 @login_required
 def add_credential_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to add a permission " \
-                +request.POST.get("perm","<unset>")+" to credential " \
-                +request.POST.get("cred_username","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to add a permission "
+                f"{request.POST.get('perm','<unset>')} to credential "
+                f"{request.POST.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     if not "cred_username" in request.POST:
         return redirect_with_error(request, "Add a permission to a credential", 
@@ -679,8 +683,8 @@ def add_credential_permission(request):
         messages.info(request, str(operation)+" permission for topic "+parent_perm.topic.name+" was already present")
     else:
         CredentialKafkaPermission.objects.create(principal=credential, parent=parent_perm, topic=parent_perm.topic, operation=operation)
-        logger.info("Added "+str(operation)+" permission for topic "+parent_perm.topic.name+" to credential "+credential.username)
-        messages.info(request, "Added "+str(operation)+" permission for topic "+parent_perm.topic.name)
+        logger.info(f"Added {str(operation)} permission for topic {parent_perm.topic.name} to credential {credential.username}")
+        messages.info(request, f"Added {str(operation)} permission for topic {parent_perm.topic.name}")
 
     base_edit_url = reverse("edit_credential")
     return redirect(base_edit_url+"?cred_username="+credential.username)
@@ -689,8 +693,8 @@ def add_credential_permission(request):
 @require_POST
 @login_required
 def remove_credential_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to remove a permission ID " \
-                +request.POST.get("perm_id","<unset>")+" from a credential from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to remove a permission ID "
+                f"{request.POST.get('perm_id','<unset>')} from a credential from {request.META['REMOTE_ADDR']}")
     
     if "perm_id" not in request.POST:
         return redirect_with_error(request, "Remove a permission from a credential", 
@@ -710,8 +714,8 @@ def remove_credential_permission(request):
     
     perm.delete()
 
-    logger.info(request, "Removed "+str(perm.operation)+" permission for topic "+perm.topic.name+" from credential "+perm.principal.username)
-    messages.info(request, "Removed "+str(perm.operation)+" permission for topic "+perm.topic.name)
+    logger.info(f"Removed {str(perm.operation)} permission for topic {perm.topic.name} from credential {perm.principal.username}")
+    messages.info(request, f"Removed {str(perm.operation)} permission for topic {perm.topic.name}")
     base_edit_url = reverse("edit_credential")
     return redirect(base_edit_url+"?cred_username="+perm.principal.username)
 
@@ -719,8 +723,8 @@ def remove_credential_permission(request):
 @require_POST
 @login_required
 def suspend_credential(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to suspend the credential with ID " \
-                +request.POST.get("cred_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to suspend the credential with ID "
+                f"{request.POST.get('cred_id','<unset>')} from {request.META['REMOTE_ADDR']}")
 
     # only staff can suspend credentials
     if not request.user.is_staff:
@@ -741,8 +745,8 @@ def suspend_credential(request):
     if not cred.suspended: 
         cred.suspended = True
         cred.save()
-        logger.info("Suspended credential "+cred.username)
-        messages.info(request, "Suspended credential "+cred.username)
+        logger.info(f"Suspended credential {cred.username}")
+        messages.info(request, f"Suspended credential {cred.username}")
 
     base_edit_url = reverse("edit_credential")
     return redirect(base_edit_url+"?cred_username="+cred.username)
@@ -751,8 +755,8 @@ def suspend_credential(request):
 @require_POST
 @login_required
 def unsuspend_credential(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to un-suspend the credential with ID " \
-                +request.POST.get("cred_id","<unset>")+" from "+request.META["REMOTE_ADDR"])
+    logger.info(f"User {request.user.username} ({request.user.email}) requested to un-suspend the credential with ID "
+                f"{request.POST.get('cred_id','<unset>')} from {request.META['REMOTE_ADDR']}")
 
     # only staff can unsuspend credentials
     if not request.user.is_staff:
@@ -773,8 +777,8 @@ def unsuspend_credential(request):
     if cred.suspended:
         cred.suspended = False
         cred.save()
-        logger.info("Un-suspended credential "+cred.username)
-        messages.info(request, "Un-suspended credential "+cred.username)
+        logger.info(f"Un-suspended credential {cred.username}")
+        messages.info(request, f"Un-suspended credential {cred.username}")
 
     base_edit_url = reverse("edit_credential")
     return redirect(base_edit_url+"?cred_username="+cred.username)
