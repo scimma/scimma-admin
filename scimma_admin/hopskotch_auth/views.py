@@ -353,7 +353,7 @@ def create_topic(request):
                 f"{request.POST.get('topic_name','<unset>')} owned by group ID "
                 f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
-    if not "group_id" in request.POST or not validate_topic_name(request.POST["group_id"]):
+    if not "group_id" in request.POST:
         return redirect_with_error(request, "Create a topic", 
                                    "Missing or invalid owning group ID", "index")
     

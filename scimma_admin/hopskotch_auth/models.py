@@ -395,7 +395,7 @@ cred_perm_encoding_separator=':'
 
 
 def encode_cred_permission(parent_id, topic_id, operation) -> str:
-    return str(parent_id)+cred_perm_encoding_separator+str(topic_id)+cred_perm_encoding_separator+str(operation)
+    return cred_perm_encoding_separator.join(map(str, [parent_id, topic_id, operation]))
 
 
 # returns tuples of (parent ID, topic ID, operation type)
