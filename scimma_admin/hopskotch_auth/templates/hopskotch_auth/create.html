@@ -1,5 +1,6 @@
-<html>
-  <style>
+{% extends "hopskotch_auth/base.html" %}
+
+{% block page-style %}
    div.credentials {
        background-color: lightyellow;
        border: 1px solid red;
@@ -10,17 +11,11 @@
    div.credentials pre {
        padding-left: 2em;
    }
+{% endblock %}
 
-  </style>
-  <body>
-    <h1>SCIMMA Auth</h1>
-    <section class="logged-in-status">
-      <p>Current user: {{ user.email }}</p>
-      <form action="{% url 'oidc_logout' %}" method="post">
-        {% csrf_token %}
-        <input type="submit" value="logout">
-      </form>
-    </section>
+{% block page-header %}<a href="{% url 'index' %}">SCIMMA Auth</a>{% endblock %}
+
+{% block page-body %}
     <section class="new-creds">
       <h2>New Credentials Generated</h2>
       <p>Here are your credentials.</p>
@@ -41,5 +36,4 @@
         <a href="{% url 'index' %}">Return to main page</a>
       </h3>
     </section>
-  </body>
-</html>
+{% endblock %}

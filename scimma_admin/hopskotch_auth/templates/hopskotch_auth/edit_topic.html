@@ -1,0 +1,93 @@
+{% extends "hopskotch_auth/base.html" %}
+
+{% block page-header %}<a href="{% url 'index' %}">SCiMMA Auth</a>: Topic management{% endblock %}
+
+{% block page-body %}
+        <h2>Topic {{ topic.name }} owned by group <a href="{% url 'edit_group' %}?group_id={{ owning_group.id }}">{{ owning_group.name }}</a></h2>
+        
+        <section class="members-list">
+            <h2>Active Group Permissions</h2>
+            <table>
+                <thead>
+                    <colgroup>
+                        <col id="perm-group">
+                        <col id="perm-type">
+                        <col id="perm-remove">
+                    </colgroup>
+                    <tr>
+                        <th>Group</th>
+                        <th>Permission</th>
+                        <th>Revoke</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for perm in permissions %}
+                    <tr>
+                        <td>{{ perm.group_name }}</td>
+                        <td>{{ perm.operation }}</td>
+                        <td>
+                            {% if perm.group_id != owning_group.id %}
+                            <form action="{% url 'remove_group_permission' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="perm_id" value="{{ perm.id }}">
+                                <input type="submit" value="Revoke">
+                            </form>
+                            {% else %}
+                            (Owning Group)
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="info" colspan="3">This topic has no permissions granted to any group</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+        <section>
+            <h2>Add Permission</h2>
+            <form action="{% url 'add_group_permission' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="topic_id" value="{{ topic.id }}">
+                <select name="group_id">
+                    {% for group in all_groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+                <select name="operation">
+                    {% for operation in operations %}
+                    <option value="{{ operation }}">{{ operation }}</option>
+                    {% endfor %}
+                </select>
+                <input type="submit" value="Add permission">
+            </form>
+        </section>
+
+        <section>
+            <h2>Public read-access</h2>
+            This topic {% if topic.publicly_readable %}is{% else %}is not{% endif %} readable by all hopskotch users.
+            <form action="{% url 'set_topic_public_read_access' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="topic_id" value="{{ topic.id }}">
+                {% if topic.publicly_readable %}
+                <input type="hidden" name="public" value="False">
+                {% else %}
+                <input type="hidden" name="public" value="true">
+                {% endif %}
+                <input type="submit" value="{% if topic.publicly_readable %}Remove{% else %}Add{% endif %} public access">
+            </form>
+        </section>
+        
+        <section>
+            <h2>Delete Topic</h2>
+            <p>Danger! This cannot be undone!</p>
+            <form action="{% url 'delete_topic' %}"  method="post">
+                {% csrf_token %}
+                <input type="hidden" name="topic_id" value="{{ topic.id }}">
+                <input type="submit" value="Delete">
+            </form>
+        </section>
+        
+{% endblock %}

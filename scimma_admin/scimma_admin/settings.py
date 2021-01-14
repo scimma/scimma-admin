@@ -196,6 +196,9 @@ LOGGING = {
             'level': "DEBUG" if DEBUG else "INFO",
             'propagate': False,
         },
+        'django.db.backends': {
+            'level': "INFO",
+        },
     },
     'formatters': {
         'console': {
