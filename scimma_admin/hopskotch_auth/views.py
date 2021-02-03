@@ -458,7 +458,7 @@ def set_topic_public_read_access(request):
                                    "Requester is not a group owner or staff member", 
                                    "index")
     
-    topic.publicly_readable = bool(request.POST["public"])
+    topic.publicly_readable = request.POST["public"].lower()=='true'
     topic.save()
 
     message="Made topic "+topic.name
