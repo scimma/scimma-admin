@@ -4,7 +4,8 @@ This is a web tool for managing access to SCIMMA's Hopskotch system. The main
 deployment of it is at
 [https://admin.dev.hop.scimma.org/hopauth/](https://admin.dev.hop.scimma.org/hopauth/).
 At that URL, you can create, list, and revoke credentials which are used to
-access Hopskotch's Kafka system.
+access Hopskotch's Kafka system. For more information on usage, see [the
+guide](./doc/hopauth_guide.md).
 
 ## Design
 
