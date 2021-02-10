@@ -333,11 +333,11 @@ def add_kafka_permission_for_group(group_id: str, topic: KafkaTopic, operation: 
     
     # we do need to create a record
     with transaction.atomic():
-        new_record.save()
-        # If we wrote an "All" permission, then clean up any other permissions since 
+        # If adding an "All" permission, clean up any other permissions, since
         # they're redundant.
         if existing.exists() and operation==KafkaOperation.All:
             existing.delete()
+        new_record.save()
 
 
 def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_group_id: str=None) -> bool:
