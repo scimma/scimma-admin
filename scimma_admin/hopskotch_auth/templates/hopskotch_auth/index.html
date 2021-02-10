@@ -119,6 +119,12 @@
           <input type="submit" value="Manage Groups">
       </form>
     </section>
+    <section class="topic-management">
+      <h2>Manage topics</h2>
+      <form action="{% url 'topic_management' %}" method="get">
+          <input type="submit" value="Manage Topics">
+      </form>
+    </section>
     <section class="cred-management">
       <h2>Manage credentials</h2>
       <form action="{% url 'credential_management' %}" method="get">

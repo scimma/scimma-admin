@@ -14,6 +14,7 @@ urlpatterns = [
     path("create_group", views.create_group, name="create_group"),
     path("edit_group", views.edit_group, name="edit_group"),
     path("delete_group", views.delete_group, name="delete_group"),
+    path("topic_management", views.topic_management, name="topic_management"),
     path("credential_management", views.credential_management, name="credential_management"),
     path("change_membership_status", views.change_membership_status, name="change_membership_status"),
     path("remove_user", views.remove_user, name="remove_user"),

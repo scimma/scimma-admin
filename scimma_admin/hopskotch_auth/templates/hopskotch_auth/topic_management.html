@@ -1,0 +1,35 @@
+{% extends "hopskotch_auth/base.html" %}
+
+{% block page-header %}<a href="{% url 'index' %}">SCiMMA Auth</a>: Topic management{% endblock %}
+
+{% block page-body %}
+        <section class="topics-list">
+            <h2>Existing Topics</h2>
+            <table>
+                <thead>
+                    <colgroup>
+                        <col id="topic-owner">
+                        <col id="topic-name">
+                    </colgroup>
+                    <tr>
+                        <th>Owning Group</th>
+                        <th>Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% regroup topics by owning_group as owner_list %}
+                    {% for owning_group, topics in owner_list %}
+                    {% for topic in topics %}
+                    <tr>
+                        {% if forloop.first %} 
+                        <td rowspan="{{ topics|length }}"><a href="{% url 'edit_group' %}?group_id={{ owning_group.id }}">{{ owning_group.name }}</a></td>
+                        {% endif %}
+                        <td><a href="{% url 'edit_topic' %}?topic_id={{ topic.id }}">{{ topic.name }}</a></td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+{% endblock %}

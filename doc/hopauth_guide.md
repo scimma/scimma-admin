@@ -31,7 +31,8 @@ Hopskotch itself is intended to be accessed programmatically, so it uses additio
    7. [Granting Other Groups Access to Topics](#granting-other-groups-access-to-topics)
 3. [Hopauth for Administrators](#hopauth-for-ddministrators)
    1. [Creating Groups](#creating-groups)
-   2. [Viewing and Suspending Credentials](#viewing-and-suspending-credentials)
+   2. [Viewing Topics](#viewing-topics)
+   3. [Viewing and Suspending Credentials](#viewing-and-suspending-credentials)
 
 ## Hopskotch Concepts
 
@@ -156,6 +157,12 @@ Administrative group management is accessed via the 'Manage Groups' button on th
 From this page it is possible to see a complete list of all groups which currently exist, and to edit or delete each. Finally, at the bottom of the page is the group creation form, which requires only the name of the new group to be created. Group names must be unique and are limited to 256 characters. 
 
 After creating a new group, you will be automatically sent to the group's management page, which is the same as for other users. Administrators, however, automatically have the same capabilities to manage within a group as owners of the group. Since a newly created group has no owners, it is advisable that the admin who creates it should add at least one user to it as an owner, who will then be able to add other owners and regular members as needed. Otherwise, all members and topics for the group will have to be added by administrators. 
+
+### Viewing Topics
+
+Administrators can manage any topic via the owning group's management page. However, this is not convenient when the owning group is not known ahead of time. For this purpose, the administrator topic management page is provided, which simply contains a listing of all topics and the groups which own them, with links to manage either. This page is reached from the 'Manage Topics' button on the main page. 
+
+[![The admin topic management page, which lists all groups' topics](hopauth_screenshots/admin_topic_management.png)](hopauth_screenshots/admin_topic_management.png)
 
 ### Viewing and Suspending Credentials
 

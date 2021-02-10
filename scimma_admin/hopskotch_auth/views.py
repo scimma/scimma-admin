@@ -217,6 +217,23 @@ def delete_group(request):
 
 
 @login_required
+def topic_management(request):
+    logger.info(f"User {request.user.username} ({request.user.email}) requested "
+                f"the global topic management page from {request.META['REMOTE_ADDR']}")
+
+    # only staff can manage all topics
+    if not request.user.is_staff:
+        return redirect_with_error(request, "Access the topic management page",
+                                   "User is not a staff member", "index")
+    topics=list(KafkaTopic.objects.all().select_related("owning_group"))
+    topics.sort(key=lambda topic: topic.owning_group.name)
+    return render(
+        request, 'hopskotch_auth/topic_management.html',
+        dict(topics=topics)
+    )
+
+
+@login_required
 def credential_management(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
                 f"the global credential management page from {request.META['REMOTE_ADDR']}")
