@@ -28,12 +28,14 @@ def redirect_with_error(request, operation, reason, redirect_to):
 
 @login_required
 def index(request):
-    credentials = request.user.scramcredentials_set.all()
+    credentials = list(request.user.scramcredentials_set.all())
+    credentials.sort(key=lambda cred: cred.created_at)
     memberships = []
     for membership in request.user.groupmembership_set.all().select_related('group'):
         memberships.append({"group_id":membership.group.id,
                             "group_name":membership.group.name,
                             "status":membership.status})
+    memberships.sort(key=lambda m: m["group_name"])
     return render(
         request, 'hopskotch_auth/index.html',
         dict(credentials=credentials, memberships=memberships),
@@ -114,8 +116,10 @@ def group_management(request):
     if not request.user.is_staff:
         return redirect_with_error(request, "access the group management page", 
                                    "User is not a staff member", "index")
+    groups=list(Group.objects.all())
+    groups.sort(key=lambda g: g.name)
     return render(request, 'hopskotch_auth/group_management.html',
-                  dict(groups=Group.objects.all()))
+                  dict(groups=groups))
 
 
 @require_POST
@@ -174,13 +178,18 @@ def edit_group(request):
     for member in group.members.all():
         membership = member.groupmembership_set.get(group=group)
         memberships.append({"user_id":member.id,"user_name":member.username,"user_email":member.email,"status":membership.status})
+    memberships.sort(key=lambda m: m["user_email"])
     
-    all_users = get_user_model().objects.all().values("id","username","email")
+    all_users = list(get_user_model().objects.all().values("id","username","email"))
+    all_users.sort(key=lambda u: u["email"])
+
+    topics=list(KafkaTopic.objects.filter(owning_group=group_id))
+    topics.sort(key=lambda t: t.name)
 
     return render(
         request, "hopskotch_auth/edit_group.html",
         dict(group=group, memberships=memberships, all_users=all_users, 
-             topics=KafkaTopic.objects.filter(owning_group=group_id))
+             topics=topics)
     )
 
 
@@ -226,6 +235,7 @@ def topic_management(request):
         return redirect_with_error(request, "Access the topic management page",
                                    "User is not a staff member", "index")
     topics=list(KafkaTopic.objects.all().select_related("owning_group"))
+    topics.sort(key=lambda topic: topic.name)
     topics.sort(key=lambda topic: topic.owning_group.name)
     return render(
         request, 'hopskotch_auth/topic_management.html',
@@ -242,9 +252,12 @@ def credential_management(request):
     if not request.user.is_staff:
         return redirect_with_error(request, "Access the credential management page", 
                                    "User is not a staff member", "index")
+    credentials=list(SCRAMCredentials.objects.all().select_related("owner"))
+    credentials.sort(key=lambda cred: cred.username)
+    credentials.sort(key=lambda cred: cred.owner.username)
     return render(
         request, 'hopskotch_auth/credential_management.html',
-        dict(credentials=SCRAMCredentials.objects.all().select_related("owner"))
+        dict(credentials=credentials)
     )
 
 
@@ -437,13 +450,17 @@ def edit_topic(request):
     for perm in topic.groupkafkapermission_set.all().select_related("principal"):
         permissions.append({"group_name":perm.principal.name, "group_id":perm.principal.id, 
                            "operation":perm.operation, "id":perm.id})
+    permissions.sort(key=lambda p: p["operation"])
+    permissions.sort(key=lambda p: p["group_name"])
 
-    all_groups = Group.objects.all()
+    all_groups = list(Group.objects.all())
+    all_groups.sort(key=lambda g: g.name)
     operations = KafkaOperation.__members__.keys()
 
     return render(
         request, "hopskotch_auth/edit_topic.html",
-        dict(topic=topic, owning_group=owning_group, permissions=permissions, all_groups=all_groups, operations=operations)
+        dict(topic=topic, owning_group=owning_group, permissions=permissions, 
+             all_groups=all_groups, operations=operations)
         )
 
 
@@ -631,6 +648,8 @@ def edit_credential(request):
     permissions = []
     for perm in credential.credentialkafkapermission_set.all().select_related('topic'):
         permissions.append({"topic_name":perm.topic.name, "operation":perm.operation, "id":perm.id})
+    permissions.sort(key=lambda p: p["operation"])
+    permissions.sort(key=lambda p: p["topic_name"])
 
     possible_perms = []
     for perm in all_permissions_for_user(owner):
