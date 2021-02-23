@@ -1,17 +1,17 @@
-# An tate guide to running SCiMMA-Admin for local development
+# An alternate guide to running SCiMMA-Admin for local development
 
-This guide is an alternative to the recommendations in the top-level README for developing in Docker. This can be advantageos for more rapid iteration and greater ease of interfacing with other components. 
+This guide is an alternative to the recommendations in the top-level README for developing in Docker. This can be advantageous for more rapid iteration and greater ease of interfacing with other components. 
 
 Running the scimma-admin application locally without docker requires installing the application itself in a suitable python environment, supplying it with a PostgeSQL database where it can store its state, and a small trick to spoof user identification data in order to create test users to work with. 
 
 
 ## Installing scimma-admin itself
 
-Clone the code from github:
+Clone the code from Github:
 
 	git clone https://github.com/scimma/scimma-admin
 
-The main README says to use docker/docker-compose to run the application loally. This will _work_ but is not suitable for development for a couple of reasons: It is much more awkward to rapidly start and stop the service to test changes (the docker image must be rebuilt after every change), the partial isolation from the host's networking makes it harder to inject test user data (this would have to be added to the docker-compose configuration, with another container, which should be doable, but would require further work to figure out how), and on a non-Linux host this requires the overhead of running a the Docker Linux VM. Avoiding Docker requires additional up-front work, but allows for much faster iteration and seamless development. 
+The main README says to use docker/docker-compose to run the application locally. This will _work_ but is not suitable for development for a couple of reasons: It is much more awkward to rapidly start and stop the service to test changes (the docker image must be rebuilt after every change), the partial isolation from the host's networking makes it harder to inject test user data (this would have to be added to the docker-compose configuration, with another container, which should be doable, but would require further work to figure out how), and on a non-Linux host this requires the overhead of running a the Docker Linux VM. Avoiding Docker requires additional up-front work, but allows for much faster iteration and seamless development. 
 
 To run scimma-admin without a Docker container, a suitable python environment is required. One can create a virtual environment sharing the same directory:
 
@@ -81,7 +81,7 @@ This will run in the foreground, taking over your terminal window. It can be sto
 
 ## Accessing the web interface
 
-Once you have the application running, you should be able to view its inteface by opening http://127.0.0.1:8000/hopauth in your web browser. About the only thing you should see will be the 'Login' link. If this shows up everything is working, but there is one more key step to do before logging in.
+Once you have the application running, you should be able to view its interface by opening http://127.0.0.1:8000/hopauth in your web browser. About the only thing you should see will be the 'Login' link. If this shows up everything is working, but there is one more key step to do before logging in.
 
 In order to test out being different users, for example an admin user or a regular user, it's useful to replace the data scimma-admin would normally fetch from COmanage via CILogon with data of your own choosing. 
 
@@ -100,7 +100,7 @@ First, kill `uwsgi`. Next, make another small change to scimma_admin/settings.py
 	 OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 	 AUTHENTICATION_BACKENDS = (
 
-This will instruct it after a user authenticates via CILogon to feth the user's information from a local port (and not to require that connection to be authenticated/encrypted with TLS). 
+This will instruct it after a user authenticates via CILogon to fetch the user's information from a local port (and not to require that connection to be authenticated/encrypted with TLS). 
 
 Next, create some user data to serve: Make a text file named `user_data_test-admin`, and give it the following contents:
 
@@ -145,7 +145,7 @@ Sometimes the application is a bit squirrelly at this point, and after completin
 
 When you are in, you should see the main Hopauth page, with the user email address mentioned at the top being the one you put in the file being served by netcat (`test-admin@example.com`) instead of your own institutional email address. 
 
-Note that one disadvantage of netcat is that it will seerve the file exactly once, and then exit, so each time you log in again with a new browser session, you will need to run it again. 
+Note that one disadvantage of netcat is that it will serve the file exactly once, and then exit, so each time you log in again with a new browser session, you will need to run it again. 
 
 If you want to make up additional test users, just create more files similar to `user_data_test-admin` and serve the one you want to use with `nc` just before logging in to use it. When doing this note that you should change the `vo_person_id` to be distinct for each user, and give each user a unique email address. You will probably also want to set the `vo_display_name`s to be different, although scimma-admin will not  To make a non-admin user, omit the `"CO:COU:SCiMMA DevOps:members:active",` line from the `is_member_of` list. 
 
@@ -159,7 +159,7 @@ When you're done with all of this, simply kill `uwsgi` with Ctrl-C if it was run
 
 ## Starting back up
 
-Very little of the setup work needs to be repeated; it should be sufficeint to reenter your virtual environment, start postgres, and start `uwsgi`:
+Very little of the setup work needs to be repeated; it should be sufficient to reenter your virtual environment, start postgres, and start `uwsgi`:
 
 	. bin/activate
 	pg_ctl -D $(pwd)/dbdata -l pg_logfile start
