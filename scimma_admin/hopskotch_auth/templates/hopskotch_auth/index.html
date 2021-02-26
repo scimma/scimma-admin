@@ -1,44 +1,27 @@
 {% extends "hopskotch_auth/base.html" %}
-
 {% load bootstrap4 tz %}
+{% block title %}Home{% endblock %}
 
 {% block page-style %}
-    table {
-       width: 640px;
-    }
-    col#cred-username {
-       width: 40%;
-    }
-    col#cred-created-on {
-       width: 40%;
-    }
-    col#cred-action {
-       width: 20%
-    }
 {% endblock %}
 
-{% block page-header %}SCiMMA Auth{% endblock %}
+{% block page-header %}{% endblock %}
 
 {% block page-body %}
     <section class="creds-list">
       <h2>Active credentials</h2>
-      <table class="table table-hover">
-        <thead class="thead-light">
-          <colgroup>
-            <col id="cred-username">
-            <col id="cred-created-on">
-            <col id="cred-action">
-          </colgroup>
+      <table class="table table-hover table-bordered">
+        <thead>
           <tr>
-            <th>Kafka Username</th>
-            <th>Created On (Pacific Time)</th>
-            <th>Actions</th>
+            <th scope="col">Kafka Username</th>
+            <th scope="col">Created On (Pacific Time)</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for cred in credentials %}
           <tr>
-            <td>{{ cred.username }}</td>
+            <td scope="row">{{ cred.username }}</td>
             <td>{{ cred.created_at|localtime }}</td>
             <td>
               <form action="{% url 'edit_credential' %}" method="get">
@@ -54,7 +37,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td class="info" colspan="3">no existing credentials found</td>
+            <td class="info" colspan="3">No existing credentials found.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -108,7 +91,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td class="info" colspan="3">This account does not currently belong to any groups</td>
+            <td class="info" colspan="3">This account does not currently belong to any groups.</td>
           </tr>
           {% endfor %}
         </tbody>

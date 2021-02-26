@@ -6,7 +6,7 @@
         <link rel="stylesheet" href="{% static 'hopskotch_auth/css/main.css' %}">
         {% bootstrap_javascript jquery='True' %}
 
-        <title>SCIMMA Admin | {% block title %}{% endblock %}</title>
+        <title>SCIMMA Auth | {% block title %}{% endblock %}</title>
     </head>
     <style>
         .messages {
@@ -19,11 +19,6 @@
         }
         td.info  {
            text-align: center;
-        }
-        th, td {
-            border: 1px solid black;
-            padding-left: 1em;
-            padding-right: 1em;
         }
         td form {
            margin: 0;
@@ -38,6 +33,7 @@
     <body>
         <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
             <h1 class="text-light">
+                <a class="navbar-brand" href="/hopauth"><img src="{% static 'hopskotch_auth/img/logo_transparent.png' %}" class="img-fluid"> SCiMMA Auth</a>
                 {% block page-header %}
                 {% endblock %}
             </h1>
@@ -61,17 +57,7 @@
         </nav>
 
         <main class="container">
-            {% if messages %}
-            <ul class="messages">
-                {% for message in messages %}
-                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
-                    {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
-                    {{ message }}
-                </li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-
+            {% bootstrap_messages %}
             {% block page-body %}
             {% endblock %}
         </main>
