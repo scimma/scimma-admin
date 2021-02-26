@@ -8,3 +8,4 @@ passlib==1.7.2
 mozilla-django-oidc==1.2.3
 psycopg2-binary==2.8.5
 django-bootstrap4~=2.3
+whitenoise~=5.2
