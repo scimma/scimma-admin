@@ -10,6 +10,9 @@ RUN pip install -r /tmp/requirements.txt
 COPY . /app
 
 WORKDIR /app/scimma_admin
+
+RUN python manage.py collectstatic --noinput
+
 CMD uwsgi --chdir=/app/scimma_admin \
     --module=scimma_admin.wsgi:application \
     --env DJANGO_SETTINGS_MODULE=scimma_admin.settings \
