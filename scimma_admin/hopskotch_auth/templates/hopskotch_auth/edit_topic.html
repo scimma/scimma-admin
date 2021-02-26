@@ -1,23 +1,17 @@
 {% extends "hopskotch_auth/base.html" %}
 
-{% block page-header %}<a href="{% url 'index' %}">SCiMMA Auth</a>: Topic management{% endblock %}
+{% block title %}Edit Topic{% endblock %}
+{% block page-header %}Topic management: {{ topic.name }}{% endblock %}
 
-{% block page-body %}
-        <h2>Topic {{ topic.name }} owned by group <a href="{% url 'edit_group' %}?group_id={{ owning_group.id }}">{{ owning_group.name }}</a></h2>
-        
+{% block page-body %}       
         <section class="members-list">
             <h2>Active Group Permissions</h2>
-            <table>
+            <table class="table table-bordered table-hover">
                 <thead>
-                    <colgroup>
-                        <col id="perm-group">
-                        <col id="perm-type">
-                        <col id="perm-remove">
-                    </colgroup>
                     <tr>
-                        <th>Group</th>
-                        <th>Permission</th>
-                        <th>Revoke</th>
+                        <th scope="col">Group</th>
+                        <th scope="col">Permission</th>
+                        <th scope="col">Revoke</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -30,7 +24,7 @@
                             <form action="{% url 'remove_group_permission' %}" method="post">
                                 {% csrf_token %}
                                 <input type="hidden" name="perm_id" value="{{ perm.id }}">
-                                <input type="submit" value="Revoke">
+                                <input class="btn btn-danger" type="submit" value="Revoke">
                             </form>
                             {% else %}
                             (Owning Group)
@@ -45,26 +39,34 @@
                 </tbody>
             </table>
         </section>
-        
+        <hr/>
         <section>
             <h2>Add Permission</h2>
             <form action="{% url 'add_group_permission' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="topic_id" value="{{ topic.id }}">
-                <select name="group_id">
-                    {% for group in all_groups %}
-                    <option value="{{ group.id }}">{{ group.name }}</option>
-                    {% endfor %}
-                </select>
-                <select name="operation">
-                    {% for operation in operations %}
-                    <option value="{{ operation }}">{{ operation }}</option>
-                    {% endfor %}
-                </select>
-                <input type="submit" value="Add permission">
+                <div class="form-row">
+                    <div class="col">
+                        <select class="form-control" name="group_id">
+                            {% for group in all_groups %}
+                            <option value="{{ group.id }}">{{ group.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col">
+                        <select class="form-control" name="operation">
+                            {% for operation in operations %}
+                            <option value="{{ operation }}">{{ operation }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col">
+                        <input class="btn btn-outline-primary" type="submit" value="Add permission">
+                    </div>
+                </div>
             </form>
         </section>
-
+        <hr/>
         <section>
             <h2>Public read-access</h2>
             This topic {% if topic.publicly_readable %}is{% else %}is not{% endif %} readable by all hopskotch users.
@@ -76,17 +78,17 @@
                 {% else %}
                 <input type="hidden" name="public" value="true">
                 {% endif %}
-                <input type="submit" value="{% if topic.publicly_readable %}Remove{% else %}Add{% endif %} public access">
+                <input class="btn btn-outline-primary" type="submit" value="{% if topic.publicly_readable %}Remove{% else %}Add{% endif %} public access">
             </form>
         </section>
-        
+        <hr/>
         <section>
             <h2>Delete Topic</h2>
             <p>Danger! This cannot be undone!</p>
             <form action="{% url 'delete_topic' %}"  method="post">
                 {% csrf_token %}
                 <input type="hidden" name="topic_id" value="{{ topic.id }}">
-                <input type="submit" value="Delete">
+                <input class="btn btn-danger" type="submit" value="Delete">
             </form>
         </section>
         

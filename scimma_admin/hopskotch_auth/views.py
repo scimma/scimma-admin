@@ -88,7 +88,7 @@ def delete(request):
                                    "index")
 
     logger.info(f"deleted creds associated with username: {cred_username}")
-    messages.info(request, f"deleted credentials with username {cred_username}")
+    messages.info(request, f"Deleted credentials with username {cred_username}.")
 
     return redirect("index")
 
@@ -115,7 +115,7 @@ def group_management(request):
     # only staff can manage groups
     if not request.user.is_staff:
         return redirect_with_error(request, "access the group management page", 
-                                   "User is not a staff member", "index")
+                                   "User is not a staff member.", "index")
     groups=list(Group.objects.all())
     groups.sort(key=lambda g: g.name)
     return render(request, 'hopskotch_auth/group_management.html',
@@ -131,7 +131,7 @@ def create_group(request):
     # only staff can create new groups
     if not request.user.is_staff:
         return redirect_with_error(request, "Create a group", 
-                                   "User is not a staff member", "index")
+                                   "User is not a staff member.", "index")
     
     if not "name" in request.POST or len(request.POST["name"])==0:
         return redirect_with_error(request, "Create a group", 
@@ -141,7 +141,7 @@ def create_group(request):
     # make sure that the group name is not already in use
     if Group.objects.filter(name=group_name).exists():
         return redirect_with_error(request, f"Create a group named {group_name}", 
-                                   "Group name already in use", "create_group")
+                                   "Group name already in use.", "create_group")
     
     # no collision, so proceed with creating the group
     group = Group.objects.create(name=group_name)
@@ -201,7 +201,7 @@ def delete_group(request):
     
     # only staff can delete groups
     if not request.user.is_staff:
-        return redirect_with_error(request, f"Delete the group with ID {group_id}", 
+        return redirect_with_error(request, f"Delete the group with ID {group.id}", 
                                    "User is not a staff member", "index")
     
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
@@ -218,7 +218,7 @@ def delete_group(request):
             group.delete()
             logger.info(f"Deleted group {group_name} with ID {group.id}")
     except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, f"Delete the group with ID {group_id}", 
+        return redirect_with_error(request, f"Delete the group with ID {group.id}", 
                                    "No such group exists", "group_management")
     
     messages.info(request, "Group "+group_name+" deleted")

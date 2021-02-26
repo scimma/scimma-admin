@@ -13,8 +13,6 @@
    }
 {% endblock %}
 
-{% block page-header %}<a href="{% url 'index' %}">SCIMMA Auth</a>{% endblock %}
-
 {% block page-body %}
     <section class="new-creds">
       <h2>New Credentials Generated</h2>
@@ -29,11 +27,11 @@
         {% csrf_token %}
         <input type="hidden" value="{{ username }}" name="username">
         <input type="hidden" value="{{ password }}" name="password">
-        <button type="submit" name="download" id="download">Download</button>
+        <button class="btn btn-outline-primary" type="submit" name="download" id="download">Download</button>
       </form> 
       <p>These credentials will be usable within 10 seconds.</p>
       <h3>
-        <a href="{% url 'index' %}">Return to main page</a>
+        <a class="btn btn-outline-secondary" href="{% url 'index' %}">Return to main page</a>
       </h3>
     </section>
 {% endblock %}

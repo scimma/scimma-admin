@@ -30,8 +30,19 @@ The main README says to use scimma-aws-utils to download the necessary CILogon s
 
 This only needs to be done a single time; scimma-admin never otherwise needs access to any AWS credentials. 
 
+## Adding local_settings.py
+
+Note: this step is unnecessary, but will allow you to skip much of the remaining instructions.
+
+To override the checked-in scimma_admin `settings.py`, make a copy of `sample_local_settings.py`:
+
+	cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
 
 ## Setting up a backing database
+
+There are two options for setting up a backing database--installed postgres, and docker:
+
+### Using installed postgres
 
 Not using the docker-compose configuration means that you must run PostgreSQL database yourself. This is not complicated. First, you will need to have postgres installed. It can just complied and installed it from source, but you should also be able to install it from a package manager. 
 
@@ -54,8 +65,26 @@ The database itself is now running and ready for django to use. Django itself re
 
 This creates the database tables in the form django expects to use. 
 
+### Using a dockerized postgres
+
+To use a dockerized postgres, create a docker container using the postgres image:
+
+	docker create --name scimma-admin-postgres -e POSTGRES_DB=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -p 5432:5432 postgres
+
+Then bring up the database:
+
+	docker start scimma-admin-postgres
+
+The database itself is now running and ready for django to use. Django itself requires one additional setup step:
+
+	python scimma_admin/manage.py migrate
+
+This creates the database tables in the form django expects to use. 
+
 
 ## Running the application itself
+
+Note: the following changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
 
 In order to make the application connect to the local database, not a docker container, one small change is required. In scimma-admin/settings.py, apply the following patch (currently the line to be changed is 133):
 
@@ -80,6 +109,8 @@ This will run in the foreground, taking over your terminal window. It can be sto
 
 
 ## Accessing the web interface
+
+Note: the following changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
 
 Once you have the application running, you should be able to view its interface by opening http://127.0.0.1:8000/hopauth in your web browser. About the only thing you should see will be the 'Login' link. If this shows up everything is working, but there is one more key step to do before logging in.
 
@@ -156,6 +187,10 @@ When you're done with all of this, simply kill `uwsgi` with Ctrl-C if it was run
 
 	pg_ctl -D $(pwd)/dbdata -l pg_logfile stop
 
+If you're using a dockerized postgres:
+
+	docker stop scimma-admin-postgres
+
 
 ## Starting back up
 
@@ -166,5 +201,7 @@ Very little of the setup work needs to be repeated; it should be sufficient to r
 	uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
 	--env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
 	--pidfile=project-master.pid --http :8000 --processes 1 --threads 2
+
+If you're using dockerized postgres, you should run `docker start scimma-admin-postgres` in lieu of `pg_ctl ...`
 
 Don't forget to run netcat to impersonate whichever test user you want before each time you log in to the web interface. 

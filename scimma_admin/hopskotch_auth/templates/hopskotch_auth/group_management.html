@@ -1,19 +1,15 @@
 {% extends "hopskotch_auth/base.html" %}
 
-{% block page-header %}<a href="{% url 'index' %}">SCiMMA Auth</a>: Group management{% endblock %}
+{% block title %}Group Management{% endblock %}
+{% block page-header %}Group management{% endblock %}
 
 {% block page-body %}
         <section class="groups-list">
             <h2>Existing Groups</h2>
-            <table>
+            <table class="table table-bordered table-hover">
                 <thead>
-                    <colgroup>
-                        <col id="group-name">
-                        <col id="group-edit">
-                        <col id="group-delete">
-                        </colgroup>
                     <tr>
-                        <th>Group Name</th>
+                        <th scope="col" colspan="2">Group Name</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -23,14 +19,12 @@
                         <td>
                             <form action="{% url 'edit_group' %}" method="get">
                                 <input type="hidden" name="group_id" value="{{ group.id }}">
-                                <input type="submit" value="Edit">
+                                <input class="btn btn-secondary" type="submit" value="Edit">
                             </form>
-                        </td>
-                        <td>
                             <form action="{% url 'delete_group' %}" method="post">
                                 {% csrf_token %}
                                 <input type="hidden" name="group_id" value="{{ group.id }}">
-                                <input type="submit" value="Delete">
+                                <input class="btn btn-danger" type="submit" value="Delete">
                             </form>
                         </td>
                     </tr>
@@ -42,15 +36,18 @@
                 </tbody>
             </table>
         </section>
-        
+        <hr/>
         <section class="new-group">
             <h2>Create new group</h2>
             <form action="{% url 'create_group' %}" method="post">
                 {% csrf_token %}
                 <label class="required" for="id_name">Group Name</label>
                 <input type="text" name="name" class="vTextField" maxlength="256" required id="id_name">
-                <button type="submit" name="create" id="create">Create</button>
+                <button class="btn btn-outline-primary" type="submit" name="create" id="create">Create</button>
             </form>
         </section>
+        <h3>
+            <a class="btn btn-outline-secondary" href="{% url 'index' %}">Return to main page</a>
+        </h3>
         
 {% endblock %}

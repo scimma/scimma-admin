@@ -1,6 +1,12 @@
+{% load bootstrap4 %}
+
 <html>
+  <head>
+    {% bootstrap_css %}
+    {% bootstrap_javascript %}
+  </head>
   <body>
     <h1>SCiMMA Auth</h1>
-    <a href="{% url 'oidc_authentication_init' %}?next={% url 'index' %}">Login</a>
+    <a href="{% url 'oidc_authentication_init' %}?next={% url 'index' %}" class="btn btn-primary">Login</a>
   </body>
 </html>

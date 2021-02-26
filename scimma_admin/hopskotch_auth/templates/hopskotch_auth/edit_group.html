@@ -1,23 +1,18 @@
 {% extends "hopskotch_auth/base.html" %}
 
-{% block page-header %}<a href="{% url 'index' %}">SCiMMA Auth</a>: Edit Group: {{ group.name }}{% endblock %}
+{% block title %}Edit Group{% endblock %}
+{% block page-header %}Edit Group: {{ group.name }}{% endblock %}
 
 {% block page-body %}
         <section class="members-list">
             <h2>Current Members</h2>
-            <table>
+            <table class="table table-bordered table-hover">
                 <thead>
-                    <colgroup>
-                        <col id="user-name">
-                        <col id="user-status">
-                        <col id="user-change">
-                        <col id="user-remove">
-                    </colgroup>
                     <tr>
-                        <th>User</th>
-                        <th>Status</th>
-                        <th>Change Status</th>
-                        <th>Remove</th>
+                        <th scope="col">User</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Change Status</th>
+                        <th scope="col">Remove</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -30,7 +25,7 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="group_id" value="{{ group.id }}">
                                 <input type="hidden" name="user_id" value="{{ membership.user_id }}">
-                                <select name="status">
+                                <select class="form-select" name="status">
                                     <option value="Member">Member</option>
                                     <option value="Owner">Owner</option>
                                 </select>
@@ -54,38 +49,40 @@
                 </tbody>
             </table>
         </section>
-        
+        <hr/>
         <section>
             <h2>Add Member</h2>
             <form action="{% url 'change_membership_status' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="group_id" value="{{ group.id }}">
-                <select name="user_id">
-                    {% for user in all_users %}
-                    <option value="{{ user.id }}">{{ user.username }} ({{ user.email }})</option>
-                    {% endfor %}
-                </select>
-                <select name="status">
-                    <option value="Member">Member</option>
-                    <option value="Owner">Owner</option>
-                </select>
-                <input type="submit" value="Add user">
+                <div class="form-row">
+                    <div class="col">
+                        <select class="form-control" name="user_id">
+                            {% for user in all_users %}
+                            <option value="{{ user.id }}">{{ user.username }} ({{ user.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col">
+                        <select class="form-control" name="status">
+                            <option value="Member">Member</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <input class="btn btn-outline-primary" type="submit" value="Add user">
+                    </div>
+                </div>
             </form>
         </section>
-        
+        <hr/>
         <section class="topics-list">
             <h2>Topics</h2>
-            <table>
+            <table class="table table-bordered table-hover">
                 <thead>
-                    <colgroup>
-                        <col id="topic-name">
-                        <col id="topic-actions">
-                        <col id="topic-remove">
-                        </colgroup>
                     <tr>
-                        <th>Topic</th>
-                        <th>Actions</th>
-                        <th>Delete</th>
+                        <th scope="col">Topic</th>
+                        <th scope="col">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -95,14 +92,12 @@
                         <td>
                             <form action="{% url 'edit_topic' %}" method="get">
                                 <input type="hidden" name="topic_id" value="{{ topic.id }}">
-                                <input type="submit" value="Edit">
+                                <input class="btn btn-secondary" type="submit" value="Edit">
                             </form>
-                        </td>
-                        <td>
                             <form action="{% url 'delete_topic' %}" method="post">
                                 {% csrf_token %}
                                 <input type="hidden" name="topic_id" value="{{ topic.id }}">
-                                <input type="submit" value="Delete">
+                                <input class="btn btn-danger" type="submit" value="Delete">
                             </form>
                         </td>
                     </tr>
@@ -114,15 +109,20 @@
                 </tbody>
             </table>
         </section>
-        
+        <hr/>
         <section>
             <h2>Add Topic</h2>
             <form action="{% url 'create_topic' %}" method="post">
                 {% csrf_token %}
-                <label class="required" for="id_name">Topic Name</label>
-                <input type="text" name="topic_name" class="vTextField" maxlength="249" required id="id_name">
                 <input type="hidden" name="group_id" value="{{ group.id }}">
-                <button type="submit" name="create">Create</button>
+                <div class="form-row">
+                    <div class="col">
+                        <input class="form-control" placeholder="Topic Name" type="text" name="topic_name" class="vTextField" maxlength="249" required id="id_name">
+                    </div>
+                    <div class="col">
+                        <button class="btn btn-outline-primary" type="submit" name="create">Create</button>
+                    </div>
+                </div>
             </form>
         </section>
 {% endblock %}
