@@ -1,6 +1,6 @@
 {% extends "hopskotch_auth/base.html" %}
 
-{% load tz %}
+{% load bootstrap4 tz %}
 
 {% block page-style %}
     table {
@@ -22,8 +22,8 @@
 {% block page-body %}
     <section class="creds-list">
       <h2>Active credentials</h2>
-      <table>
-        <thead>
+      <table class="table table-hover">
+        <thead class="thead-light">
           <colgroup>
             <col id="cred-username">
             <col id="cred-created-on">
@@ -43,12 +43,12 @@
             <td>
               <form action="{% url 'edit_credential' %}" method="get">
                 <input type="hidden" value="{{ cred.username }}" name="cred_username">
-                <input type="submit" value="Edit">
+                <input class="btn btn-secondary" type="submit" value="Edit">
               </form>
               <form action="{% url 'delete' %}">
                 {% csrf_token %}
                 <input type="hidden" value="{{ cred.username }}" name="cred_username">
-                <input type="submit" value="Delete">
+                <input class="btn btn-danger" type="submit" value="Delete">
               </form>
             </td>
           </tr>
@@ -60,18 +60,20 @@
         </tbody>
       </table>
     </section>
+    <hr/>
     <section class="create">
       <h2>Create credentials</h2>
       <p>Click below to create a new set of Kafka credentials.</p>
       <p>A username and password will be generated for you.</p>
       <form action="{% url 'create' %}" method="post">
         {% csrf_token %}
-        <input type="submit" value="Create new credentials">
+        <input class="btn btn-outline-primary" type="submit" value="Create new credentials">
       </form>
     </section>
+    <hr/>
     <section class="groups-list">
       <h2>Group memberships</h2>
-      <table>
+      <table class="table table-hover">
         <thead>
           <colgroup>
             <col id="group-name">
@@ -112,24 +114,25 @@
         </tbody>
       </table>
     </section>
-    {% if user.is_staff %}
+    <hr/>
     <section class="group-management">
       <h2>Manage groups</h2>
       <form action="{% url 'group_management' %}" method="get">
-          <input type="submit" value="Manage Groups">
+          <input class="btn btn-outline-primary" type="submit" value="Manage Groups">
       </form>
     </section>
+    <hr/>
     <section class="topic-management">
       <h2>Manage topics</h2>
       <form action="{% url 'topic_management' %}" method="get">
-          <input type="submit" value="Manage Topics">
+          <input class="btn btn-outline-primary" type="submit" value="Manage Topics">
       </form>
     </section>
+    <hr/>
     <section class="cred-management">
       <h2>Manage credentials</h2>
       <form action="{% url 'credential_management' %}" method="get">
-          <input type="submit" value="Manage Credentials">
+          <input class="btn btn-outline-primary" type="submit" value="Manage Credentials">
       </form>
     </section>
-    {% endif %}
 {% endblock %}

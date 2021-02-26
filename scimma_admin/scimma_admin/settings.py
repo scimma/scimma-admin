@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mozilla_django_oidc',
+    'bootstrap4'  # TODO: staticfile configuration must be fixed for uwsgi/deployment
 ]
 
 MIDDLEWARE = [
@@ -209,3 +210,8 @@ LOGGING = {
 
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+try:
+    from local_settings import *
+except ImportError:
+    pass
