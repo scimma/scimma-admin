@@ -1,19 +1,16 @@
 {% extends "hopskotch_auth/base.html" %}
 
-{% block page-header %}<a href="{% url 'index' %}">SCiMMA Auth</a>: Topic management{% endblock %}
+{% block title %}Topic Management{% endblock %}
+{% block page-header %}Topic Management{% endblock %}
 
 {% block page-body %}
         <section class="topics-list">
             <h2>Existing Topics</h2>
-            <table>
+            <table class="table table-hover table-bordered">
                 <thead>
-                    <colgroup>
-                        <col id="topic-owner">
-                        <col id="topic-name">
-                    </colgroup>
                     <tr>
-                        <th>Owning Group</th>
-                        <th>Name</th>
+                        <th scope="col">Owning Group</th>
+                        <th scope="col">Name</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -31,5 +28,8 @@
                 </tbody>
             </table>
         </section>
+        <h3>
+            <a class="btn btn-outline-secondary" href="{% url 'index' %}">Return to main page</a>
+        </h3>
         
 {% endblock %}

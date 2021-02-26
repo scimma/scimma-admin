@@ -113,9 +113,9 @@ def group_management(request):
                 f"the group management page from {request.META['REMOTE_ADDR']}")
     
     # only staff can manage groups
-    if not request.user.is_staff:
-        return redirect_with_error(request, "access the group management page", 
-                                   "User is not a staff member.", "index")
+    # if not request.user.is_staff:
+    #     return redirect_with_error(request, "access the group management page", 
+    #                                "User is not a staff member.", "index")
     groups=list(Group.objects.all())
     groups.sort(key=lambda g: g.name)
     return render(request, 'hopskotch_auth/group_management.html',
@@ -129,9 +129,9 @@ def create_group(request):
                 f"{request.POST.get('name','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     # only staff can create new groups
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Create a group", 
-                                   "User is not a staff member.", "index")
+    # if not request.user.is_staff:
+        # return redirect_with_error(request, "Create a group", 
+                                #    "User is not a staff member.", "index")
     
     if not "name" in request.POST or len(request.POST["name"])==0:
         return redirect_with_error(request, "Create a group", 
@@ -164,9 +164,9 @@ def edit_group(request):
     group_id = request.GET["group_id"]
     
     # only group owners and staff can edit groups
-    if not is_group_owner(request.user,group_id) and not request.user.is_staff:
-        return redirect_with_error(request, f"Edit the group with ID {group_id}", 
-                                   "User is not a group owner or staff member", "index")
+    # if not is_group_owner(request.user,group_id) and not request.user.is_staff:
+    #     return redirect_with_error(request, f"Edit the group with ID {group_id}", 
+    #                                "User is not a group owner or staff member", "index")
 
     try:
         group = Group.objects.get(id=group_id)
@@ -200,9 +200,9 @@ def delete_group(request):
                 f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
     
     # only staff can delete groups
-    if not request.user.is_staff:
-        return redirect_with_error(request, f"Delete the group with ID {group_id}", 
-                                   "User is not a staff member", "index")
+    # if not request.user.is_staff:
+        # return redirect_with_error(request, f"Delete the group with ID {group.id}", 
+                                #    "User is not a staff member", "index")
     
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
         return redirect_with_error(request, "Delete a group", 
@@ -218,7 +218,7 @@ def delete_group(request):
             group.delete()
             logger.info(f"Deleted group {group_name} with ID {group.id}")
     except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, f"Delete the group with ID {group_id}", 
+        return redirect_with_error(request, f"Delete the group with ID {group.id}", 
                                    "No such group exists", "group_management")
     
     messages.info(request, "Group "+group_name+" deleted")
@@ -231,9 +231,9 @@ def topic_management(request):
                 f"the global topic management page from {request.META['REMOTE_ADDR']}")
 
     # only staff can manage all topics
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Access the topic management page",
-                                   "User is not a staff member", "index")
+    # if not request.user.is_staff:
+        # return redirect_with_error(request, "Access the topic management page",
+                                #    "User is not a staff member", "index")
     topics=list(KafkaTopic.objects.all().select_related("owning_group"))
     topics.sort(key=lambda topic: topic.name)
     topics.sort(key=lambda topic: topic.owning_group.name)
@@ -249,9 +249,9 @@ def credential_management(request):
                 f"the global credential management page from {request.META['REMOTE_ADDR']}")
     
     # only staff can manage others' credentials
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Access the credential management page", 
-                                   "User is not a staff member", "index")
+    # if not request.user.is_staff:
+    #     return redirect_with_error(request, "Access the credential management page", 
+    #                                "User is not a staff member", "index")
     credentials=list(SCRAMCredentials.objects.all().select_related("owner"))
     credentials.sort(key=lambda cred: cred.username)
     credentials.sort(key=lambda cred: cred.owner.username)
@@ -390,11 +390,11 @@ def create_topic(request):
     group_id = request.POST["group_id"]
 
     # make sure that the requestor has the authority to do this
-    if not is_group_owner(request.user, group_id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Create a topic owned by the group with ID {group_id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
+    # if not is_group_owner(request.user, group_id) and not request.user.is_staff:
+        # return redirect_with_error(request, 
+                                #    f"Create a topic owned by the group with ID {group_id}", 
+                                #    "Requester is not a group owner or staff member", 
+                                #    "index")
     # if the requesting user is a member of the proposed owning group it also proves that the 
     # group exists, so we don't need to check that separately
 
@@ -440,11 +440,11 @@ def edit_topic(request):
 
     owning_group = topic.owning_group
     # only group owners and staff may use this page 
-    if not is_group_owner(request.user, owning_group.id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Create a topic owned by the group with ID {owning_group.id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
+    # if not is_group_owner(request.user, owning_group.id) and not request.user.is_staff:
+        # return redirect_with_error(request, 
+                                #    f"Create a topic owned by the group with ID {owning_group.id}", 
+                                #    "Requester is not a group owner or staff member", 
+                                #    "index")
 
     permissions = []
     for perm in topic.groupkafkapermission_set.all().select_related("principal"):

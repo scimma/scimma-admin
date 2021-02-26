@@ -5,6 +5,7 @@
 {% block page-style %}
 {% endblock %}
 
+{% block title %}Home{% endblock %}
 {% block page-header %}{% endblock %}
 
 {% block page-body %}
@@ -56,16 +57,12 @@
     <hr/>
     <section class="groups-list">
       <h2>Group memberships</h2>
-      <table class="table table-hover">
+      <table class="table table-hover table-bordered">
         <thead>
-          <colgroup>
-            <col id="group-name">
-            <col id="group-status">
-          </colgroup>
           <tr>
-            <th>Group Name</th>
-            <th>Membership Status</th>
-            <th>Actions</th>
+            <th scope="col">Group Name</th>
+            <th scope="col">Membership Status</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>

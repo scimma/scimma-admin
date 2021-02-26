@@ -30,6 +30,13 @@ The main README says to use scimma-aws-utils to download the necessary CILogon s
 
 This only needs to be done a single time; scimma-admin never otherwise needs access to any AWS credentials. 
 
+## Adding local_settings.py
+
+Note: this step is unnecessary, but will allow you to skip much of the remaining instructions.
+
+To override the checked-in scimma_admin `settings.py`, make a copy of `sample_local_settings.py`:
+
+	cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
 
 ## Setting up a backing database
 
@@ -77,7 +84,7 @@ This creates the database tables in the form django expects to use.
 
 ## Running the application itself
 
-Note: any changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
+Note: the following changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
 
 In order to make the application connect to the local database, not a docker container, one small change is required. In scimma-admin/settings.py, apply the following patch (currently the line to be changed is 133):
 
@@ -102,6 +109,8 @@ This will run in the foreground, taking over your terminal window. It can be sto
 
 
 ## Accessing the web interface
+
+Note: the following changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
 
 Once you have the application running, you should be able to view its interface by opening http://127.0.0.1:8000/hopauth in your web browser. About the only thing you should see will be the 'Login' link. If this shows up everything is working, but there is one more key step to do before logging in.
 
