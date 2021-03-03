@@ -94,6 +94,7 @@
       </table>
     </section>
     <hr/>
+    {% if request.user.is_staff %}
     <section class="group-management">
       <h2>Manage groups</h2>
       <form action="{% url 'group_management' %}" method="get">
@@ -114,4 +115,5 @@
           <input class="btn btn-outline-primary" type="submit" value="Manage Credentials">
       </form>
     </section>
+    {% endif %}
 {% endblock %}
