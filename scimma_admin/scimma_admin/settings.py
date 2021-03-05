@@ -215,6 +215,8 @@ LOGGING = {
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+
 try:
     from local_settings import *
 except ImportError:
