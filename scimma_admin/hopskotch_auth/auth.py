@@ -3,6 +3,7 @@ from mozilla_django_oidc import auth
 from django.contrib import messages
 import logging
 import secrets
+import os
 
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,12 @@ class NotInKafkaUsers(PermissionDenied):
 
 class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
     """Subclass Mozilla's OIDC Auth backend for custom hopskotch behavior. """
+    def __init__(self):
+        auth.OIDCAuthenticationBackend.__init__(self)
+        if "KAFKA_USER_AUTH_GROUP" in os.environ:
+            self.kafka_user_auth_group=os.environ["KAFKA_USER_AUTH_GROUP"]
+        else:
+            self.kafka_user_auth_group="kafkaUsers"
 
     def filter_users_by_claims(self, claims):
         username = claims.get("vo_person_id")
@@ -31,7 +38,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
             logger.error(f"account is missing LDAP claims, error_id={log_event_id}, claims={claims}")
             raise PermissionDenied(msg)
 
-        for group in ['kafkaUsers']:
+        for group in [self.kafka_user_auth_group]:
             if not is_member_of(claims, group):
                 name = claims.get('vo_display_name', 'Unknown')
                 id = claims.get('vo_person_id', 'Unknown')
