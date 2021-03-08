@@ -52,7 +52,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         if isinstance(email, list):
             claims["email"] = email[0]
 
-        self.UserModel.objects.create(
+        return self.UserModel.objects.create(
             username=claims["vo_person_id"],
             email=claims["email"],
             is_staff=is_member_of(claims, 'CO:COU:SCiMMA DevOps:members:active'),
