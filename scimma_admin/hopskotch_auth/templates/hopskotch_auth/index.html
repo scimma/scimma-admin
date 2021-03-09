@@ -5,7 +5,13 @@
 {% block page-style %}
 {% endblock %}
 
-{% block page-header %}{% endblock %}
+{% block page-header %}
+<script>
+    $(function () {
+      $('[data-toggle="popover"]').popover()
+      })
+</script>
+{% endblock %}
 
 {% block page-body %}
     <section class="creds-list">
@@ -93,6 +99,39 @@
         </tbody>
       </table>
     </section>
+
+    <hr/>
+    <section class="topics-list">
+      <h2>Accessible Topics</h2>
+      <table class="table table-hover table-bordered">
+        <thead>
+          <tr>
+            <th scope="col">Topic Name</th>
+            <th scope="col">Access Type
+                <button type="button" class="btn btn-outline-info btn-sm" data-toggle="popover"
+                    title="Help" data-content="An access type of 'public' indicates a topic which
+                    can be read by any user, with any credential. An access type of 'via group
+                    permission' means that you have access to the topic because access is granted to
+                    one of the groups in which you are a member. However, to use this access, you
+                    must additionally grant it to oe of your credentials.">?</button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for topic in accessible_topics %}
+          <tr>
+            <td>{{ topic.name }}</td>
+            <td>{{ topic.access_type }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td class="info" colspan="2">This account does not have access to any topics</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
     <hr/>
     {% if request.user.is_staff %}
     <section class="group-management">

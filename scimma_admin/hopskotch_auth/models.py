@@ -507,3 +507,30 @@ def remove_user_group_permissions(user_id, group_id):
 def delete_topic_permissions(topic_id):
     CredentialKafkaPermission.objects.filter(topic=topic_id).delete()
     GroupKafkaPermission.objects.filter(topic=topic_id).delete()
+
+# locate all topics which the user has permission to access in some way, either because:
+# 1. they are publicly readable
+# 2. the user belongs to a group which has some permission providing access
+# The user may not currently have any credential configured to use the allowed access in the latter
+# case, however.
+# Returns a dictionary mapping topic names to a strings describing the nature of the access. 
+def topicsAccessibleToUser(user_id):
+    accessible = {}
+
+    # first, handle access via group permissions
+    user_memberships = GroupMembership.objects.filter(user=user_id)
+    for membership in user_memberships:
+        group = membership.group
+        group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+        for permission in group_permissions:
+            accessible[permission.topic.name] = "via group permission"
+
+    # second, collect all public topics
+    # By doing this second, if a user has non-public access to a topic which is also public, we will
+    # end up labeling it public. This seems more user-friendly for the common case of a user who just
+    # wants to read, as it will indicate that specially configuring a credential is not needed.
+    public_topics=KafkaTopic.objects.filter(publicly_readable=True)
+    for topic in public_topics:
+        accessible[topic.name]="public"
+
+    return accessible
