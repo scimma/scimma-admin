@@ -36,9 +36,15 @@ def index(request):
                             "group_name":membership.group.name,
                             "status":membership.status})
     memberships.sort(key=lambda m: m["group_name"])
+    accessible_topics = []
+    for name, desc in topics_accessible_to_user(request.user).items():
+        accessible_topics.append({"name":name,
+                           "access_type":desc})
+    accessible_topics.sort(key=lambda t: t["name"])
     return render(
         request, 'hopskotch_auth/index.html',
-        dict(credentials=credentials, memberships=memberships),
+        dict(credentials=credentials, memberships=memberships,
+             accessible_topics=accessible_topics),
     )
 
 
