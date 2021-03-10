@@ -514,7 +514,7 @@ def delete_topic_permissions(topic_id):
 # The user may not currently have any credential configured to use the allowed access in the latter
 # case, however.
 # Returns a dictionary mapping topic names to a strings describing the nature of the access. 
-def topicsAccessibleToUser(user_id):
+def topics_accessible_to_user(user_id):
     accessible = {}
 
     # first, handle access via group permissions

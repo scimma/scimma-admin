@@ -37,7 +37,7 @@ def index(request):
                             "status":membership.status})
     memberships.sort(key=lambda m: m["group_name"])
     accessible_topics = []
-    for name, desc in topicsAccessibleToUser(request.user).items():
+    for name, desc in topics_accessible_to_user(request.user).items():
         accessible_topics.append({"name":name,
                            "access_type":desc})
     accessible_topics.sort(key=lambda t: t["name"])
