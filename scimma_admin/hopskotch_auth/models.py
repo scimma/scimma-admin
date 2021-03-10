@@ -523,7 +523,7 @@ def topics_accessible_to_user(user_id):
         group = membership.group
         group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
         for permission in group_permissions:
-            accessible[permission.topic.name] = "via group permission"
+            accessible[permission.topic.name] = f"via group: {group.name}"
 
     # second, collect all public topics
     # By doing this second, if a user has non-public access to a topic which is also public, we will
