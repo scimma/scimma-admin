@@ -45,16 +45,28 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
                 logger.error(msg)
                 raise NotInKafkaUsers(msg)
 
-        return super(HopskotchOIDCAuthenticationBackend, self).verify_claims(claims)
+        if "email" in claims:
+            return True
+        if "email_list" in claims and len(claims.get("email_list", [])) > 0:
+            return True
+
+        log_event_id = secrets.token_hex(8)
+        msg = f"Your account is missing an email claim. Error ID: {log_event_id}"
+        logger.error(f"account is missing LDAP email claims, error_id={log_event_id}, claims={claims}")
+        raise PermissionDenied(msg)
 
     def create_user(self, claims):
-        email = claims.get("email")
+        if "email" in claims:
+            email = claims.get("email")
+        elif "email_list" in claims:
+            email = claims.get("email_list")
+
         if isinstance(email, list):
-            claims["email"] = email[0]
+            email = email[0]
 
         return self.UserModel.objects.create(
             username=claims["vo_person_id"],
-            email=claims["email"],
+            email=email,
             is_staff=is_member_of(claims, 'CO:COU:SCiMMA DevOps:members:active'),
         )
 
