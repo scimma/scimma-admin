@@ -117,7 +117,8 @@
                 <input type="hidden" name="group_id" value="{{ group.id }}">
                 <div class="form-row">
                     <div class="col">
-                        <input class="form-control" placeholder="Topic Name" type="text" name="topic_name" class="vTextField" maxlength="249" required id="id_name">
+                        <span>{{ group.name }}.<input class="vTextField" placeholder="topic_name" type="text" name="topic_name" class="vTextField" minlength="1" maxlength="247" pattern="[a-zA-Z0-9_-]{1,247}" required id="id_name"></span>
+                        <br>(Roman letters, digits, underscores, and dashes are allowed.)
                     </div>
                     <div class="col">
                         <button class="btn btn-outline-primary" type="submit" name="create">Create</button>

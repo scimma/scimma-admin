@@ -41,9 +41,16 @@
             <h2>Create new group</h2>
             <form action="{% url 'create_group' %}" method="post">
                 {% csrf_token %}
-                <label class="required" for="id_name">Group Name</label>
-                <input type="text" name="name" class="vTextField" maxlength="256" required id="id_name">
-                <button class="btn btn-outline-primary" type="submit" name="create" id="create">Create</button>
+                <div class="form-row">
+                    <div class="col">
+                        <label class="required" for="id_name">Group Name</label>
+                        <input type="text" name="name" class="vTextField" minlength="1" maxlength="247" pattern="[a-zA-Z0-9_-]{1,247}" required id="id_name">
+                        <br>(Roman letters, digits, underscores, and dashes are allowed.)
+                    </div>
+                    <div class="col">
+                        <button class="btn btn-outline-primary" type="submit" name="create" id="create">Create</button>
+                    </div>
+                </div>
             </form>
         </section>
         <h3>

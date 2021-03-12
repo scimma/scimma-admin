@@ -136,7 +136,7 @@ def create_group(request):
     
     # only staff can create new groups
     if not request.user.is_staff:
-        return redirect_with_error(request, "Create a group", 
+        return redirect_with_error(request, "Create a group",
                                    "User is not a staff member.", "index")
     
     if not "name" in request.POST or len(request.POST["name"])==0:
@@ -144,11 +144,16 @@ def create_group(request):
                                    "Missing or invalid group name", "create_group")
     
     group_name = request.POST["name"]
+    # make sure that the name is allowed
+    if not validate_group_name(group_name):
+        return redirect_with_error(request, f"Create a group named {group_name}",
+                                   "Group name not valid.", "create_group")
+
     # make sure that the group name is not already in use
     if Group.objects.filter(name=group_name).exists():
         return redirect_with_error(request, f"Create a group named {group_name}", 
                                    "Group name already in use.", "create_group")
-    
+
     # no collision, so proceed with creating the group
     group = Group.objects.create(name=group_name)
 
@@ -392,7 +397,7 @@ def create_topic(request):
     if not "group_id" in request.POST:
         return redirect_with_error(request, "Create a topic", 
                                    "Missing or invalid owning group ID", "index")
-    
+
     group_id = request.POST["group_id"]
 
     # make sure that the requestor has the authority to do this
@@ -404,12 +409,17 @@ def create_topic(request):
     # if the requesting user is a member of the proposed owning group it also proves that the 
     # group exists, so we don't need to check that separately
 
-    if not "topic_name" in request.POST or not validate_topic_name(request.POST["topic_name"]):
-        return redirect_with_error(request, "Create a topic", 
-                                   "Missing or invalid topic name", 
+    group = Group.objects.get(id=group_id)
+
+    if not "topic_name" in request.POST or len(request.POST["topic_name"]) == 0:
+        return redirect_with_error(request, "Create a topic", "Missing topic name",
                                    reverse("edit_group")+"?group_id="+group_id)
-    
-    topic_name = request.POST["topic_name"]
+
+    topic_name = group.name+"."+request.POST["topic_name"]
+
+    if not validate_topic_name(topic_name):
+        return redirect_with_error(request, "Create a topic", "Invalid topic name",
+                                   reverse("edit_group")+"?group_id="+group_id)
 
     # make sure that the topic name is not already in use
     if KafkaTopic.objects.filter(name=topic_name).exists():
@@ -417,8 +427,6 @@ def create_topic(request):
                                    "Topic name already in use", 
                                    reverse("edit_group")+"?group_id="+group_id)
 
-    group = Group.objects.get(id=group_id)
-    
     with transaction.atomic():
         topic = KafkaTopic.objects.create(name=topic_name, owning_group=group)
         # assign complete access to the owning group

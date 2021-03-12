@@ -225,6 +225,20 @@ class Group(models.Model):
     )
 
 
+# This function interacts with validate_topic_name, because we want to form topic names as
+# ${group_name}.${topic}, so all group names must be compatible with this. This requires:
+# 1. using no characters which are invalid in Kafka topic names
+# 2. having a length short enough that there is room to fit the separator and a topic name within
+#    the length allowed by kafka
+# 3. group names should not include the separator character, '.', as this could lead to ambiguous
+#    topic names
+def validate_group_name(name: str) -> bool:
+    # due to requirements 1 and 3 the set of valid characters is the set allowed by kafka except '.'
+    # due to requiremment 2 the maximum allowed length is 2 less than the maximum allowed by kafka
+    valid = re.compile("^[a-zA-Z0-9_-]{1,247}$")
+    return re.match(valid, name) is not None
+
+
 class GroupMembership(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -273,7 +287,7 @@ class KafkaTopic(models.Model):
 def validate_topic_name(name: str) -> bool:
     # https://github.com/apache/kafka/blob/bc55f85237cb46e73c6774298cf308060a4a739c/clients/src/main/java/org/apache/kafka/common/internals/Topic.java#L30
     valid = re.compile("^[a-zA-Z0-9._-]{1,249}$")
-    return re.match(valid, name)
+    return re.match(valid, name) is not None
 
 
 class KafkaOperation(enum.Enum):
