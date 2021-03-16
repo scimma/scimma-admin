@@ -22,6 +22,7 @@ def OK(request):
 
 urlpatterns = [
     path('', OK),
+    path('health_check/', OK),
     path('admin/', admin.site.urls),
     path('hopauth/', include("hopskotch_auth.urls")),
     path('auth/', include('mozilla_django_oidc.urls')),
