@@ -45,6 +45,8 @@ def get_localdev_secret(name):
 
 PRODUCTION = os.getenv("SCIMMA_ADMIN_PROD") is not None
 
+SECRET_NAME_PREFIX = os.environ.get("SECRET_NAME_PREFIX", default="")
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -54,7 +56,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if PRODUCTION:
-    SECRET_KEY = get_secret("scimma-admin-django-secret")
+    SECRET_KEY = get_secret(SECRET_NAME_PREFIX+"scimma-admin-django-secret")
 else:
     SECRET_KEY = "zzzlocal"
 
@@ -123,7 +125,7 @@ if PRODUCTION:
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': rds_db['DBName'],
         'USER': rds_db['MasterUsername'],
-        'PASSWORD': get_secret("scimma-admin-db-password"),
+        'PASSWORD': get_secret(SECRET_NAME_PREFIX+"scimma-admin-db-password"),
         'HOST': rds_db['Endpoint']['Address'],
         'PORT': str(rds_db['Endpoint']['Port']),
     }
@@ -149,8 +151,8 @@ AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
 if PRODUCTION:
-    OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
-    OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
+    OIDC_RP_CLIENT_ID = get_secret(SECRET_NAME_PREFIX+"scimma-admin-cilogon-client-id")
+    OIDC_RP_CLIENT_SECRET = get_secret(SECRET_NAME_PREFIX+"scimma-admin-cilogon-client-secret")
 else:
     OIDC_RP_CLIENT_ID = 'cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
     OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
