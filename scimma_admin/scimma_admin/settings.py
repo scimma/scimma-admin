@@ -159,6 +159,7 @@ else:
 LOGIN_URL ='/hopauth/login'
 LOGIN_REDIRECT_URL = '/hopauth'
 LOGOUT_REDIRECT_URL = '/hopauth/logout'
+LOGIN_REDIRECT_URL_FAILURE = '/hopauth/login_failure'
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/

@@ -58,6 +58,10 @@ def logout(request):
     return HttpResponse("you're logged out!")
 
 
+def login_failure(request):
+    return render(request, 'hopskotch_auth/login_failure.html')
+
+
 @require_POST
 @login_required
 def create(request):
