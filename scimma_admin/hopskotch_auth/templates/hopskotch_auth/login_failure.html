@@ -1,7 +1,6 @@
 {% extends "hopskotch_auth/base.html" %}
 
 {% block page-body %}
-    Login Failure
-    <br>
+    <h3>Login Failure</h3>
     <a href="{% url 'oidc_authentication_init' %}?next={% url 'index' %}" class="btn btn-primary">Login</a>
 {% endblock %}
