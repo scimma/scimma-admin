@@ -16,12 +16,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.http import HttpResponse
+from hopskotch_auth import views
 
 def OK(request):
     return HttpResponse("OK")
 
 urlpatterns = [
-    path('', OK),
+    path('', views.index),
     path('health_check/', OK),
     path('admin/', admin.site.urls),
     path('hopauth/', include("hopskotch_auth.urls")),
