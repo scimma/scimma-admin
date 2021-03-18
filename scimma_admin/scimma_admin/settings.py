@@ -42,8 +42,24 @@ def get_localdev_secret(name):
     print(cp.sections())
     return cp["secrets"][name]
 
+SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 
-PRODUCTION = os.getenv("SCIMMA_ADMIN_PROD") is not None
+_aws_name_prefixes = {
+    "local": None, # AWS variables are not used for local testing
+    "dev": "", # this is empty for historical reasons, it should probably be renamed in future
+    "demo": "demo-",
+    "prod": "prod-",
+}
+
+if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
+    raise RuntimeError(f"Specified environment ({SCIMMA_ENVIRONMENT}) is not known")
+
+AWS_NAME_PREFIX = _aws_name_prefixes[SCIMMA_ENVIRONMENT]
+LOCAL_TESTING = SCIMMA_ENVIRONMENT=="local"
+
+print("SCIMMA_ENVIRONMENT:",SCIMMA_ENVIRONMENT)
+print("AWS_NAME_PREFIX:",AWS_NAME_PREFIX)
+print("LOCAL_TESTING:",LOCAL_TESTING)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,13 +69,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-if PRODUCTION:
-    SECRET_KEY = get_secret("scimma-admin-django-secret")
+if not LOCAL_TESTING:
+    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
 else:
     SECRET_KEY = "zzzlocal"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = not PRODUCTION
+DEBUG = SCIMMA_ENVIRONMENT != "production"
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -117,13 +133,13 @@ WSGI_APPLICATION = 'scimma_admin.wsgi.application'
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
 DATABASES = {'default': {}}
-if PRODUCTION:
-    rds_db = get_rds_db("scimma-admin-postgres")
+if not LOCAL_TESTING:
+    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-postgres")
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': rds_db['DBName'],
         'USER': rds_db['MasterUsername'],
-        'PASSWORD': get_secret("scimma-admin-db-password"),
+        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-db-password"),
         'HOST': rds_db['Endpoint']['Address'],
         'PORT': str(rds_db['Endpoint']['Port']),
     }
@@ -148,9 +164,9 @@ OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
-if PRODUCTION:
-    OIDC_RP_CLIENT_ID = get_secret("scimma-admin-cilogon-client-id")
-    OIDC_RP_CLIENT_SECRET = get_secret("scimma-admin-cilogon-client-secret")
+if not LOCAL_TESTING:
+    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX+"scimma-admin-cilogon-client-id")
+    OIDC_RP_CLIENT_SECRET = get_secret(AWS_NAME_PREFIX+"scimma-admin-cilogon-client-secret")
 else:
     OIDC_RP_CLIENT_ID = 'cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
     OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
