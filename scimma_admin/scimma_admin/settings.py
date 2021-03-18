@@ -52,7 +52,7 @@ _aws_name_prefixes = {
 }
 
 if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
-    raise RuntimeError(f"Specified environment (${SCIMMA_ENVIRONMENT}) is not known")
+    raise RuntimeError(f"Specified environment ({SCIMMA_ENVIRONMENT}) is not known")
 
 AWS_NAME_PREFIX = _aws_name_prefixes[SCIMMA_ENVIRONMENT]
 LOCAL_TESTING = SCIMMA_ENVIRONMENT=="local"
