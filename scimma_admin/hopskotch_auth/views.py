@@ -67,12 +67,30 @@ def login_failure(request):
 def create(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
                 f"to create a new credential from {request.META['REMOTE_ADDR']}")
-    bundle = new_credentials(request.user)
+
+    nickname = ""
+    if "nickname" in request.POST:
+        nickname = request.POST.get("nickname")
+        logger.info(f"User requested credential nickname is {nickname}")
+
+        if len(nickname) > SCRAMCredentials.nickname.field.max_length:
+            return redirect_with_error(request, "Create a credential",
+                                       "requested credential nickname too long",
+                                       "index")
+
+        # check only non-empty nicknames, as empty ones will be replaced with the auto-generated
+        # name by new_credentials
+        if len(nickname) > 0 and not check_credential_nickname(request.user, nickname):
+            return redirect_with_error(request, "Create a credential",
+                                       "requested credential nickname is already in use",
+                                       "index")
+
+    bundle = new_credentials(request.user, nickname)
     logger.info(f"Created new credential {bundle.username} on behalf of user "
                 f"{request.user.username} ({request.user.email})")
     return render(
         request, 'hopskotch_auth/create.html',
-        dict(username=bundle.username, password=bundle.password),
+        dict(username=bundle.username, password=bundle.password, nickname=bundle.creds.nickname),
     )
 
 
@@ -106,8 +124,12 @@ def delete(request):
 @login_required
 def download(request):
     myfile = StringIO()
-    myfile.write("username,password\n")
-    myfile.write(f"{request.POST['username']},{request.POST['password']}")       
+    myfile.write("username,password,kafkahost,nickname\n")
+    myfile.write(f"{request.POST['username']},{request.POST['password']}")
+    if('nickname' in request.POST):
+        myfile.write(f",{request.POST['nickname']}")
+    else:
+        myfile.write(",")
     myfile.flush()
     myfile.seek(0) # move the pointer to the beginning of the buffer
     response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
