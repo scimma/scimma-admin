@@ -124,7 +124,7 @@ def delete(request):
 @login_required
 def download(request):
     myfile = StringIO()
-    myfile.write("username,password,kafkahost,nickname\n")
+    myfile.write("username,password,nickname\n")
     myfile.write(f"{request.POST['username']},{request.POST['password']}")
     if('nickname' in request.POST):
         myfile.write(f",{request.POST['nickname']}")
