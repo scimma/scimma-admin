@@ -87,6 +87,12 @@ class SCRAMCredentials(models.Model):
         default = False,
     )
 
+    # a user-chosen nickname, which need not be globally unique and may be changed
+    nickname = models.CharField(
+        max_length = 64,
+        editable = True,
+    )
+
     @classmethod
     def generate(cls, owner: User, username: str, password: str, alg: SCRAMAlgorithm,
                  salt: Optional[bytes] = None, iterations: int = 4096):
@@ -168,7 +174,7 @@ def delete_credentials(user, cred_username):
     creds.delete()
 
 
-def new_credentials(owner):
+def new_credentials(owner, nickname: str = ""):
     username = rand_username(owner)
 
     alphabet = string.ascii_letters + string.digits
@@ -181,6 +187,7 @@ def new_credentials(owner):
         alg=SCRAMAlgorithm.SHA512,
         salt=rand_salt,
     )
+    creds.nickname=nickname if (len(nickname) > 0) else username
     creds.save()
     bundle = CredentialGenerationBundle(
         creds=creds,
@@ -188,6 +195,13 @@ def new_credentials(owner):
         password=rand_password,
     )
     return bundle
+
+
+def check_credential_nickname(owner: User, nickname: str) -> bool:
+    """ Return whether the specified credential nickname is free for use (not already in use) by
+        the given user.
+    """
+    return not SCRAMCredentials.objects.filter(owner=owner, nickname=nickname).exists()
 
 
 @dataclass

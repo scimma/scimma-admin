@@ -22,11 +22,13 @@
         <h4>This is the only time the password will be revealed.</h4>
         <p>Username:</p><pre>{{ username }}</pre>
         <p>Password:</p><pre>{{ password }}</pre>
+        <p>Nickname:</p><pre>{{ nickname }}</pre>
       </div>
       <form action="{% url 'download' %}" method="post">
         {% csrf_token %}
         <input type="hidden" value="{{ username }}" name="username">
         <input type="hidden" value="{{ password }}" name="password">
+        <input type="hidden" value="{{ nickname }}" name="nickname">
         <button class="btn btn-outline-primary" type="submit" name="download" id="download">Download</button>
       </form> 
       <p>These credentials will be usable within 10 seconds.</p>

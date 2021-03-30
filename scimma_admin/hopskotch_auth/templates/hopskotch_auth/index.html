@@ -20,6 +20,7 @@
         <thead>
           <tr>
             <th scope="col">Kafka Username</th>
+            <th scope="col">Nickname</th>
             <th scope="col">Created On (Pacific Time)</th>
             <th scope="col">Actions</th>
           </tr>
@@ -28,6 +29,7 @@
           {% for cred in credentials %}
           <tr>
             <td scope="row">{{ cred.username }}</td>
+            <td scope="row">{{ cred.nickname }}</td>
             <td>{{ cred.created_at|localtime }}</td>
             <td>
               <form action="{% url 'edit_credential' %}" method="get">
@@ -43,7 +45,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td class="info" colspan="3">No existing credentials found.</td>
+            <td class="info" colspan="4">No existing credentials found.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -56,6 +58,14 @@
       <p>A username and password will be generated for you.</p>
       <form action="{% url 'create' %}" method="post">
         {% csrf_token %}
+        <label for="nickname">Nickname (Optional)</label>
+        <button type="button" class="btn btn-outline-info btn-sm" data-toggle="popover"
+            title="Help" data-content="A nickname is a name for your own convenience, to make it
+                easier to recognize different credentials. It is a good idea to choose a nickname
+                based on what you plan to use a credential for, like 'laptop-analysis' or
+                'alert-sender'. If you do not choose one, it will be the same as the auto-generated
+                username.">?</button>
+        <input type="text" name="nickname" class="vTextField" maxlength="64" id="nickname">
         <input class="btn btn-outline-primary" type="submit" value="Create new credentials">
       </form>
     </section>
