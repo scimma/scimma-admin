@@ -9,13 +9,16 @@
             <table class="table table-bordered table-hover">
                 <thead>
                     <tr>
-                        <th scope="col" colspan="2">Group Name</th>
+                        <th scope="col">Group Name</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for group in groups %}
                     <tr>
                         <td>{{ group.name }}</td>
+                        <td>{{ group.description }}</td>
                         <td>
                             <form action="{% url 'edit_group' %}" method="get">
                                 <input type="hidden" name="group_id" value="{{ group.id }}">

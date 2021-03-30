@@ -4,6 +4,18 @@
 {% block page-header %}Edit Group: {{ group.name }}{% endblock %}
 
 {% block page-body %}
+        <section>
+            <h2>Description</h2>
+            <form action="{% url 'change_group_description' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="group_id" value="{{ group.id }}">
+                <label for="id_desc">Description:</label>
+                <br/>
+                <textarea name="description" class="vTextField" maxlength="1024" id="id_desc" style="width: 50%;">{{ group.description }}</textarea>
+                <br/>
+                <button class="btn btn-outline-primary" type="submit" name="update" id="update">Update</button>
+            </form>
+            <hr/>
         <section class="members-list">
             <h2>Current Members</h2>
             <table class="table table-bordered table-hover">
@@ -82,6 +94,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Topic</th>
+                        <th scope="col">Description</th>
                         <th scope="col">Actions</th>
                     </tr>
                 </thead>
@@ -89,6 +102,7 @@
                     {% for topic in topics %}
                     <tr>
                         <td>{{ topic.name }}</td>
+                        <td>{{ topic.description }}</td>
                         <td>
                             <form action="{% url 'edit_topic' %}" method="get">
                                 <input type="hidden" name="topic_id" value="{{ topic.id }}">
@@ -103,7 +117,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td class="info" colspan="4">This group has no Kafka topics</td>
+                        <td class="info" colspan="3">This group has no Kafka topics</td>
                     </tr>
                     {% endfor %}
                 </tbody>

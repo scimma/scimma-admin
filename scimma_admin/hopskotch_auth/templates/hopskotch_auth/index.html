@@ -21,6 +21,7 @@
           <tr>
             <th scope="col">Kafka Username</th>
             <th scope="col">Created On (Pacific Time)</th>
+            <th scope="col">Description</th>
             <th scope="col">Actions</th>
           </tr>
         </thead>
@@ -29,6 +30,7 @@
           <tr>
             <td scope="row">{{ cred.username }}</td>
             <td>{{ cred.created_at|localtime }}</td>
+            <td>{{ cred.description }}</td>
             <td>
               <form action="{% url 'edit_credential' %}" method="get">
                 <input type="hidden" value="{{ cred.username }}" name="cred_username">
@@ -43,7 +45,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td class="info" colspan="3">No existing credentials found.</td>
+            <td class="info" colspan="4">No existing credentials found.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -107,6 +109,7 @@
         <thead>
           <tr>
             <th scope="col">Topic Name</th>
+            <th scope="col">Description</th>
             <th scope="col">Access Type
                 <button type="button" class="btn btn-outline-info btn-sm" data-toggle="popover"
                     title="Help" data-content="An access type of 'public' indicates a topic which
@@ -121,11 +124,12 @@
           {% for topic in accessible_topics %}
           <tr>
             <td>{{ topic.name }}</td>
+            <td>{{ topic.description }}</td>
             <td>{{ topic.access_type }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td class="info" colspan="2">This account does not have access to any topics</td>
+            <td class="info" colspan="3">This account does not have access to any topics</td>
           </tr>
           {% endfor %}
         </tbody>

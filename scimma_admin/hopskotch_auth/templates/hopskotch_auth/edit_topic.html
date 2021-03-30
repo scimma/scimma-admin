@@ -3,8 +3,20 @@
 {% block title %}Edit Topic{% endblock %}
 {% block page-header %}Topic management: {{ topic.name }}{% endblock %}
 
-{% block page-body %}       
-        <section class="members-list">
+{% block page-body %}
+        <section>
+            <h2>Description</h2>
+            <form action="{% url 'change_topic_description' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="topic_id" value="{{ topic.id }}">
+                <label for="id_desc">Description:</label>
+                <br/>
+                <textarea name="description" class="vTextField" maxlength="1024" id="id_desc" style="width: 50%;">{{ topic.description }}</textarea>
+                <br/>
+                <button class="btn btn-outline-primary" type="submit" name="update" id="update">Update</button>
+            </form>
+            <hr/>
+        <section class="permissions-list">
             <h2>Active Group Permissions</h2>
             <table class="table table-bordered table-hover">
                 <thead>

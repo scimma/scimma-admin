@@ -37,9 +37,10 @@ def index(request):
                             "status":membership.status})
     memberships.sort(key=lambda m: m["group_name"])
     accessible_topics = []
-    for name, desc in topics_accessible_to_user(request.user).items():
-        accessible_topics.append({"name":name,
-                           "access_type":desc})
+    for name, access in topics_accessible_to_user(request.user).items():
+        accessible_topics.append({"name":name,"name":name,
+                                  "description":KafkaTopic.objects.get(name=name).description,
+                                  "access_type":access})
     accessible_topics.sort(key=lambda t: t["name"])
     return render(
         request, 'hopskotch_auth/index.html',
@@ -238,6 +239,51 @@ def delete_group(request):
     
     messages.info(request, "Group "+group_name+" deleted")
     return redirect("group_management")
+
+
+@require_POST
+@login_required
+def change_group_description(request):
+    logger.info(f"User {request.user.username} ({request.user.email}) to set the description for group "
+                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+
+    if not "group_id" in request.POST or len(request.POST["group_id"])==0:
+        return redirect_with_error(request, "Set a group description",
+                                   "Missing or invalid group ID", "index")
+    if "description" not in request.POST:
+        return redirect_with_error(request, "Set a group description",
+                                   "Missing group description", "index")
+
+    group_id = request.POST["group_id"]
+    try:
+        group = Group.objects.get(id=group_id)
+    except ObjectDoesNotExist as dne:
+        return redirect_with_error(request, "Set a group description",
+                                   "No such group exists", "index")
+
+    # make sure the requesting user actually has the rights to modify this group
+    # the user must be a group owner or a staff member
+    if not is_group_owner(request.user,group_id) and not request.user.is_staff:
+        return redirect_with_error(request,
+                                   f"Set a description for the group with id {group.id}",
+                                   "Requester is not a group owner or staff member",
+                                   "index")
+
+    base_edit_url = reverse("edit_group")
+    edit_url = base_edit_url+f"?group_id={group.id}"
+
+    description = request.POST["description"]
+    # make sure the proposed description is valid
+    if len(description) > 1024:
+        return redirect_with_error(request, "Set a credential description",
+                                   "Description too long", edit_url)
+
+    group.description = description
+    group.save()
+    logger.info(f"Set description for group {group.name}")
+    messages.info(request, f"Set group description")
+
+    return redirect(edit_url)
 
 
 @login_required
@@ -484,6 +530,51 @@ def edit_topic(request):
 
 @require_POST
 @login_required
+def change_topic_description(request):
+    logger.info(f"User {request.user.username} ({request.user.email}) to set the description for topic ID "
+                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+
+    if not "topic_id" in request.POST or len(request.POST["topic_id"])==0:
+        return redirect_with_error(request, "Set a topic description",
+                                   "Missing or invalid topic ID", "index")
+    if "description" not in request.POST:
+        return redirect_with_error(request, "Set a topic description",
+                                   "Missing topic description", "index")
+
+    topic_id = request.POST["topic_id"]
+    try:
+        topic = KafkaTopic.objects.get(id=topic_id)
+    except ObjectDoesNotExist as dne:
+        return redirect_with_error(request, "Set a topic description",
+                                   "No such topic exists", "index")
+
+    # make sure the requesting user actually has the rights to modify this group
+    # the user must be a group owner or a staff member
+    if not is_group_owner(request.user,topic.owning_group.id) and not request.user.is_staff:
+        return redirect_with_error(request,
+                                   f"Set a description for topic {topic.name}",
+                                   "Requester is not an owning group owner or staff member",
+                                   "index")
+
+    base_edit_url = reverse("edit_topic")
+    edit_url = base_edit_url+f"?topic_id={topic.id}"
+
+    description = request.POST["description"]
+    # make sure the proposed description is valid
+    if len(description) > 1024:
+        return redirect_with_error(request, "Set a topic description",
+                                   "Description too long", edit_url)
+
+    topic.description = description
+    topic.save()
+    logger.info(f"Set description for topic {topic.name}")
+    messages.info(request, f"Set topic description")
+
+    return redirect(edit_url)
+
+
+@require_POST
+@login_required
 def set_topic_public_read_access(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to set topic ID "
                 f"{request.POST.get('topic_id','<unset>')} public read access to "
@@ -677,6 +768,49 @@ def edit_credential(request):
         request, "hopskotch_auth/edit_credential.html",
         dict(cred=credential, permissions=permissions, possible_perms=possible_perms)
         )
+
+
+@require_POST
+@login_required
+def change_credential_description(request):
+    logger.info(f"User {request.user.username} ({request.user.email}) to set the description for credential "
+                f"{request.POST.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
+
+    if not "cred_username" in request.POST:
+        return redirect_with_error(request, "Set a credential description",
+                                   "Missing credential name", "index")
+    if "description" not in request.POST:
+        return redirect_with_error(request, "Set a credential description",
+                                   "Missing credential description", "index")
+
+    try:
+        credential = SCRAMCredentials.objects.get(username=request.POST["cred_username"])
+    except ObjectDoesNotExist as dne:
+        return redirect_with_error(request, "Set a credential description",
+                                   "No such credential exists", "index")
+
+    # make sure the requesting user actually has the rights to modify this credential
+    # the user must be the credential owner or a staff member
+    if request.user!=credential.owner and not request.user.is_staff:
+        return redirect_with_error(request, "Set a credential description",
+                                   "Requester is not the credential owner or a staff member",
+                                   "index")
+
+    base_edit_url = reverse("edit_credential")
+    edit_url = base_edit_url+"?cred_username="+credential.username
+
+    description = request.POST["description"]
+    # make sure the proposed description is valid
+    if len(description) > 1024:
+        return redirect_with_error(request, "Set a credential description",
+                                   "Description too long", edit_url)
+
+    credential.description = description
+    credential.save()
+    logger.info(f"Set description for credential {credential.username}")
+    messages.info(request, f"Set credential description")
+
+    return redirect(edit_url)
 
 
 @require_POST
