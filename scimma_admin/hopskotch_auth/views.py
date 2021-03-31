@@ -257,7 +257,7 @@ def change_group_description(request):
     group_id = request.POST["group_id"]
     try:
         group = Group.objects.get(id=group_id)
-    except ObjectDoesNotExist as dne:
+    except ObjectDoesNotExist:
         return redirect_with_error(request, "Set a group description",
                                    "No such group exists", "index")
 
@@ -548,12 +548,13 @@ def change_topic_description(request):
         return redirect_with_error(request, "Set a topic description",
                                    "No such topic exists", "index")
 
-    # make sure the requesting user actually has the rights to modify this group
-    # the user must be a group owner or a staff member
+    # make sure the requesting user actually has the rights to modify this topic
+    # the user must be a group owner of the topic's owning group or a staff member
     if not is_group_owner(request.user,topic.owning_group.id) and not request.user.is_staff:
         return redirect_with_error(request,
                                    f"Set a description for topic {topic.name}",
-                                   "Requester is not an owning group owner or staff member",
+                                   f"This topic is owned by the {Group.get(id=topic.owning_group.id).name} group, "
+                                   "and only the owner of that group can change the description",
                                    "index")
 
     base_edit_url = reverse("edit_topic")
