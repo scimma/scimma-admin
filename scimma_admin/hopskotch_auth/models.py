@@ -87,6 +87,12 @@ class SCRAMCredentials(models.Model):
         default = False,
     )
 
+    description = models.TextField(
+        max_length=1024,
+        editable=True,
+        default="",
+    )
+
     @classmethod
     def generate(cls, owner: User, username: str, password: str, alg: SCRAMAlgorithm,
                  salt: Optional[bytes] = None, iterations: int = 4096):
@@ -223,6 +229,11 @@ class Group(models.Model):
         settings.AUTH_USER_MODEL, 
         through='GroupMembership'
     )
+    description = models.TextField(
+        max_length=1024,
+        editable=True,
+        default="",
+    )
 
 
 # This function interacts with validate_topic_name, because we want to form topic names as
@@ -281,6 +292,11 @@ class KafkaTopic(models.Model):
     )
     publicly_readable = models.BooleanField(
         default = False,
+    )
+    description = models.TextField(
+        max_length=1024,
+        editable=True,
+        default="",
     )
 
 

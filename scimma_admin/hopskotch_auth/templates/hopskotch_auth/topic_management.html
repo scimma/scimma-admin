@@ -11,6 +11,7 @@
                     <tr>
                         <th scope="col">Owning Group</th>
                         <th scope="col">Name</th>
+                        <th scope="col">Description</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -22,6 +23,7 @@
                         <td rowspan="{{ topics|length }}"><a href="{% url 'edit_group' %}?group_id={{ owning_group.id }}">{{ owning_group.name }}</a></td>
                         {% endif %}
                         <td><a href="{% url 'edit_topic' %}?topic_id={{ topic.id }}">{{ topic.name }}</a></td>
+                        <td>{{ topic.description }}</td>
                     </tr>
                     {% endfor %}
                     {% endfor %}
