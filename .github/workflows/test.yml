@@ -7,9 +7,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
+      - name: Install secrets
+        env:
+          CILOGON_CLIENT_SECRET: ${{ secrets.CILOGON_CLIENT_SECRET }}
+        run: python scripts/setup_ci_secrets.py
+
       - name: Build the stack
         run: docker-compose up -d
+
       - name: Run migrations
         run: docker-compose exec django python manage.py migrate
+
       - name: Run tests
         run: docker-compose exec django python manage.py test
