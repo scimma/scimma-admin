@@ -17,7 +17,7 @@ jobs:
         run: docker-compose up -d
 
       - name: Run migrations
-        run: docker-compose exec django python manage.py migrate --no-input
+        run: docker-compose exec -T django python manage.py migrate --no-input
 
       - name: Run tests
-        run: docker-compose exec django python manage.py test --no-input
+        run: docker-compose exec -T django python manage.py test --no-input
