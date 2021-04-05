@@ -92,33 +92,104 @@ You'll need AWS credentials. Install
 
 If you will develop on Windows OS, you will have issues with uWSGI package in requirements.txt. You can remove it and download uwsgi.exe. For running makefiles on Windows, you will need to download MinGW (the easy way) or Cygwin.
 
-## Local Development: first-time setup
+### Local Development: first-time setup
 
 Run `make localdev-setup`. This will download a few secrets from AWS, which will
 let you communicate with CILogon, even locally.
 
-Start up the service by using `docker-compose`:
-```
-docker-compose up
-```
+Next, start up the database. This can be done either with a Docker container, or by running the database directly on the host system. The former requires Docker, while the latter requires PostgresQL.
+
+To use Docker, run
+
+    python scripts/create_db.py --with-docker
+
+or to use postgres directly, run
+
+    python scripts/create_db.py --dbdata dbdata
 
 Once it's up and running, run a database migration to prep the DB. You only need
 to do this on first-time setup, and then whenever the DB schema is changed.
 
-```
-docker-compose exec django python manage.py migrate
-```
+    python scimma_admin/manage.py migrate
+
+Similarly, initialize static files used by the application. This is only needed at first-time 
+setup or when new assets are added. 
+
+    python scimma_admin/manage.py collectstatic
+
+Finally, start the service itself:
+
+    ./scripts/run_local
 
 You can then go to `http://127.0.0.1/hopauth/` to open the website locally.
 
-## Local Development: running tests
+To shut down the service, press Ctrl-C to end `uwgi`/`run_local`. 
+If you are running the database without Docker, you may want to stop it as well with `pg_ctl -D dbdata stop`. If you want to resume work again, you can then restart it with `pg_ctl -D dbdata -l pg_logfile start`. 
+Likewise, if using Docker, you can stop your database with `docker stop scimma-admin-postgres` and later restart it with `docker start scimma-admin-postgres`. 
 
-With your service up and running in a terminal (with `docker-compose up`), open
-a new terminal. Run this:
+### Local Development: running tests
 
-```
-docker-compose exec django python manage.py test
-```
+To run the tests, with your database running, run this command:
+
+    cd scimma_admin; python manage.py test; cd -
+
+### Local Development: Impersonating a different user
+
+When developing, it is often useful to be able to change user identities, such as switching 
+between admin and non-admin user profiles. This can be accomplished by replacing the 
+data scimma-admin would normally fetch from COmanage via CILogon with data of your 
+own choosing. User identities created in this way will exist only in your local database, as 
+production deployments will only fetch user data from the official CILogon source. 
+
+To change how user data is fetched, create a local setting file:
+
+    cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
+
+and then edit it to include:
+
+    OIDC_OP_USER_ENDPOINT = 'http://localhost:8001'
+    OIDC_VERIFY_SSL = False
+
+This will instruct it after a user authenticates via CILogon to fetch the user's information 
+from a local port (and not to require that connection to be authenticated/encrypted with TLS).
+
+Next, create some user data to serve: Make a text file named `user_data_test-admin`, and give it the following contents:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json;charset=UTF-8
+    Connection: close
+
+    {
+      "sub": "http://cilogon.org/serverA/users/22753625",
+      "email_list": [
+        "test-admin@example.com"
+      ],
+      "iss": "https://cilogon.org",
+      "vo_person_id": "SCiMMA2000002",
+      "is_member_of": [
+        "CO:members:all",
+        "SCiMMA Institute Members",
+        "CO:members:active",
+        "CO:COU:SCiMMA DevOps:members:active",
+        "SCiMMA Institute Active Members",
+        "kafkaUsers"
+      ],
+      "email": "test-admin@example.com",
+      "vo_display_name": "test-admin"
+    }
+
+Finally, start a second terminal window in the same directory, and use netcat to serve the 
+pre-written HTTP response on port 8001, where scimma-admin will shortly ask for it: 
+
+    nc -l 8001 < user_data_test-admin
+
+This will tie up that terminal window until a client has connected and gotten the document from netcat. 
+
+When you are log into the application again, you should see the main Hopauth page, with the user email address mentioned at the top being the one you put in the file being served by netcat (`test-admin@example.com`) instead of your own institutional email address. 
+
+Note that one disadvantage of netcat is that it will serve the file exactly once, and then exit, so each time you log in again with a new browser session, you will need to run it again. 
+
+If you want to make up additional test users, just create more files similar to `user_data_test-admin` and serve the one you want to use with `nc` just before logging in to use it. When doing this note that you should change the `vo_person_id` to be distinct for each user, and give each user a unique email address. You will probably also want to set the `vo_display_name`s to be different, although scimma-admin will not  To make a non-admin user, omit the `"CO:COU:SCiMMA DevOps:members:active",` line from the `is_member_of` list.
 
 ### Deploying a new version
 
