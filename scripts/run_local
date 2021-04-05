@@ -1,0 +1,70 @@
+#!/bin/sh
+
+PORT=8000
+NPROCESSES=1
+NTHREADS=2
+PID_FILE="project-master.pid"
+
+HELP="run_local: run scimma-admin locally with uwsgi
+Options:
+  -p, --port <number>       Listen on the specified port
+                             (default: ${PORT})
+  -t, --threads <number>    Set the number of threads per worker
+                             (default: ${NTHREADS})
+  -j, --processes <number>  Set the number of worker processes
+                             (default: ${NPROCESSES})
+  -i, --pid-file <file>     Use the specified PID file
+                             (default: ${PID_FILE})
+"
+
+require_arg(){
+    if [ "$1" -eq 0 ]; then
+        echo "run_local: Missing argument after ${var} option" 1>&2; exit 1
+    fi
+}
+
+while [ "$#" -gt 0 ]; do
+    var="$1"; shift
+
+	if [ "$var" = "--help" ] || [ "$var" = "-h" ]; then
+		echo "$HELP"
+		exit 0
+	fi
+
+    if [ "$var" = "--port" ] || [ "$var" = "-p" ]; then
+        require_arg "$#"
+        PORT="$1"; shift; continue
+    fi
+    tmp=$(echo "$var" | sed -n -E 's/^-(p|-port)=(.*)$/\2/p')
+    if [ "$tmp" ]; then PORT="$tmp"; continue; fi
+
+    if [ "$var" = "--threads" ] || [ "$var" = "-t" ]; then
+        require_arg "$#"
+        NTHREADS="$1"; shift; continue
+    fi
+    tmp=$(echo "$var" | sed -n -E 's/^-(t|-threads)=(.*)$/\2/p')
+    if [ "$tmp" ]; then NTHREADS="$tmp"; continue; fi
+
+    if [ "$var" = "--processes" ] || [ "$var" = "-j" ]; then
+        require_arg "$#"
+        NPROCESSES="$1"; shift; continue
+    fi
+    tmp=$(echo "$var" | sed -n -E 's/^-(j|-processes)=(.*)$/\2/p')
+    if [ "$tmp" ]; then NPROCESSES="$tmp"; continue; fi
+
+    if [ "$var" = "--pid-file" ] || [ "$var" = "-i" ]; then
+        require_arg "$#"
+        PID_FILE="$1"; shift; continue
+    fi
+    tmp=$(echo "$var" | sed -n -E 's/^-(i|-pid-file)=(.*)$/\2/p')
+    if [ "$tmp" ]; then PID_FILE="$tmp"; continue; fi
+
+    echo "run_local: Unknown or malformed option '$var'" 1>&2; exit 1
+done
+
+COMMAND="uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
+	--env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
+    --pidfile=${PID_FILE} --http :${PORT} \
+	--processes ${NPROCESSES} --threads ${NTHREADS}"
+echo $COMMAND
+$COMMAND
