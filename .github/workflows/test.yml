@@ -16,6 +16,11 @@ jobs:
       - name: Set up a postgres database
         run: python scripts/create_db.py --with-docker
 
+      - name: Install dependencies
+        run: |
+          pip install pip --upgrade
+          pip install -r requirements.txt
+
       - name: Run migrations
         run: python scimma_admin/manage.py migrate --no-input
 
