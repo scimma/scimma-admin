@@ -8,7 +8,7 @@ def main():
     if args.with_docker:
         create_with_docker()
     else:
-        create_without_docker()
+        create_without_docker(args.dbdata)
 
 
 
