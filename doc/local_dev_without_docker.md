@@ -4,6 +4,8 @@ This guide is an alternative to the recommendations in the top-level README for 
 
 Running the scimma-admin application locally without docker requires installing the application itself in a suitable python environment, supplying it with a PostgeSQL database where it can store its state, and a small trick to spoof user identification data in order to create test users to work with. 
 
+It is also possible to use Docker to run just the database component, rather than haing to install it on the the host system. 
+
 
 ## Installing scimma-admin itself
 
@@ -59,12 +61,6 @@ This will put you in the postgresql management shell. In the lines below `postgr
 	postgres=# ALTER ROLE postgres LOGIN;
 	postgres=# exit
 
-The database itself is now running and ready for django to use. Django itself requires one additional setup step:
-
-	python scimma_admin/manage.py migrate
-
-This creates the database tables in the form django expects to use. 
-
 ### Using a dockerized postgres
 
 To use a dockerized postgres, create a docker container using the postgres image:
@@ -75,7 +71,9 @@ Then bring up the database:
 
 	docker start scimma-admin-postgres
 
-The database itself is now running and ready for django to use. Django itself requires one additional setup step:
+### Initializing Database Tables
+
+After using either of the options above, the database itself is now running and ready for django to use. Django itself requires one additional setup step:
 
 	python scimma_admin/manage.py migrate
 
@@ -83,21 +81,6 @@ This creates the database tables in the form django expects to use.
 
 
 ## Running the application itself
-
-Note: the following changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
-
-In order to make the application connect to the local database, not a docker container, one small change is required. In scimma-admin/settings.py, apply the following patch (currently the line to be changed is 133):
-
-	--- scimma_admin/scimma_admin/settings.py
-	+++ scimma_admin/scimma_admin/settings.py
-	@@ -130,7 +130,7 @@ else:
-	         'NAME': 'postgres',
-	         'USER': 'postgres',
-	         'PASSWORD': 'postgres',
-	-        'HOST': 'db',
-	+        'HOST': 'localhost',
-	         'PORT': 5432,
-	     }
 
 The application can finally be started with `uwsgi`. You can run it on any port you want, but binding to port 80 requires superuser privileges, so it's usually easier to just use a higher numbered port, in this case 8000:
 
@@ -110,26 +93,19 @@ This will run in the foreground, taking over your terminal window. It can be sto
 
 ## Accessing the web interface
 
-Note: the following changes to `scimma-admin/settings.py` are unnecessary if you're using `local_settings.py`.
-
 Once you have the application running, you should be able to view its interface by opening http://127.0.0.1:8000/hopauth in your web browser. About the only thing you should see will be the 'Login' link. If this shows up everything is working, but there is one more key step to do before logging in.
 
-In order to test out being different users, for example an admin user or a regular user, it's useful to replace the data scimma-admin would normally fetch from COmanage via CILogon with data of your own choosing. 
+In order to test out being different users, for example an admin user or a regular user, it's useful to replace the data scimma-admin would normally fetch from COmanage via CILogon with data of your own choosing.
 
-First, kill `uwsgi`. Next, make another small change to scimma_admin/settings.py:
+To bypass the normal loading of user data from CILogon, edit your `scimma-admin/local_settings.py` to include the line:
 
-	--- scimma_admin/scimma_admin/settings.py
-	+++ scimma_admin/scimma_admin/settings.py
-	@@ -139,7 +139,8 @@ else:
-	 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
-	 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
-	 OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
-	-OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
-	+OIDC_OP_USER_ENDPOINT = 'http://localhost:8001'
-	+OIDC_VERIFY_SSL = False
-	 OIDC_RP_SIGN_ALGO = 'RS256'
-	 OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
-	 AUTHENTICATION_BACKENDS = (
+	OIDC_OP_USER_ENDPOINT = 'http://localhost:8001'
+
+and ensure that the setting
+
+	OIDC_VERIFY_SSL = False
+
+is also present.
 
 This will instruct it after a user authenticates via CILogon to fetch the user's information from a local port (and not to require that connection to be authenticated/encrypted with TLS). 
 
@@ -204,4 +180,4 @@ Very little of the setup work needs to be repeated; it should be sufficient to r
 
 If you're using dockerized postgres, you should run `docker start scimma-admin-postgres` in lieu of `pg_ctl ...`
 
-Don't forget to run netcat to impersonate whichever test user you want before each time you log in to the web interface. 
+Don't forget to run netcat to impersonate whichever test user you want before each time you log in to the web interface, if you are not using your own user data provided by CILogon.
