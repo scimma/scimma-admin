@@ -24,6 +24,9 @@ jobs:
       - name: Run migrations
         run: python scimma_admin/manage.py migrate --no-input
 
+      - name: Collect static files
+        run: python scimma_admin/manage.py collectstatic --no-input
+
       - name: Run tests
         run: |
           cd scimma_admin
