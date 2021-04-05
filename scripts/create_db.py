@@ -36,8 +36,8 @@ def create_with_docker():
     ])
 
 def create_without_docker(dbdata_dir):
-    subprocess.run(["initdb", f"-D={dbdata_dir}"])
-    subprocess.run(["pg_ctl", f"-D={dbdata_dir}", "-l=pg_logfile", "start"])
+    subprocess.run(["initdb", "-D", dbdata_dir])
+    subprocess.run(["pg_ctl", "-D", dbdata_dir, "-l", "pg_logfile", "start"])
     subprocess.run([
         "psql",
         "--command=CREATE ROLE postgres;",
