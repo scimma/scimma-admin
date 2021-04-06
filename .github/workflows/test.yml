@@ -13,11 +13,21 @@ jobs:
           CILOGON_CLIENT_SECRET: ${{ secrets.CILOGON_CLIENT_SECRET }}
         run: python scripts/setup_ci_secrets.py
 
-      - name: Build the stack
-        run: docker-compose up -d
+      - name: Set up a postgres database
+        run: python scripts/create_db.py --with-docker
+
+      - name: Install dependencies
+        run: |
+          pip install pip --upgrade
+          pip install -r requirements.txt
 
       - name: Run migrations
-        run: docker-compose exec -T django python manage.py migrate --no-input
+        run: python scimma_admin/manage.py migrate --no-input
+
+      - name: Collect static files
+        run: python scimma_admin/manage.py collectstatic --no-input
 
       - name: Run tests
-        run: docker-compose exec -T django python manage.py test --no-input
+        run: |
+          cd scimma_admin
+          python manage.py test --no-input
