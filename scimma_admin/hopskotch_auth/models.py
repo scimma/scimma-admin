@@ -334,13 +334,11 @@ class GroupKafkaPermission(models.Model):
         editable=False,
     )
 
-    def __eq__(self, other: GroupKafkaPermission) -> bool:
-        return self.principal==other.principal \
-           and self.topic==other.topic \
-           and self.operation==other.operation
-
-    def __hash__(self):
-        return hash((self.principal, self.topic, self.operation))
+def same_permission(p1: GroupKafkaPermission,
+                    p2: GroupKafkaPermission) -> bool:
+    return p1.principal==p2.principal \
+           and p1.topic==p2.topic \
+           and p1.operation==p2.operation
 
 
 def add_kafka_permission_for_group(group_id: str, topic: KafkaTopic, operation: KafkaOperation):
@@ -352,7 +350,7 @@ def add_kafka_permission_for_group(group_id: str, topic: KafkaTopic, operation: 
     existing = GroupKafkaPermission.objects.filter(principal=group_id, topic=topic.id)
     
     if existing.exists():
-        if new_record in existing:
+        if any(same_permission(p, new_record) for p in existing):
             # the exact permission we're trying to create already exists, 
             # so we can do nothing and declare success
             return
