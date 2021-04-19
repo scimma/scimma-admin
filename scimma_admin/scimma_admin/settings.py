@@ -75,7 +75,7 @@ else:
     SECRET_KEY = "zzzlocal"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = SCIMMA_ENVIRONMENT != "production"
+DEBUG = SCIMMA_ENVIRONMENT != "prod"
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
