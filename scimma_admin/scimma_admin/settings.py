@@ -42,6 +42,17 @@ def get_localdev_secret(name):
     print(cp.sections())
     return cp["secrets"][name]
 
+# ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
+# back to the client. This custom middleware tries to keep it happy.
+def set_redirect_headers(get_response):
+    def middleware(request):
+        response = get_response(request)
+        if response.status_code == 301:
+            response['Content-Type'] = '*/*; charset="UTF-8"'
+            response['Content-Length'] = 0
+        return response
+    return middleware
+
 SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 
 _aws_name_prefixes = {
@@ -74,6 +85,9 @@ if not LOCAL_TESTING:
 else:
     SECRET_KEY = "zzzlocal"
 
+if not LOCAL_TESTING:
+    SECURE_SSL_REDIRECT = True
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SCIMMA_ENVIRONMENT != "prod"
 
@@ -98,6 +112,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'scimma_admin.settings.set_redirect_headers', # must be placed before SecurityMiddleware to modify redirects
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Placement after SecurityMiddleware needed as per whitenoise docs
     'django.contrib.sessions.middleware.SessionMiddleware',
