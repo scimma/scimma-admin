@@ -52,7 +52,8 @@ def index(request):
 def login(request):
     if request.user.is_authenticated:
         return redirect(settings.LOGIN_REDIRECT_URL)
-    return render(request, 'hopskotch_auth/login.html',)
+    return render(request, 'hopskotch_auth/login.html',
+                  {"signup_url":settings.USER_SIGNUP_URL})
 
 
 def logout(request):
@@ -60,7 +61,12 @@ def logout(request):
 
 
 def login_failure(request):
-    return render(request, 'hopskotch_auth/login_failure.html')
+    if "login_failure_reason" in request.session:
+        reason = request.session["login_failure_reason"]
+    else:
+        reason = None
+    return render(request, 'hopskotch_auth/login_failure.html',
+                  {"reason":reason, "signup_url":settings.USER_SIGNUP_URL})
 
 
 @require_POST
