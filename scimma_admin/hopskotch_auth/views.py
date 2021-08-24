@@ -26,6 +26,15 @@ def redirect_with_error(request, operation, reason, redirect_to):
     return redirect(redirect_to)
 
 
+def client_ip(request):
+    """Determine the original client IP address, taking into account headers set
+    by the load balancer, if they exist.
+    """
+    if "HTTP_X_FORWARDED_FOR" in request.META:
+        return request.META["HTTP_X_FORWARDED_FOR"]
+    return request.META["REMOTE_ADDR"]
+
+
 @login_required
 def index(request):
     credentials = list(request.user.scramcredentials_set.all())
@@ -67,7 +76,7 @@ def login_failure(request):
 @login_required
 def create(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"to create a new credential from {request.META['REMOTE_ADDR']}")
+                f"to create a new credential from {client_ip(request)}")
     bundle = new_credentials(request.user)
     logger.info(f"Created new credential {bundle.username} on behalf of user "
                 f"{request.user.username} ({request.user.email})")
@@ -80,7 +89,7 @@ def create(request):
 @login_required
 def delete(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to delete credential "
-                f"{request.GET.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.GET.get('cred_username','<unset>')} from {client_ip(request)}")
     
     cred_username = request.GET.get('cred_username')
     if cred_username is None:
@@ -114,14 +123,14 @@ def download(request):
     response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
     response['Content-Disposition'] = 'attachment; filename=hop-credentials.csv'
     logger.info(f"Sent data for credential {request.POST['username']} to user "
-                f"{request.user.username} ({request.user.email}) at {request.META['REMOTE_ADDR']}")
+                f"{request.user.username} ({request.user.email}) at {client_ip(request)}")
     return response
 
 
 @login_required
 def group_management(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"the group management page from {request.META['REMOTE_ADDR']}")
+                f"the group management page from {client_ip(request)}")
     
     # only staff can manage groups
     if not request.user.is_staff:
@@ -137,7 +146,7 @@ def group_management(request):
 @login_required
 def create_group(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to create a group with name "
-                f"{request.POST.get('name','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('name','<unset>')} from {client_ip(request)}")
     
     # only staff can create new groups
     if not request.user.is_staff:
@@ -171,7 +180,7 @@ def create_group(request):
 @login_required
 def edit_group(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to edit group ID "
-                f"{request.GET.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.GET.get('group_id','<unset>')} from {client_ip(request)}")
     
     if not "group_id" in request.GET or len(request.GET["group_id"])==0:
         return redirect_with_error(request, "Edit a group", 
@@ -213,7 +222,7 @@ def edit_group(request):
 @login_required
 def delete_group(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to delete group ID "
-                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
     
     # only staff can delete groups
     if not request.user.is_staff:
@@ -245,7 +254,7 @@ def delete_group(request):
 @login_required
 def change_group_description(request):
     logger.info(f"User {request.user.username} ({request.user.email}) to set the description for group "
-                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
 
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
         return redirect_with_error(request, "Set a group description",
@@ -289,7 +298,7 @@ def change_group_description(request):
 @login_required
 def topic_management(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"the global topic management page from {request.META['REMOTE_ADDR']}")
+                f"the global topic management page from {client_ip(request)}")
 
     # only staff can manage all topics
     if not request.user.is_staff:
@@ -307,7 +316,7 @@ def topic_management(request):
 @login_required
 def credential_management(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"the global credential management page from {request.META['REMOTE_ADDR']}")
+                f"the global credential management page from {client_ip(request)}")
     
     # only staff can manage others' credentials
     if not request.user.is_staff:
@@ -329,7 +338,7 @@ def change_membership_status(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to change user ID "
                 f"{request.POST.get('user_id','<unset>')}'s status in group ID "
                 f"{request.POST.get('group_id','<unset>')} to {request.POST.get('status','<unset>')}"
-                f" from {request.META['REMOTE_ADDR']}")
+                f" from {client_ip(request)}")
     
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
         return redirect_with_error(request, "Change a user's group membership status", 
@@ -388,7 +397,7 @@ def change_membership_status(request):
 def remove_user(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to remove user ID "
                 f"{request.POST.get('user_id','<unset>')} from group ID "
-                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
     
     if not "group_id" in request.POST or len(request.POST["group_id"])==0:
         return redirect_with_error(request, "Remove a user from a group", 
@@ -442,7 +451,7 @@ def remove_user(request):
 def create_topic(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to create a topic with name "
                 f"{request.POST.get('topic_name','<unset>')} owned by group ID "
-                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
     
     if not "group_id" in request.POST:
         return redirect_with_error(request, "Create a topic", 
@@ -491,7 +500,7 @@ def create_topic(request):
 @login_required
 def edit_topic(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to edit topic ID "
-                f"{request.GET.get('topic_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.GET.get('topic_id','<unset>')} from {client_ip(request)}")
     
     if not "topic_id" in request.GET:
         return redirect_with_error(request, "Edit a topic", 
@@ -532,7 +541,7 @@ def edit_topic(request):
 @login_required
 def change_topic_description(request):
     logger.info(f"User {request.user.username} ({request.user.email}) to set the description for topic ID "
-                f"{request.POST.get('group_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
 
     if not "topic_id" in request.POST or len(request.POST["topic_id"])==0:
         return redirect_with_error(request, "Set a topic description",
@@ -579,7 +588,7 @@ def change_topic_description(request):
 def set_topic_public_read_access(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to set topic ID "
                 f"{request.POST.get('topic_id','<unset>')} public read access to "
-                f"{request.POST.get('public','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('public','<unset>')} from {client_ip(request)}")
 
     if not "topic_id" in request.POST:
         return redirect_with_error(request, "Set public access to a topic", 
@@ -620,7 +629,7 @@ def set_topic_public_read_access(request):
 @login_required
 def delete_topic(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to delete topic ID "
-                f"{request.POST.get('topic_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('topic_id','<unset>')} from {client_ip(request)}")
     
     if not "topic_id" in request.POST:
         return redirect_with_error(request, "Delete a topic", 
@@ -653,7 +662,7 @@ def add_group_permission(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to grant group ID "
                 f"{request.POST.get('group_id','<unset>')} "
                 f"{request.POST.get('operation','<unset>')} permission for topic ID "
-                f"{request.POST.get('topic_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('topic_id','<unset>')} from {client_ip(request)}")
                 
     if not "topic_id" in request.POST:
         return redirect_with_error(request, "Grant a group permission to access a topic", 
@@ -701,7 +710,7 @@ def add_group_permission(request):
 @login_required
 def remove_group_permission(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to revoke group permission with ID "
-                f"{request.POST.get('perm_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('perm_id','<unset>')} from {client_ip(request)}")
     
     if not "perm_id" in request.POST:
         return redirect_with_error(request, "Revoke a group's permission to access a topic", 
@@ -736,7 +745,7 @@ def remove_group_permission(request):
 @login_required
 def edit_credential(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to edit permissions for credential "
-                f"{request.GET.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.GET.get('cred_username','<unset>')} from {client_ip(request)}")
     
     if not "cred_username" in request.GET:
         return redirect_with_error(request, "Edit a credential", 
@@ -775,7 +784,7 @@ def edit_credential(request):
 @login_required
 def change_credential_description(request):
     logger.info(f"User {request.user.username} ({request.user.email}) to set the description for credential "
-                f"{request.POST.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('cred_username','<unset>')} from {client_ip(request)}")
 
     if not "cred_username" in request.POST:
         return redirect_with_error(request, "Set a credential description",
@@ -819,7 +828,7 @@ def change_credential_description(request):
 def add_credential_permission(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to add a permission "
                 f"{request.POST.get('perm','<unset>')} to credential "
-                f"{request.POST.get('cred_username','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('cred_username','<unset>')} from {client_ip(request)}")
     
     if not "cred_username" in request.POST:
         return redirect_with_error(request, "Add a permission to a credential", 
@@ -883,7 +892,7 @@ def add_credential_permission(request):
 @login_required
 def remove_credential_permission(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to remove a permission ID "
-                f"{request.POST.get('perm_id','<unset>')} from a credential from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('perm_id','<unset>')} from a credential from {client_ip(request)}")
     
     if "perm_id" not in request.POST:
         return redirect_with_error(request, "Remove a permission from a credential", 
@@ -913,7 +922,7 @@ def remove_credential_permission(request):
 @login_required
 def suspend_credential(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to suspend the credential with ID "
-                f"{request.POST.get('cred_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('cred_id','<unset>')} from {client_ip(request)}")
 
     # only staff can suspend credentials
     if not request.user.is_staff:
@@ -945,7 +954,7 @@ def suspend_credential(request):
 @login_required
 def unsuspend_credential(request):
     logger.info(f"User {request.user.username} ({request.user.email}) requested to un-suspend the credential with ID "
-                f"{request.POST.get('cred_id','<unset>')} from {request.META['REMOTE_ADDR']}")
+                f"{request.POST.get('cred_id','<unset>')} from {client_ip(request)}")
 
     # only staff can unsuspend credentials
     if not request.user.is_staff:
