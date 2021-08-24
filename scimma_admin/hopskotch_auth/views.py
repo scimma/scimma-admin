@@ -30,8 +30,8 @@ def client_ip(request):
     """Determine the original client IP address, taking into account headers set
     by the load balancer, if they exist.
     """
-    if "HTTP_X_FORWARDED_FOR" in request.META:
-        return request.META["HTTP_X_FORWARDED_FOR"]
+    if "X-Forwarded-For" in request.headers:
+        return request.headers["X-Forwarded-For"]
     return request.META["REMOTE_ADDR"]
 
 
