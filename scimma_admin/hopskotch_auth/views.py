@@ -31,7 +31,11 @@ def client_ip(request):
     by the load balancer, if they exist.
     """
     if "X-Forwarded-For" in request.headers:
-        return request.headers["X-Forwarded-For"]
+        header = request.headers["X-Forwarded-For"]
+        if ',' in header:
+            trusted_addr = header.split(',')[-1]
+            return trusted_addr+f" (full X-Forwarded-For header: {header})"
+        return header
     return request.META["REMOTE_ADDR"]
 
 
