@@ -10,6 +10,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Group Name</th>
+                        <th scope="col">ID</th>
                         <th scope="col">Description</th>
                         <th scope="col">Actions</th>
                     </tr>
@@ -18,6 +19,7 @@
                     {% for group in groups %}
                     <tr>
                         <td>{{ group.name }}</td>
+                        <td>{{ group.id }}</td>
                         <td>{{ group.description }}</td>
                         <td>
                             <form action="{% url 'edit_group' %}" method="get">
