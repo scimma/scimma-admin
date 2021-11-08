@@ -30,30 +30,38 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
     def verify_claims(self, claims):
         logger.info(f"all claims: {claims}")
-        if "is_member_of" not in claims:
+
+        def failWithError(user_msg, log_msg):
             log_event_id = secrets.token_hex(8)
-            msg = f"Your account is missing LDAP claims. Are you sure you used the account you use for SCIMMA? Error ID: {log_event_id}"
-            logger.error(f"account is missing LDAP claims, error_id={log_event_id}, claims={claims}")
-            raise PermissionDenied(msg)
+            user_msg += f" Error ID: {log_event_id}"
+            log_msg += f", error_id={log_event_id}"
+            logger.error(log_msg)
+            self.request.session["login_failure_reason"] = user_msg
+            raise PermissionDenied(user_msg)
+
+        if "is_member_of" not in claims or "vo_person_id" not in claims:
+            failWithError("Your identity is missing LDAP claims. "
+                          "Are you sure you used the account you use for SCIMMA?",
+                          f"account is missing LDAP claims, claims={claims}"
+                          )
 
         for group in [self.kafka_user_auth_group]:
             if not is_member_of(claims, group):
                 name = claims.get('vo_display_name', 'Unknown')
                 id = claims.get('vo_person_id', 'Unknown')
                 email = claims.get('email', 'Unknown')
-                msg = f"User vo_display_name={name}, vo_person_id={id}, email={email} is not in {group}, but requested access"
-                logger.error(msg)
-                raise NotInKafkaUsers(msg)
+                failWithError(f"Your account is not a member of the {group} group "
+                              "and so is not authorized to access Hopskotch",
+                              f"User vo_display_name={name}, vo_person_id={id}, "
+                              "email={email} is not in {group}, but requested access")
 
         if "email" in claims:
             return True
         if "email_list" in claims and len(claims.get("email_list", [])) > 0:
             return True
 
-        log_event_id = secrets.token_hex(8)
-        msg = f"Your account is missing an email claim. Error ID: {log_event_id}"
-        logger.error(f"account is missing LDAP email claims, error_id={log_event_id}, claims={claims}")
-        raise PermissionDenied(msg)
+        failWithError("Your account is missing an email claim.",
+                      f"account is missing LDAP email claims, claims={claims}")
 
     def create_user(self, claims):
         if "email" in claims:

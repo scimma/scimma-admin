@@ -249,6 +249,9 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
+# This URL will be shown to users as the place they should go to create accounts
+USER_SIGNUP_URL = os.environ.get("USER_SIGNUP_URL", default=None)
+
 try:
     from local_settings import *
 except ImportError:

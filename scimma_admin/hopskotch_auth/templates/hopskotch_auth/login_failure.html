@@ -2,5 +2,11 @@
 
 {% block page-body %}
     <h3>Login Failure</h3>
+    {% if reason %}
+    <p>Reason: {{ reason }}</p>
+    {% endif %}
+    {% if signup_url %}
+    <p>If you have not previously signed up for an account, you can do so <a href="{{ signup_url }}">here</a>.</p>
+    {% endif %}
     <a href="{% url 'oidc_authentication_init' %}?next={% url 'index' %}" class="btn btn-primary">Login</a>
 {% endblock %}
