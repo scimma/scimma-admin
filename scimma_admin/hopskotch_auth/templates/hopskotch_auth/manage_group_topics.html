@@ -1,0 +1,78 @@
+{% extends "hopskotch_auth/base.html" %}
+{% load static %}
+
+{% load crispy_forms_tags %}
+
+{% block title %}Manage Group Topics{% endblock %}
+{% block page-header %}Manage Group Topics{% endblock %}
+
+{% block page-body %}
+    <div class="container-fluid">
+        <h2>Manage Group Topics</h2>
+        {% crispy form %}
+        <h2>Added Topics</h2>
+        <div class="border row mb-3">
+            <table class="table" id="added_members">
+                <thead>
+                    <th scope="col">Name</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Accessible By</th>
+                    <th scope="col">Remove</th>
+                </thead>
+                <tbody>
+                    {% for topic in topics %}
+                    <tr scope="row">
+                        <form action="{% url 'remove_group_topic' %}" method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="group_name" value="{{ groupname }}">
+                            <td scope="col" class="topic_name">
+                                <input type="text" class="form-control-plaintext" name="topic_name" value="{{ topic.name }}" readonly>
+                            </td>
+                            <td scope="col" class="topic_desc">
+                                <input type="text" class="form-control-plaintext" name="topic_desc" value="{{ topic.description }}" readonly>
+                            </td>
+                            <td scope="col" class="topic_pub">
+                                <input type="text" class="form-control-plaintext" name="topic_pub" value="{{ topic.accessible_by }}" readonly>
+                            </td>
+                            <td scope="col" class="remove_button">
+                                <button type="submit" class="btn btn-danger removeFrom">Remove</button>
+                            </td>
+                        </form>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <h2>Available Topics</h2>
+            <div id="available_members">
+                <table class="table table-hover" id="avail_members">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Accessible by</th>
+                            <th scope="col">Add</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for topic in accessible_topics %}
+                        <tr>
+                        <td>{{ topic.topic }}</td>
+                        <td>{{ topic.topic_description }}</td>
+                        <td>{{ topic.accessible_by }}</td>
+                        <td><button type="button" class="btn btn-primary addToCur">Add</button></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                        <td class="info" colspan="3">This account does not have access to any topics</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static 'hopskotch_auth/js/manage_group_topics.js' %}"></script>
+{% endblock %}

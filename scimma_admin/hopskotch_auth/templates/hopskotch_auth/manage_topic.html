@@ -1,0 +1,96 @@
+{% extends "hopskotch_auth/base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}Manage Topic{% endblock %}
+{% block page-header %}Manage Topic{% endblock %}
+{% load static %}
+
+
+{% block page-body %}
+	<div class="container-fluid">
+		<h2>Manage Topic</h2>
+		{% crispy form %}
+		<h2>Added Groups</h2>
+		<div class="border row mb-3">
+			<table class="table" id="added_groups">
+				<thead>
+					<th scope="col">Group</th>
+					<th scope="col">Permission</th>
+					<th scope="col">Remove</th>
+				</thead>
+				<tbody>
+					{% for group in group_list %}
+					<tr scope="row">
+						<form action="{% url 'remove_topic_group' %}" method="POST">
+							{% csrf_token %}
+							<input type="hidden" id="topic_name" name="topic_name" value="{{ topic_name }}">
+							<input type="hidden" id="owning_group" name="owning_group" value="{{ owning_group }}">
+							<td scope="col" class="group_name">
+								<input type="text" class="form-control-plaintext" name="group_name" value="{{ group.group }}" readonly>
+							</td>
+							<td scope="col" class="perm_fields">
+								<input type="text" class="form-control-plaintext" name="group_perm" value="{{ group.operation }}" readonly>
+							</td>
+							<td scope="col" class="remove_button">
+								{% if group.can_edit %}
+								<button type="submit" class="btn btn-danger removeFrom">Remove</button>
+								{% else %}
+								Cannot remove
+								{% endif %}
+							</td>
+						</form>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		<form action="{% url 'add_topic_group' %}" method="POST">
+			{% csrf_token %}
+			<input type="hidden" id="topic_name" name="topic_name" value="{{ topic_name }}">
+			<input type="hidden" id="owning_group" name="owning_group" value="{{ owning_group }}">
+			<div class="row">
+				<div class="col">
+				<label for="id_group_name" class="col-form-label">Add Group to Topic</label>
+				</div>
+				<div class="col">
+				<input id="id_group_name" type="text" class="form-control" name="group_name" placeholder="Group name" aria-label="Group name" readonly>
+				</div>
+				<div class="col">
+				<select id="id_group_perm" class="form-select" name="group_perm" aria-label="Permission selection">
+					<option selected>Select a permission</option>
+					<option>Read</option>
+					<option>Write</option>
+				</select>
+				</div>
+				<div class="col">
+				<button type="submit" class="btn btn-primary">Add</button>
+				</div>
+			</div>
+		</form>
+		<h2>Available Groups</h2>
+		<div id="cur_permissions">
+			<table class="table table-hover" id="avail_table">
+				<thead>
+					<tr>
+						<th scope="col">Group Name</th>
+						<th scope="col">Status</th>
+						<th scope="col">Add</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for group in all_groups %}
+					<tr>
+						<td>{{ group.group_name }}</td>
+						<td>{{ group.member_status }}</td>
+						<td scope="col" class="remove_button"><button type="button" class="btn btn-primary addToCur">Add</button></td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static 'hopskotch_auth/js/manage_topic.js' %}"></script>
+{% endblock %}

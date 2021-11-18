@@ -1,0 +1,65 @@
+{% extends "hopskotch_auth/base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}Create Topic{% endblock %}
+{% block page-header %}Create Topic{% endblock %}
+{% load static %}
+
+
+{% block page-body %}
+    <div class="container-fluid">
+        <h2>Create Topic</h2>
+        {% crispy form %}
+        {% if owner_form %}
+        <div class="modal fade" id="owning_group" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="owningGroupLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="owningGroupLabel">Select an owning group</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if owned_groups is None %}
+                        <div class="row mb-3">
+                            <div class="col-auto">
+                                You are not the owner of any groups. If you believe this is incorrect please contact an administrator.
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-auto">
+                                <input class="btn btn-primary" type="button" value="Go back">
+                            </div>
+                        </div>
+                        {% else %}
+                        {% crispy owner_form %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <h2>Available Groups</h2>
+        <div id="cur_permissions">
+            <table class="table table-hover" id="avail_table">
+                <thead>
+                    <tr>
+                        <th scope="col">Group Name</th>
+                        <th scope="col">Add</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in all_groups %}
+                    <tr>
+                        <td>{{ group.group_name }}</td>
+                        <td scope="col" class="remove_button"><button type="button" class="btn btn-primary addToCur">Add</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static 'hopskotch_auth/js/topic.js' %}"></script>
+{% endblock %}

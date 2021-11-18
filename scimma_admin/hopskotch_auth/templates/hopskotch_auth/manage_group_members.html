@@ -1,0 +1,45 @@
+{% extends "hopskotch_auth/base.html" %}
+{% load static %}
+
+{% load crispy_forms_tags %}
+
+{% block title %}Manage Group Members{% endblock %}
+{% block page-header %}Manage Group Members{% endblock %}
+
+{% block page-body %}
+    <div class="container-fluid">
+        <h2>Manage Group Members</h2>
+        {% crispy form %}
+        <h2>Available Members</h2>
+            <div id="available_members">
+                <table class="table table-hover" id="avail_members">
+                    <thead>
+                        <tr>
+                            <th scope="col">Username</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Add</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in accessible_members %}
+                        <tr>
+                        <td>{{ member.username }}</td>
+                        <td>{{ member.name }}</td>
+                        <td>{{ member.email }}</td>
+                        <td><button type="button" class="btn btn-primary addToCur">Add</button></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                        <td class="info" colspan="3">This user does not have access to any members</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static 'hopskotch_auth/js/group.js' %}"></script>
+{% endblock %}
