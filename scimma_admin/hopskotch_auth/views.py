@@ -1,23 +1,47 @@
+from .apps import HopskotchAuthConfig
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
-from django.db import transaction
-from django.views.decorators.http import require_POST
+from django.db import connection, transaction
+from django.template import Library
+from django.views.decorators.http import require_POST, require_GET
 from django.urls import reverse
 from wsgiref.util import FileWrapper
 from io import StringIO
 
-from .models import *
+
 
 from mozilla_django_oidc.auth import get_user_model
+
+from .forms import *
+
+from .directinterface import DirectInterface
+from .apiinterface import ApiInterface
 
 import logging
 
 logger = logging.getLogger(__name__)
 
+if HopskotchAuthConfig.connection == 'direct':
+    engine = DirectInterface()
+elif HopskotchAuthConfig.connection == 'api':
+    engine = ApiInterface()
+
+def admin_required(func):
+    def admin_check(*args, **kwargs):
+        request = args[0]
+        status_code, is_admin = engine.is_user_admin(request.user.username)
+        if status_code is not None:
+            messages.error(request, 'Something went wrong with checking for admin status')
+            return redirect('index')
+        is_admin = is_admin['is_admin']
+        if is_admin:
+            return func(*args, **kwargs)
+        return render(request, 'hopskotch_auth/admin_required.html')
+    return admin_check
 
 def redirect_with_error(request, operation, reason, redirect_to):
     logger.info(f"Ignored request by user {request.user.username} ({request.user.email}. "
@@ -26,35 +50,11 @@ def redirect_with_error(request, operation, reason, redirect_to):
     return redirect(redirect_to)
 
 
-def client_ip(request):
-    """Determine the original client IP address, taking into account headers set
-    by the load balancer, if they exist.
-    """
-    if "X-Forwarded-For" in request.headers:
-        header = request.headers["X-Forwarded-For"]
-        if ',' in header:
-            trusted_addr = header.split(',')[-1]
-            return trusted_addr+f" (full X-Forwarded-For header: {header})"
-        return header
-    return request.META["REMOTE_ADDR"]
-
-
 @login_required
 def index(request):
-    credentials = list(request.user.scramcredentials_set.all())
-    credentials.sort(key=lambda cred: cred.created_at)
-    memberships = []
-    for membership in request.user.groupmembership_set.all().select_related('group'):
-        memberships.append({"group_id":membership.group.id,
-                            "group_name":membership.group.name,
-                            "status":membership.status})
-    memberships.sort(key=lambda m: m["group_name"])
-    accessible_topics = []
-    for name, access in topics_accessible_to_user(request.user).items():
-        accessible_topics.append({"name":name,"name":name,
-                                  "description":KafkaTopic.objects.get(name=name).description,
-                                  "access_type":access})
-    accessible_topics.sort(key=lambda t: t["name"])
+    _, credentials = engine.get_user_credentials(request.user.username)
+    _, memberships = engine.get_user_groups(request.user.username)
+    _, accessible_topics = engine.get_user_topics(request.user.username)
     return render(
         request, 'hopskotch_auth/index.html',
         dict(credentials=credentials, memberships=memberships,
@@ -75,912 +75,354 @@ def logout(request):
 def login_failure(request):
     return render(request, 'hopskotch_auth/login_failure.html')
 
-
-@require_POST
 @login_required
-def create(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"to create a new credential from {client_ip(request)}")
-    bundle = new_credentials(request.user)
-    logger.info(f"Created new credential {bundle.username} on behalf of user "
-                f"{request.user.username} ({request.user.email})")
-    return render(
-        request, 'hopskotch_auth/create.html',
-        dict(username=bundle.username, password=bundle.password),
+def create_credential(request):
+    if request.method == 'POST':
+        form = CreateCredentialForm(request.POST)
+        description = request.POST['desc_field']
+        status_code, return_dict = engine.new_credential(request.user.username, description)
+
+        if status_code is not None:
+            messages.warning(request, status_code)
+            return redirect('index')
+        
+        username, password = return_dict['username'], return_dict['password']
+        perms = []
+        for x in request.POST:
+            #if x.startswith('group_name'):
+            # Collect indexed group_name, desc_field and read/write
+            if 'group_name' in x:
+                end_idx = x.find(']')
+                start_idx = len('group_name[')
+                idx = int(x[start_idx:end_idx])
+                group_name = request.POST['group_name[{}]'.format(idx)]
+                desc_field = request.POST['desc_field[{}]'.format(idx)]
+                perms = {'read': False, 'write': False}
+                if 'read_[{}]'.format(idx) in request.POST:
+                    engine.add_permission(request.user.username, username, *(group_name.split('.')), 'read')
+                if 'write_[{}]'.format(idx) in request.POST:
+                    engine.add_permission(request.user.username, username, *(group_name.split('.')), 'write')
+        return render(request, 'hopskotch_auth/finished_credential.html',
+                    {
+                        'cred_username': username,
+                        'cred_password': password,
+                        'cred_description': description,
+                    })
+    status_code, accessible_topics = engine.user_accessible_topics(request.user.username)
+    accessible_topics.sort(key=lambda t: t['topic'])
+    if status_code is not None:
+        messages.error(request, 'Bad HTTP request for getting user topics, redirected to main page')
+        return redirect('index')
+    form = CreateCredentialForm()
+    return render(request, 'hopskotch_auth/create_credential.html',
+        dict(accessible_topics=accessible_topics, form=form)
     )
 
+@login_required
+def delete_credential(request, credname, redirect_to='index'):
+    status_code, return_dict = engine.delete_credential(request.user.username, credname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    if redirect_to == 'index':
+        return redirect('index')
+    elif redirect_to == 'admin':
+        return redirect('admin_credential')
+    return redirect('index')
 
 @login_required
-def delete(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete credential "
-                f"{request.GET.get('cred_username','<unset>')} from {client_ip(request)}")
-    
-    cred_username = request.GET.get('cred_username')
-    if cred_username is None:
-        return redirect_with_error(request, "Delete a credential", 
-                                   "Missing cred_username parameter in delete request", 
-                                   "index")
-
-    try:
-        delete_credentials(request.user, cred_username)
-    except ObjectDoesNotExist:
-        return redirect_with_error(request, f"Delete credential {cred_username}", 
-                                   "User does not own that credential", "index")
-    except MultipleObjectsReturned:
-        return redirect_with_error(request, f"Delete credential {cred_username}", 
-                                   "Multiple credentials found with that username", 
-                                   "index")
-
-    logger.info(f"deleted creds associated with username: {cred_username}")
-    messages.info(request, f"Deleted credentials with username {cred_username}.")
-
-    return redirect("index")
-
+def suspend_credential(request, credname='', redirect_to='index'):
+    status_code, cred = engine.get_credential_info(request.user.username, credname)
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
+    if cred['suspended']:
+        status_code, return_dict = engine.unsuspend_credential(request.user, credname)
+        if status_code is not None:
+            messages.error(request, status_code)
+    else:
+        status_code, return_dict = engine.suspend_credential(request.user, credname)
+        if status_code is not None:
+            messages.error(request, status_code)
+    if redirect_to == 'index':
+        return redirect('index')
+    elif redirect_to == 'admin':
+        return redirect('admin_credential')
+    return redirect('index')
 
 @login_required
-def download(request):
-    myfile = StringIO()
-    myfile.write("username,password\n")
-    myfile.write(f"{request.POST['username']},{request.POST['password']}")       
-    myfile.flush()
-    myfile.seek(0) # move the pointer to the beginning of the buffer
-    response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
-    response['Content-Disposition'] = 'attachment; filename=hop-credentials.csv'
-    logger.info(f"Sent data for credential {request.POST['username']} to user "
-                f"{request.user.username} ({request.user.email}) at {client_ip(request)}")
-    return response
+def manage_credential(request, username):
+    if request.method == 'POST':
+        status_code, _ = engine.update_credential(request.user.username, username, request.POST['desc_field'])
+        if status_code is not None:
+            messages.error(request, status_code)
+        return redirect('index')
+    status_code, cred_info = engine.get_credential_info(request.user.username, username)
+    if status_code is not None:
+        messages.error(request, status_code)
+    #status_code, accessible_topics = engine.get_credential_topic_info(request.user.username, username)
+    status_code, added_permissions = engine.get_credential_permissions(request.user.username, username)
+    if status_code is not None:
+        messages.error(request, status_code)
+    status_code, topics_to_return = engine.get_user_topics(request.user.username)
+    if status_code is not None:
+        messages.error(request, status_code)
+    form = ManageCredentialForm(cur_username=username, cur_desc=cred_info['description'])
+    return render(request, 'hopskotch_auth/manage_credential.html', {'credname': username, 'accessible_topics': topics_to_return, 'added_topics': added_permissions, 'form': form})
 
-
-@login_required
-def group_management(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"the group management page from {client_ip(request)}")
-    
-    # only staff can manage groups
-    if not request.user.is_staff:
-        return redirect_with_error(request, "access the group management page", 
-                                   "User is not a staff member.", "index")
-    groups=list(Group.objects.all())
-    groups.sort(key=lambda g: g.name)
-    return render(request, 'hopskotch_auth/group_management.html',
-                  dict(groups=groups))
-
-
-@require_POST
 @login_required
 def create_group(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a group with name "
-                f"{request.POST.get('name','<unset>')} from {client_ip(request)}")
-    
-    # only staff can create new groups
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Create a group",
-                                   "User is not a staff member.", "index")
-    
-    if not "name" in request.POST or len(request.POST["name"])==0:
-        return redirect_with_error(request, "Create a group", 
-                                   "Missing or invalid group name", "create_group")
-    
-    group_name = request.POST["name"]
-    # make sure that the name is allowed
-    if not validate_group_name(group_name):
-        return redirect_with_error(request, f"Create a group named {group_name}",
-                                   "Group name not valid.", "create_group")
-
-    # make sure that the group name is not already in use
-    if Group.objects.filter(name=group_name).exists():
-        return redirect_with_error(request, f"Create a group named {group_name}", 
-                                   "Group name already in use.", "create_group")
-
-    # no collision, so proceed with creating the group
-    group = Group.objects.create(name=group_name)
-
-    logger.info(f"Created group {group_name} with ID {group.id}")
-    messages.info(request, "Created group \""+group_name+'"')
-    base_edit_url = reverse("edit_group")
-    return redirect(base_edit_url+"?group_id="+str(group.id))
-
+    if request.method == 'POST':
+        group_name = request.POST['name_field']
+        desc_field = request.POST['desc_field']
+        status, _ = engine.create_group(request.user.username, group_name, desc_field)
+        if status != None:
+            messages.error(request, status)
+            return redirect('index')
+        print(request.POST)
+        for x in request.POST:
+            if x.startswith('mem_id'):
+                idx = x[7:-1]
+                username = request.POST[f'mem_id[{idx}]']
+                statusname = request.POST[f'member_radio[{idx}]']
+                status, _ = engine.add_member_to_group(group_name, username, statusname)
+        messages.success(request, 'Group created successfully')
+        return redirect('index')
+    form = CreateGroupForm(request.POST)
+    members = engine.get_all_users()
+    return render(request, 'hopskotch_auth/create_group.html', { 'form': form, 'accessible_member': members })
 
 @login_required
-def edit_group(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit group ID "
-                f"{request.GET.get('group_id','<unset>')} from {client_ip(request)}")
-    
-    if not "group_id" in request.GET or len(request.GET["group_id"])==0:
-        return redirect_with_error(request, "Edit a group", 
-                                   "Missing or invalid group ID", "index")
-    
-    group_id = request.GET["group_id"]
-    
-    # only group owners and staff can edit groups
-    if not is_group_owner(request.user,group_id) and not request.user.is_staff:
-        return redirect_with_error(request, f"Edit the group with ID {group_id}", 
-                                   "User is not a group owner or staff member", "index")
+def finished_group(request):
+    # Capture all objects in post, then submit to databnase
+    return render(request, 'hopskotch_auth/index.html')
 
-    try:
-        group = Group.objects.get(id=group_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, f"Edit the group with ID {group_id}", 
-                                   "No such group exists", "index")
+def delete_group(request, groupname):
+    status_code, _ = engine.delete_group(request.user.username, groupname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    if 'redirect_to' in request.POST and request.POST['redirect_to'] == 'admin':
+        return redirect('admin_group')
+    else:
+        return redirect('index')
 
-    memberships = []
-    for member in group.members.all():
-        membership = member.groupmembership_set.get(group=group)
-        memberships.append({"user_id":member.id,"user_name":member.username,"user_email":member.email,"status":membership.status})
-    memberships.sort(key=lambda m: m["user_email"])
-    
-    all_users = list(get_user_model().objects.all().values("id","username","email"))
-    all_users.sort(key=lambda u: u["email"])
-
-    topics=list(KafkaTopic.objects.filter(owning_group=group_id))
-    topics.sort(key=lambda t: t.name)
-
-    return render(
-        request, "hopskotch_auth/edit_group.html",
-        dict(group=group, memberships=memberships, all_users=all_users, 
-             topics=topics)
-    )
-
-
-@require_POST
-@login_required
-def delete_group(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete group ID "
-                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
-    
-    # only staff can delete groups
-    if not request.user.is_staff:
-        return redirect_with_error(request, f"Delete the group with ID {group.id}", 
-                                   "User is not a staff member", "index")
-    
-    if not "group_id" in request.POST or len(request.POST["group_id"])==0:
-        return redirect_with_error(request, "Delete a group", 
-                                   "Missing or invalid group ID", "group_management")
-    
-    try:
-        with transaction.atomic():
-            group = Group.objects.get(id=request.POST["group_id"])
-            # clean up any permissions that users had by being in the group
-            for member in group.members.all():
-                remove_user_group_permissions(member.id, group.id)
-            group_name = group.name
-            group.delete()
-            logger.info(f"Deleted group {group_name} with ID {group.id}")
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, f"Delete the group with ID {group.id}", 
-                                   "No such group exists", "group_management")
-    
-    messages.info(request, "Group "+group_name+" deleted")
-    return redirect("group_management")
-
-
-@require_POST
-@login_required
-def change_group_description(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) to set the description for group "
-                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
-
-    if not "group_id" in request.POST or len(request.POST["group_id"])==0:
-        return redirect_with_error(request, "Set a group description",
-                                   "Missing or invalid group ID", "index")
-    if "description" not in request.POST:
-        return redirect_with_error(request, "Set a group description",
-                                   "Missing group description", "index")
-
-    group_id = request.POST["group_id"]
-    try:
-        group = Group.objects.get(id=group_id)
-    except ObjectDoesNotExist:
-        return redirect_with_error(request, "Set a group description",
-                                   "No such group exists", "index")
-
-    # make sure the requesting user actually has the rights to modify this group
-    # the user must be a group owner or a staff member
-    if not is_group_owner(request.user,group_id) and not request.user.is_staff:
-        return redirect_with_error(request,
-                                   f"Set a description for the group with id {group.id}",
-                                   "Requester is not a group owner or staff member",
-                                   "index")
-
-    base_edit_url = reverse("edit_group")
-    edit_url = base_edit_url+f"?group_id={group.id}"
-
-    description = request.POST["description"]
-    # make sure the proposed description is valid
-    if len(description) > 1024:
-        return redirect_with_error(request, "Set a credential description",
-                                   "Description too long", edit_url)
-
-    group.description = description
-    group.save()
-    logger.info(f"Set description for group {group.name}")
-    messages.info(request, f"Set group description")
-
-    return redirect(edit_url)
-
-
-@login_required
-def topic_management(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"the global topic management page from {client_ip(request)}")
-
-    # only staff can manage all topics
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Access the topic management page",
-                                   "User is not a staff member", "index")
-    topics=list(KafkaTopic.objects.all().select_related("owning_group"))
-    topics.sort(key=lambda topic: topic.name)
-    topics.sort(key=lambda topic: topic.owning_group.name)
-    return render(
-        request, 'hopskotch_auth/topic_management.html',
-        dict(topics=topics)
-    )
-
-
-@login_required
-def credential_management(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested "
-                f"the global credential management page from {client_ip(request)}")
-    
-    # only staff can manage others' credentials
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Access the credential management page", 
-                                   "User is not a staff member", "index")
-    credentials=list(SCRAMCredentials.objects.all().select_related("owner"))
-    credentials.sort(key=lambda cred: cred.username)
-    credentials.sort(key=lambda cred: cred.owner.username)
-    return render(
-        request, 'hopskotch_auth/credential_management.html',
-        dict(credentials=credentials)
-    )
-
-
-# Also used to add group members
-@require_POST
-@login_required
-def change_membership_status(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to change user ID "
-                f"{request.POST.get('user_id','<unset>')}'s status in group ID "
-                f"{request.POST.get('group_id','<unset>')} to {request.POST.get('status','<unset>')}"
-                f" from {client_ip(request)}")
-    
-    if not "group_id" in request.POST or len(request.POST["group_id"])==0:
-        return redirect_with_error(request, "Change a user's group membership status", 
-                                   "Missing or invalid group ID", "index")
-    if not "user_id" in request.POST or len(request.POST["user_id"])==0:
-        return redirect_with_error(request, "Change a user's group membership status", 
-                                   "Missing or invalid user ID", "index")
-    if not "status" in request.POST or len(request.POST["status"])==0 \
-      or not request.POST["status"] in MembershipStatus.__members__:
-        return redirect_with_error(request, "Change a user's group membership status", 
-                                   "Missing or invalid membership status", "index")
-    
-    group_id = request.POST["group_id"]
-    user_id=request.POST["user_id"]
-    status=request.POST["status"]
-    
-    # only group owners and staff can add users to groups/change membership status
-    if not is_group_owner(request.user,group_id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Change a user's group membership status in the group with ID {group_id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-    
-    try:
-        group = Group.objects.get(id=group_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, 
-                                   f"Change a user's group membership status in the group with ID {group_id}", 
-                                   "No such group exists", "index")
-
-    try:
-        target_user = get_user_model().objects.get(id=user_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, 
-                                   f"Change a user's group membership status in the group with ID {group_id}", 
-                                   "Target user does not exist", "index")
-
-    try:
-        membership = GroupMembership.objects.get(user_id=user_id, group_id=group_id)
-        membership.status = MembershipStatus[status]
-        membership.save()
-        logger.info(f"Changed user {target_user.username} ({target_user.email}) status in group {group.name} to {status}")
-        messages.info(request, "Changed user membership status.")
-    except ObjectDoesNotExist as dne:
-        # membership does not exist; create it
-        GroupMembership.objects.create(user_id=user_id, group_id=group_id, status=MembershipStatus[status])
-        logger.info(f"Made user {target_user.username} ({target_user.email}) a member of group {group.name} with status {status}")
-        messages.info(request, "Added user to group.")
-    
-    base_edit_url = reverse("edit_group")
-    return redirect(base_edit_url+"?group_id="+group_id)
-
-
-@require_POST
-@login_required
-def remove_user(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to remove user ID "
-                f"{request.POST.get('user_id','<unset>')} from group ID "
-                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
-    
-    if not "group_id" in request.POST or len(request.POST["group_id"])==0:
-        return redirect_with_error(request, "Remove a user from a group", 
-                                   "Missing or invalid group ID", "index")
-    if not "user_id" in request.POST or len(request.POST["user_id"])==0:
-        return redirect_with_error(request, "Remove a user from a group", 
-                                   "Missing or invalid user ID", "index")
-    
-    group_id = request.POST["group_id"]
-    user_id=request.POST["user_id"]
-    
-    # only group owners and staff can remove users from groups
-    if not is_group_owner(request.user,group_id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Remove a user from the group with ID {group_id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-    
-    try:
-        group = Group.objects.get(id=group_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, 
-                                   f"Remove a user from the group with ID {group_id}", 
-                                   "No such group exists", "index")
-
-    try:
-        target_user = get_user_model().objects.get(id=user_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, 
-                                   f"Remove the user with id {user_id} from the group with ID {group_id}", 
-                                   "No such user exists", "index")
-
-    try:
-        with transaction.atomic():
-            membership = GroupMembership.objects.get(user_id=user_id, group_id=group_id)
-            remove_user_group_permissions(user_id, group_id)
-            membership.delete()
-    except ObjectDoesNotExist as dne:
-        # apparently we need do nothing
-        pass
-
-    logger.info(f"Removed user {target_user.username} ({target_user.email}) from"
-                f" group {group.name}")
-    messages.info(request, "Removed user from group.")
-    base_edit_url = reverse("edit_group")
-    return redirect(base_edit_url+"?group_id="+group_id)
-
-
-@require_POST
 @login_required
 def create_topic(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to create a topic with name "
-                f"{request.POST.get('topic_name','<unset>')} owned by group ID "
-                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
-    
-    if not "group_id" in request.POST:
-        return redirect_with_error(request, "Create a topic", 
-                                   "Missing or invalid owning group ID", "index")
-
-    group_id = request.POST["group_id"]
-
-    # make sure that the requestor has the authority to do this
-    if not is_group_owner(request.user, group_id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Create a topic owned by the group with ID {group_id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-    # if the requesting user is a member of the proposed owning group it also proves that the 
-    # group exists, so we don't need to check that separately
-
-    group = Group.objects.get(id=group_id)
-
-    if not "topic_name" in request.POST or len(request.POST["topic_name"]) == 0:
-        return redirect_with_error(request, "Create a topic", "Missing topic name",
-                                   reverse("edit_group")+"?group_id="+group_id)
-
-    topic_name = group.name+"."+request.POST["topic_name"]
-
-    if not validate_topic_name(topic_name):
-        return redirect_with_error(request, "Create a topic", "Invalid topic name",
-                                   reverse("edit_group")+"?group_id="+group_id)
-
-    # make sure that the topic name is not already in use
-    if KafkaTopic.objects.filter(name=topic_name).exists():
-        return redirect_with_error(request, "Create a topic", 
-                                   "Topic name already in use", 
-                                   reverse("edit_group")+"?group_id="+group_id)
-
-    with transaction.atomic():
-        topic = KafkaTopic.objects.create(name=topic_name, owning_group=group)
-        # assign complete access to the owning group
-        GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=KafkaOperation.All)
-
-    logger.info(f"Created topic {topic_name} owned by group {group.name}")
-    messages.info(request, "Created topic \""+topic_name+'"')
-    base_edit_url = reverse("edit_topic")
-    return redirect(base_edit_url+"?topic_id="+str(topic.id))
-
-
-@login_required
-def edit_topic(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit topic ID "
-                f"{request.GET.get('topic_id','<unset>')} from {client_ip(request)}")
-    
-    if not "topic_id" in request.GET:
-        return redirect_with_error(request, "Edit a topic", 
-                                   "Missing or invalid topic ID", "index")
-    
-    try:
-        topic = KafkaTopic.objects.get(id=request.GET["topic_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Edit a topic", "No such topic", "index")
-
-    owning_group = topic.owning_group
-    # only group owners and staff may use this page 
-    if not is_group_owner(request.user, owning_group.id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Create a topic owned by the group with ID {owning_group.id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-
-    permissions = []
-    for perm in topic.groupkafkapermission_set.all().select_related("principal"):
-        permissions.append({"group_name":perm.principal.name, "group_id":perm.principal.id, 
-                           "operation":perm.operation, "id":perm.id})
-    permissions.sort(key=lambda p: p["operation"])
-    permissions.sort(key=lambda p: p["group_name"])
-
-    all_groups = list(Group.objects.all())
-    all_groups.sort(key=lambda g: g.name)
-    operations = KafkaOperation.__members__.keys()
-
-    return render(
-        request, "hopskotch_auth/edit_topic.html",
-        dict(topic=topic, owning_group=owning_group, permissions=permissions, 
-             all_groups=all_groups, operations=operations)
-        )
+    status_code, all_groups = engine.get_user_groups(request.user.username)
+    if status_code is not None:
+        messages.error(request, status_code)
+    owned_groups = []
+    available_groups = []
+    for group in all_groups:
+        if group['status'].lower() == 'owner':
+            owned_groups.append(group)
+        available_groups.append(group)
+    if request.method == 'POST':
+        if request.POST['submit'].lower() == 'select':
+            owner = request.POST['submit_owner']
+            form = CreateTopicForm(owning_group=owner)
+            available_groups = [group for group in available_groups if group['group_name'] != owner]
+            return render(request, 'hopskotch_auth/create_topic.html', {'form': form, 'all_groups': available_groups, 'owning_group': owner})
+        elif request.POST['submit'].lower() == 'create':
+            status_code, _ = engine.create_topic(
+                request.user.username,
+                request.POST['owning_group_field'],
+                request.POST['name_field'],
+                request.POST['desc_field'],
+                True if 'visibility_field' in request.POST else False
+            )
+            if status_code is not None:
+                messages.error(request, status_code)
+                return redirect('index')
+            for x in request.POST:
+                if x.startswith('group_name['):
+                    idx = x[len('group_name['):-1]
+                    group_name = request.POST[f'group_name[{idx}]']
+                    read_perm = True if f'read_[{idx}]' in request.POST else False
+                    write_perm = True if f'write_[{idx}]' in request.POST else False
+                    if read_perm:
+                        status_code, _ = engine.add_group_to_topic(
+                            request.POST['name_field'],
+                            request.POST['owning_group_field'],
+                            'read'
+                        )
+                        if status_code is not None:
+                            messages.error(request=request, message=f'Failed to add read permission to {group_name}')
+                            return redirect('index')
+                    if write_perm:
+                        status_code, _ = engine.add_group_to_topic(
+                            request.POST['name_field'],
+                            request.POST['owning_group_field'],
+                            'write'
+                        )
+                        if status_code is not None:
+                            messages.error(request=request, message=f'Failed to add read permission to {group_name}')
+                            return redirect('index')
+            messages.success(request=request, message='Topic created successfully')
+            return redirect('index')
+        else:
+            messages.warning(request=request, message='Something went wrong')
+            return redirect('index')
+    form = CreateTopicForm()
+    owner_form = SelectOwnerForm()
+    return render(request, 'hopskotch_auth/create_topic.html', {'owner_form': owner_form, 'form': form, 'owned_groups': owned_groups, 'all_groups': available_groups})
 
 
-@require_POST
-@login_required
-def change_topic_description(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) to set the description for topic ID "
-                f"{request.POST.get('group_id','<unset>')} from {client_ip(request)}")
-
-    if not "topic_id" in request.POST or len(request.POST["topic_id"])==0:
-        return redirect_with_error(request, "Set a topic description",
-                                   "Missing or invalid topic ID", "index")
-    if "description" not in request.POST:
-        return redirect_with_error(request, "Set a topic description",
-                                   "Missing topic description", "index")
-
-    topic_id = request.POST["topic_id"]
-    try:
-        topic = KafkaTopic.objects.get(id=topic_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Set a topic description",
-                                   "No such topic exists", "index")
-
-    # make sure the requesting user actually has the rights to modify this topic
-    # the user must be a group owner of the topic's owning group or a staff member
-    if not is_group_owner(request.user,topic.owning_group.id) and not request.user.is_staff:
-        return redirect_with_error(request,
-                                   f"Set a description for topic {topic.name}",
-                                   f"This topic is owned by the {Group.get(id=topic.owning_group.id).name} group, "
-                                   "and only the owner of that group can change the description",
-                                   "index")
-
-    base_edit_url = reverse("edit_topic")
-    edit_url = base_edit_url+f"?topic_id={topic.id}"
-
-    description = request.POST["description"]
-    # make sure the proposed description is valid
-    if len(description) > 1024:
-        return redirect_with_error(request, "Set a topic description",
-                                   "Description too long", edit_url)
-
-    topic.description = description
-    topic.save()
-    logger.info(f"Set description for topic {topic.name}")
-    messages.info(request, f"Set topic description")
-
-    return redirect(edit_url)
-
-
-@require_POST
-@login_required
-def set_topic_public_read_access(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to set topic ID "
-                f"{request.POST.get('topic_id','<unset>')} public read access to "
-                f"{request.POST.get('public','<unset>')} from {client_ip(request)}")
-
-    if not "topic_id" in request.POST:
-        return redirect_with_error(request, "Set public access to a topic", 
-                                   "Missing or invalid topic ID", "index")
-    if not "public" in request.POST:
-        return redirect_with_error(request, "Set public access to a topic", 
-                                   "Missing public status to set", "index")
-
-    try:
-        topic = KafkaTopic.objects.get(id=request.POST["topic_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Set public access to a topic", 
-                                   "No such topic", "index")
-
-    owning_group = topic.owning_group
-    # only group owners and staff make a topic (not) publicly readable 
-    if not is_group_owner(request.user, owning_group.id) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Edit a topic owned by the group with ID {owning_group.id}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-    
-    topic.publicly_readable = request.POST["public"].lower()=='true'
-    topic.save()
-
-    message="Made topic "+topic.name
-    if topic.publicly_readable:
-        message += " publicly readable"
-    else:
-        message += " not publicly readable"
-    logger.info(message)
-    messages.info(request, message)
-    base_edit_url = reverse("edit_topic")
-    return redirect(base_edit_url+"?topic_id="+str(topic.id))
-
-
-@require_POST
-@login_required
-def delete_topic(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to delete topic ID "
-                f"{request.POST.get('topic_id','<unset>')} from {client_ip(request)}")
-    
-    if not "topic_id" in request.POST:
-        return redirect_with_error(request, "Delete a topic", 
-                                   "Missing or invalid topic ID", "index")
-    
-    try:
-        topic = KafkaTopic.objects.get(id=request.POST["topic_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Delete a topic", "No such topic", "index")
-    
-    # make sure that the requestor has the authority to do this
-    if not is_group_owner(request.user, topic.owning_group) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Delete a topic owned by the group {topic.owning_group}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-    
-    topic_name = topic.name
-    with transaction.atomic():
-        delete_topic_permissions(topic.id)
-        topic.delete()
-    logger.info(f"Deleted topic {topic_name}")
-    messages.info(request, "Deleted topic \""+topic_name+'"')
-    return redirect("index")
-
-
-@require_POST
-@login_required
-def add_group_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to grant group ID "
-                f"{request.POST.get('group_id','<unset>')} "
-                f"{request.POST.get('operation','<unset>')} permission for topic ID "
-                f"{request.POST.get('topic_id','<unset>')} from {client_ip(request)}")
-                
-    if not "topic_id" in request.POST:
-        return redirect_with_error(request, "Grant a group permission to access a topic", 
-                                   "Missing or invalid topic ID", "index")
-    if not "group_id" in request.POST:
-        return redirect_with_error(request, "Grant a group permission to access a topic", 
-                                   "Missing or invalid group ID", "index")
-    if not "operation" in request.POST:
-        return redirect_with_error(request, "Grant a group permission to access a topic", 
-                                   "Missing operation", "index")
-
-    topic_id = request.POST["topic_id"]
-    group_id = request.POST["group_id"]
-    try:
-        operation = KafkaOperation[request.POST["operation"]]
-    except KeyError as ke:
-        return redirect_with_error(request, "Grant a group permission to access a topic", 
-                                   "Invalid operation", "index")
-    
-    # make sure the target topic exists
-    try:
-        topic = KafkaTopic.objects.get(id=topic_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Grant a group permission to access a topic", 
-                                   "Invalid topic ID", "index")
-
-    # make sure that the requestor has the authority to do this
-    if not is_group_owner(request.user.id, topic.owning_group) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Grant a group permission to access a topic owned by the group {topic.owning_group}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-    # if the requesting user is a member of the proposed owning group it also proves that the 
-    # group exists, so we don't need to check that separately
-
-    add_kafka_permission_for_group(group_id, topic, operation)
-    
-    logger.info(f"Granted group ID {group_id} {operation.name} permission to topic {topic.name}")
-    messages.info(request, "Granted "+operation.name+" permission to topic \""+topic.name+'"')
-    base_edit_url = reverse("edit_topic")
-    return redirect(base_edit_url+"?topic_id="+topic_id)
-
-
-@require_POST
-@login_required
-def remove_group_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to revoke group permission with ID "
-                f"{request.POST.get('perm_id','<unset>')} from {client_ip(request)}")
-    
-    if not "perm_id" in request.POST:
-        return redirect_with_error(request, "Revoke a group's permission to access a topic", 
-                                   "Missing permission ID", "index")
-    
-    try:
-        permission = GroupKafkaPermission.objects.get(id=request.POST["perm_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Revoke a group's permission to access a topic", 
-                                   "Invalid permission ID", "index")
-
-    topic = permission.topic
-    owning_group = topic.owning_group
-
-    # make sure that the requestor has the authority to do this
-    if not is_group_owner(request.user, owning_group) and not request.user.is_staff:
-        return redirect_with_error(request, 
-                                   f"Revoke a group's permission to access a topic owned by the group {topic.owning_group}", 
-                                   "Requester is not a group owner or staff member", 
-                                   "index")
-
-    if remove_kafka_permission_for_group(permission, owning_group):
-        logger.info(f"Revoked group ID {permission.principal} {permission.operation} permission to topic {topic.name}")
-        messages.info(request, "Revoked "+permission.operation.name+" permission for topic \""+topic.name+'"')
-    else:
-        logger.info(f"Did not revoke group ID {permission.principal} {permission.operation} permission to topic {topic.name}")
-        messages.info(request, "Did not revoke "+permission.operation.name+" permission for topic \""+topic.name+'"')
-    base_edit_url = reverse("edit_topic")
-    return redirect(base_edit_url+"?topic_id="+str(topic.id))
 
 
 @login_required
-def edit_credential(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to edit permissions for credential "
-                f"{request.GET.get('cred_username','<unset>')} from {client_ip(request)}")
+def manage_topic(request, topicname):
+    if request.method == 'POST':
+        # Step 0: Get group + topic from topicname
+        # Step 1: Clear all permissions (except owning group) from topic
+        # Step 2: Coalesse group+topic+permissions from POST
+        # Step 3: Add them all back as the user added
+        return redirect('index')
+    group, topic = topicname.split('.')
+    status_code, topic_obj = engine.get_topic_info(group, topic)
+    if status_code is not None:
+        messages.error(request, 'Error in managing topic, returning to main page')
+        return redirect('index')
     
-    if not "cred_username" in request.GET:
-        return redirect_with_error(request, "Edit a credential", 
-                                   "Missing credential name", "index")
-    
-    try:
-        credential = SCRAMCredentials.objects.get(username=request.GET["cred_username"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Edit a credential", 
-                                   "No such credential exists", "index")
+    form = ManageTopicForm(group, topic, topic_obj['description'], topic_obj['publicly_readable'])
+    status_code, group_list = engine.get_groups_by_topic(topicname)
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
+    status_code, all_groups = engine.get_user_memberships(request.user.username)
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
+    return render(request, 'hopskotch_auth/manage_topic.html', {'form': form, 'group_list': group_list, 'all_groups': all_groups, 'topic_name': topic, 'owning_group': group})
 
-    owner = credential.owner
-    # only credential owners and staff may use this page 
-    if request.user!=owner and not request.user.is_staff:
-        return redirect_with_error(request, "Edit a credential", 
-                                   "Requester is not the credential owner or a staff member", 
-                                   "index")
+def delete_topic(request, topicname):
+    group, topic = topicname.split('.')
+    status_code, _ = engine.delete_topic(request.user.username, group, topicname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    return redirect('index')
 
-    permissions = []
-    for perm in credential.credentialkafkapermission_set.all().select_related('topic'):
-        permissions.append({"topic_name":perm.topic.name, "operation":perm.operation, "id":perm.id})
-    permissions.sort(key=lambda p: p["operation"])
-    permissions.sort(key=lambda p: p["topic_name"])
-
-    possible_perms = []
-    for perm in all_permissions_for_user(owner):
-        possible_perms.append({"topic":perm[2],"operation":perm[3],"desc":encode_cred_permission(perm[0],perm[1],perm[3])})
-
-    return render(
-        request, "hopskotch_auth/edit_credential.html",
-        dict(cred=credential, permissions=permissions, possible_perms=possible_perms)
-        )
-
-
-@require_POST
 @login_required
-def change_credential_description(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) to set the description for credential "
-                f"{request.POST.get('cred_username','<unset>')} from {client_ip(request)}")
+def manage_group_members(request, groupname):
+    if request.method == 'POST':
+        # Step 1: Remove all users
+        # Step 2: Get all users added from request into list with {name: perm} pairings
+        # Step 3: Use engine to add users back
+        return redirect('index')
+    status_code, group_obj = engine.get_group_info(groupname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    status_code, clean_members = engine.get_group_members(groupname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    status_code, accessible_members = engine.get_all_users()
+    print('***********************************************************')
+    print(accessible_members)
+    print('***********************************************************')
+    form = ManageGroupMemberForm(group_obj['name'], group_obj['description'])
+    return render(request, 'hopskotch_auth/manage_group_members.html', {'form': form, 'members': clean_members, 'accessible_members': accessible_members})
 
-    if not "cred_username" in request.POST:
-        return redirect_with_error(request, "Set a credential description",
-                                   "Missing credential name", "index")
-    if "description" not in request.POST:
-        return redirect_with_error(request, "Set a credential description",
-                                   "Missing credential description", "index")
-
-    try:
-        credential = SCRAMCredentials.objects.get(username=request.POST["cred_username"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Set a credential description",
-                                   "No such credential exists", "index")
-
-    # make sure the requesting user actually has the rights to modify this credential
-    # the user must be the credential owner or a staff member
-    if request.user!=credential.owner and not request.user.is_staff:
-        return redirect_with_error(request, "Set a credential description",
-                                   "Requester is not the credential owner or a staff member",
-                                   "index")
-
-    base_edit_url = reverse("edit_credential")
-    edit_url = base_edit_url+"?cred_username="+credential.username
-
-    description = request.POST["description"]
-    # make sure the proposed description is valid
-    if len(description) > 1024:
-        return redirect_with_error(request, "Set a credential description",
-                                   "Description too long", edit_url)
-
-    credential.description = description
-    credential.save()
-    logger.info(f"Set description for credential {credential.username}")
-    messages.info(request, f"Set credential description")
-
-    return redirect(edit_url)
-
-
-@require_POST
 @login_required
+def manage_group_topics(request, groupname):
+    if request.method == 'POST':
+        # Step 1: Clear all topics
+        # Step 2: Coalless all topics currently added
+        # Step 3: Iterate over added topics and call engine
+        return redirect('index')
+    status_code, group_obj = engine.get_group_info(groupname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    form = ManageGroupTopicForm(group_obj['name'], group_obj['description'])
+    status_code, clean_topics = engine.get_group_topics(groupname)
+    if status_code is not None:
+        messages.error(request, status_code)
+    status_code, topics_to_return = engine.get_user_topics(request.user.username)
+    if status_code is not None:
+        messages.error(request, status_code)
+    return render(request, 'hopskotch_auth/manage_group_topics.html', {'form': form, 'topics': clean_topics, 'groupname': groupname, 'accessible_topics': topics_to_return })
+
+@admin_required
+@login_required
+def admin_credential(request):
+    status_code, clean_creds = engine.get_all_credentials()
+    if status_code is not None:
+        messages.error(request, status_code)
+    return render(request, 'hopskotch_auth/admin_credential.html', {'all_credentials': clean_creds})
+
+@admin_required
+@login_required
+def admin_topic(request):
+    status_code, clean_topics = engine.get_all_topics()
+    if status_code is not None:
+        messages.error(request, status_code)
+    return render(request, 'hopskotch_auth/admin_topic.html', {'all_topics': clean_topics})
+
+@admin_required
+@login_required
+def admin_group(request):
+    status_code, clean_groups = engine.get_all_groups()
+    if status_code is not None:
+        messages.error(request, status_code)
+    for group in clean_groups:
+        group['mem_count'] = len(group['members'])
+    return render(request, 'hopskotch_auth/admin_group.html', {'all_groups': clean_groups})
+
 def add_credential_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to add a permission "
-                f"{request.POST.get('perm','<unset>')} to credential "
-                f"{request.POST.get('cred_username','<unset>')} from {client_ip(request)}")
-    
-    if not "cred_username" in request.POST:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Missing credential name", "index")
-    if "perm" not in request.POST:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Missing permission description", "index")
-    
-    try:
-        credential = SCRAMCredentials.objects.get(username=request.POST["cred_username"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "No such credential exists", "index")
-    
-    try:
-        parent_id, _, operation = decode_cred_permission(request.POST["perm"])
-    except ValueError as ve:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Specified permission was malformed", "index")
+    if request.method != 'POST' or \
+        'credname' not in request.POST or \
+        'perm_name' not in request.POST or \
+        'perm_perm' not in request.POST:
+        messages.error(request, 'Error in adding credential permission')
+        return redirect('index')
+    credname = request.POST['credname']
+    perm_name = request.POST['perm_name']
+    perm_perm = request.POST['perm_perm']
+    group, topic = perm_name.split('.')
+    status_code, _ = engine.add_permission(request.user.username, credname, group, topic, perm_perm.lower())
+    if status_code is not None:
+        messages.error(request, status_code)
+    return redirect('manage_credential', credname)
 
-    # make sure the requesting user actually has the rights to add this permission to this credential
-    # the user must be the credential owner or a staff member
-    if request.user!=credential.owner and not request.user.is_staff:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Requester is not the credential owner or a staff member", 
-                                   "index")
-
-    # the referenced parent (group) permission must exist and 
-    # the user must belong to the group with which it is associated
-    try:
-        parent_perm = GroupKafkaPermission.objects.get(id=parent_id)
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Referenced parent permission does not exist", 
-                                   "index")
-    if not is_group_member(credential.owner, parent_perm.principal):
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Requester does not have access to use the referenced parent permission", 
-                                   "index")
-
-    # the referenced group permission must actually grant the permission being requested
-    if parent_perm.operation!=operation and parent_perm.operation!=KafkaOperation.All:
-        return redirect_with_error(request, "Add a permission to a credential", 
-                                   "Referenced parent permission does not grant the specified operation", 
-                                   "index")
-
-    if CredentialKafkaPermission.objects.filter(principal=credential, topic=parent_perm.topic, operation=operation).exists():
-        # if the permission already exists, we should not add it
-        # note that we don't care whether parent prmission is an exact match
-        messages.info(request, str(operation)+" permission for topic "+parent_perm.topic.name+" was already present")
-    else:
-        CredentialKafkaPermission.objects.create(principal=credential, parent=parent_perm, topic=parent_perm.topic, operation=operation)
-        logger.info(f"Added {str(operation)} permission for topic {parent_perm.topic.name} to credential {credential.username}")
-        messages.info(request, f"Added {str(operation)} permission for topic {parent_perm.topic.name}")
-
-    base_edit_url = reverse("edit_credential")
-    return redirect(base_edit_url+"?cred_username="+credential.username)
-
-
-@require_POST
-@login_required
 def remove_credential_permission(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to remove a permission ID "
-                f"{request.POST.get('perm_id','<unset>')} from a credential from {client_ip(request)}")
-    
-    if "perm_id" not in request.POST:
-        return redirect_with_error(request, "Remove a permission from a credential", 
-                                   "Missing permission ID", "index")
-    
-    try:
-        perm = CredentialKafkaPermission.objects.get(id=request.POST["perm_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Remove a permission from a credential", 
-                                   "No such permission exists", "index")
+    if request.method != 'POST' or \
+        'credname' not in request.POST or \
+        'perm_name' not in request.POST or \
+        'perm_perm' not in request.POST:
+        messages.error(request, 'Error in removing credential permission')
+        return redirect('index')
+    credname = request.POST['credname']
+    perm_name = request.POST['perm_name']
+    perm_perm = request.POST['perm_perm']
+    group, topic = perm_name.split('.')
+    status_code, _ = engine.remove_permission(request.user.username, credname, group, topic, perm_perm.lower())
+    if status_code is not None:
+        messages.error(request, status_code)
+    return redirect('manage_credential', credname)
 
-    # the user must be the credential owner or a staff member
-    if request.user!=perm.principal.owner and not request.user.is_staff:
-        return redirect_with_error(request, "Remove a permission from a credential", 
-                                   "Requester is not the credential owner or a staff member", 
-                                   "index")
-    
-    perm.delete()
+def add_topic_group(request):
+    topic_name = request.POST['topic_name']
+    owning_group = request.POST['owning_group']
+    new_group = request.POST['group_name']
+    operation = request.POST['group_perm']
+    full_topic_name = f'{owning_group}.{topic_name}'
+    status_code, _ = engine.add_group_to_topic(full_topic_name, new_group, operation)
+    if status_code is not None:
+        messages.error(request, status_code)
+    return redirect('manage_topic', full_topic_name)
 
-    logger.info(f"Removed {str(perm.operation)} permission for topic {perm.topic.name} from credential {perm.principal.username}")
-    messages.info(request, f"Removed {str(perm.operation)} permission for topic {perm.topic.name}")
-    base_edit_url = reverse("edit_credential")
-    return redirect(base_edit_url+"?cred_username="+perm.principal.username)
+def remove_topic_group(request):
+    topic_name = request.POST['topic_name']
+    owning_group = request.POST['owning_group']
+    new_group = request.POST['group_name']
+    operation = request.POST['group_perm']
+    full_topic_name = f'{owning_group}.{topic_name}'
+    status_code, _ = engine.remove_group_from_topic(full_topic_name, new_group, operation)
+    if status_code is not None:
+        messages.error(request, status_code)
+    return redirect('manage_topic', full_topic_name)
 
-
-@require_POST
-@login_required
-def suspend_credential(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to suspend the credential with ID "
-                f"{request.POST.get('cred_id','<unset>')} from {client_ip(request)}")
-
-    # only staff can suspend credentials
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Suspend a credential", 
-                                   "Requester is not a staff member", 
-                                   "index")
-
-    if "cred_id" not in request.POST:
-        return redirect_with_error(request, "Suspend a credential", 
-                                   "Missing credential ID", "index")
-
-    try:
-        cred = SCRAMCredentials.objects.get(id=request.POST["cred_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Suspend a credential", 
-                                   "No such credential exists", "index")
-
-    if not cred.suspended: 
-        cred.suspended = True
-        cred.save()
-        logger.info(f"Suspended credential {cred.username}")
-        messages.info(request, f"Suspended credential {cred.username}")
-
-    base_edit_url = reverse("edit_credential")
-    return redirect(base_edit_url+"?cred_username="+cred.username)
-
-
-@require_POST
-@login_required
-def unsuspend_credential(request):
-    logger.info(f"User {request.user.username} ({request.user.email}) requested to un-suspend the credential with ID "
-                f"{request.POST.get('cred_id','<unset>')} from {client_ip(request)}")
-
-    # only staff can unsuspend credentials
-    if not request.user.is_staff:
-        return redirect_with_error(request, "Un-suspend a credential", 
-                                   "Requester is not a staff member", 
-                                   "index")
-
-    if "cred_id" not in request.POST:
-        return redirect_with_error(request, "Un-suspend a credential", 
-                                   "Missing credential ID", "index")
-
-    try:
-        cred = SCRAMCredentials.objects.get(id=request.POST["cred_id"])
-    except ObjectDoesNotExist as dne:
-        return redirect_with_error(request, "Suspend a credential", 
-                                   "No such credential exists", "index")
-
-    if cred.suspended:
-        cred.suspended = False
-        cred.save()
-        logger.info(f"Un-suspended credential {cred.username}")
-        messages.info(request, f"Un-suspended credential {cred.username}")
-
-    base_edit_url = reverse("edit_credential")
-    return redirect(base_edit_url+"?cred_username="+cred.username)
+def remove_group_topic(request):
+    topic_name = request.POST['topic_name']
+    topic_desc = request.POST['topic_desc']
+    topic_pub = request.POST['topic_pub']
+    group_name = request.POST['group_name']
+    return redirect('manage_group_topics', group_name)
