@@ -44,32 +44,33 @@
             </table>
         </div>
         <h2>Available Topics</h2>
-            <div id="available_members">
-                <table class="table table-hover" id="avail_members">
-                    <thead>
-                        <tr>
-                            <th scope="col">Name</th>
-                            <th scope="col">Description</th>
-                            <th scope="col">Accessible by</th>
-                            <th scope="col">Add</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for topic in accessible_topics %}
-                        <tr>
-                        <td>{{ topic.topic }}</td>
-                        <td>{{ topic.topic_description }}</td>
-                        <td>{{ topic.accessible_by }}</td>
-                        <td><button type="button" class="btn btn-primary addToCur">Add</button></td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                        <td class="info" colspan="3">This account does not have access to any topics</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div id="cur_permissions">
+            <table class="table table-hover" id="avail_table">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Access Via</th>
+                        <th scope="col">Add</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for topic in accessible_topics %}
+                    <tr>
+                    <td class="topic_name">{{ topic.topic }}</td>
+                    <td class="topic_desc">{{ topic.topic_description }}</td>
+                    <td class="topic_access">{{ topic.accessible_by }}</td>
+                    <td>
+                      <button type="button" class="btn btn-primary addToCur objectModifier">Select</button></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                    <td class="info" colspan="3">This account does not have access to any topics</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 {% endblock %}
 
 {% block scripts %}

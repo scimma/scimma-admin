@@ -29,5 +29,8 @@ urlpatterns = [
     path("remove_credential_permission", views.remove_credential_permission, name="remove_credential_permission"),
     path("add_topic_group", views.add_topic_group, name="add_topic_group"),
     path("remove_topic_group", views.remove_topic_group, name="remove_topic_group"),
-    path("remove_group_topic", views.remove_group_topic, name="remove_group_topic")
+    path("remove_group_topic", views.remove_group_topic, name="remove_group_topic"),
+    path("group_add_member", views.group_add_member, name="group_add_member"),
+    path("group_remove_member", views.group_remove_member, name="group_remove_member"),
+    path("user_change_status", views.user_change_status, name="user_change_status"),
 ] 

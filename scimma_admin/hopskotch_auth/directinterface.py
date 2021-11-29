@@ -102,17 +102,39 @@ class DirectInterface(ConnectionInterface):
             topic = KafkaTopic.objects.get(owning_group=group, name='.'.join([groupname, topicname]))
         except ObjectDoesNotExist as dne:
             return f'Topic with group name "{groupname}"" and topic name "{topicname}"" does not exist', None
-        try:
-            perm = GroupKafkaPermission.objects.get(principal=group, topic=topic, operation=operation)
-        except ObjectDoesNotExist as dne:
-            return f'Topic\'s parent group does not have permission to add {permission}', None
-        CredentialKafkaPermission.objects.create(
-            principal=cred,
-            parent = perm,
-            topic = topic,
-            operation = operation
-        )
-        return None, {}
+        found_one = False
+        perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation.All)
+        if not perm.exists():
+            perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=operation)
+            if not perm.exists():
+                return f'Topic\'s parent group does not have permission to add {permission}', None
+        
+        all_perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation.All)
+        if all_perm.exists():
+            if not CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=operation).exists():
+                CredentialKafkaPermission.objects.create(
+                    principal=cred,
+                    parent=all_perm[0],
+                    topic=topic,
+                    operation=operation
+                )
+                return None, {}
+            else:
+                return f'Credential {credname} already has permission "{permission}" from topic {topicname}', None
+        
+        op_perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=operation)
+        if op_perm.exists():
+            if not CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=operation).exists():
+                CredentialKafkaPermission.objects.create(
+                    principal=cred,
+                    parent=all_perm[0],
+                    topic=topic,
+                    operation=operation
+                )
+                return None, {}
+            else:
+                return f'Credential {credname} already has permission "{permission}" for topic {topicname}', None
+        return f'Topic\'s parent group does not have permission to add {permission}', None
     
     def get_credential_topic_info(self, username, credname):
         try:
@@ -149,10 +171,8 @@ class DirectInterface(ConnectionInterface):
             cred = SCRAMCredentials.objects.get(owner=user, username=credname)
             group = Group.objects.get(name=groupname)
             topic = KafkaTopic.objects.get(owning_group=group, name='.'.join([groupname, topicname]))
-            perm = GroupKafkaPermission.objects.get(principal=group, topic=topic)
-            to_delete = CredentialKafkaPermission.objects.get(
+            to_delete = CredentialKafkaPermission.objects.filter(
                 principal=cred,
-                parent=perm,
                 topic=topic,
                 operation=operation
             )
@@ -228,12 +248,21 @@ class DirectInterface(ConnectionInterface):
             return 'User or group does not exist', None
         cur_membership = GroupMembership.objects.filter(user=user, group=group)
         if cur_membership.exists():
-            cur_membership = cur_membership[0]
-            cur_membership.status = member_status
-            cur_membership.save()
+            return f'User "{username}" already exists in  group "{groupname}"', None
         else:
             cur_membership = GroupMembership.objects.create(user=user, group=group, status=member_status)
         return None, {}
+    
+    def remove_member_from_group(self, groupname, username):
+        try:
+            user = User.objects.get(username=username)
+        except ObjectDoesNotExist as dne:
+            return f'User "{username}" does not exist', None
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        membership = GroupMembership.objects.get()
 
     def add_topic_to_group(self, username, group_name, topic_name):
         pass
@@ -529,9 +558,10 @@ class DirectInterface(ConnectionInterface):
             data.append(
                 {
                     'username': member.username,
+                    'name': '{}, {}'.format(member.last_name, member.first_name),
                     'id': member.id,
                     'email': member.email,
-                    'status': membership.status.value
+                    'status': membership.status.name
                 }
             )
         return None, data
@@ -612,3 +642,26 @@ class DirectInterface(ConnectionInterface):
             }
         for perm in permissions]
         return None, data
+    
+    def change_user_group_status(self, username, groupname, statusname):
+        try:
+            user = User.objects.get(username=username)
+        except ObjectDoesNotExist as dne:
+            return f'User "{username}" does not exist', None
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        if statusname.lower() == 'owner':
+            permission = MembershipStatus.Owner
+        elif statusname.lower() == 'member':
+            permission = MembershipStatus.Member
+        else:
+            return f'Permission with name "{statusname}" does not exist', None
+        try:
+            membership = GroupMembership.objects.get(user=user, group=group)
+        except ObjectDoesNotExist as dne:
+            return f'User does not have a membership to the specified group', None
+        membership.status = permission
+        membership.save()
+        return None, {}

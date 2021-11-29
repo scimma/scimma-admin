@@ -10,6 +10,23 @@
         <h2>Create Topic</h2>
         {% crispy form %}
         {% if owner_form %}
+        <h2>Added Groups</h2>
+        <div class="border row mb-3">
+            <table class="table" id="added_groups">
+                <thead>
+                    <th scope="col">Group</th>
+                    <th scope="col">Permission</th>
+                    <th scope="col">Remove</th>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ owning_group }}</td>
+                        <td>Owner</td>
+                        <td>Cannot remove owner</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
         <div class="modal fade" id="owning_group" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="owningGroupLabel" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">

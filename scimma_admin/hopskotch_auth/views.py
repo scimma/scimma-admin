@@ -172,6 +172,21 @@ def manage_credential(request, username):
 @login_required
 def create_group(request):
     if request.method == 'POST':
+        # Step 1: Remove all users
+        # Step 2: Get all users added from request into list with {name: perm} pairings
+        # Step 3: Use engine to add users back
+        groupname = request.POST['name_field']
+        descfield = request.POST['desc_field']
+        status, _ = engine.create_group(request.user.username, groupname, descfield)
+        if status is not None:
+            messages.error(request, status)
+            return redirect('index')
+        return redirect('manage_group_members', groupname)
+    status_code, accessible_members = engine.get_all_users()
+    form = CreateGroupForm()
+    return render(request, 'hopskotch_auth/create_group.html', {'form': form, 'accessible_members': accessible_members})
+    '''
+    if request.method == 'POST':
         group_name = request.POST['name_field']
         desc_field = request.POST['desc_field']
         status, _ = engine.create_group(request.user.username, group_name, desc_field)
@@ -190,6 +205,7 @@ def create_group(request):
     form = CreateGroupForm(request.POST)
     members = engine.get_all_users()
     return render(request, 'hopskotch_auth/create_group.html', { 'form': form, 'accessible_member': members })
+    '''
 
 @login_required
 def finished_group(request):
@@ -315,11 +331,16 @@ def manage_group_members(request, groupname):
     if status_code is not None:
         messages.error(request, status_code)
     status_code, accessible_members = engine.get_all_users()
-    print('***********************************************************')
-    print(accessible_members)
-    print('***********************************************************')
+    cleaned_users = []
+    for member in accessible_members:
+        exists = False
+        for clean_mem in clean_members:
+            if clean_mem['username'] == member['username']:
+                exists = True
+        if not exists:
+            cleaned_users.append(member)
     form = ManageGroupMemberForm(group_obj['name'], group_obj['description'])
-    return render(request, 'hopskotch_auth/manage_group_members.html', {'form': form, 'members': clean_members, 'accessible_members': accessible_members})
+    return render(request, 'hopskotch_auth/manage_group_members.html', {'form': form, 'members': clean_members, 'accessible_members': cleaned_users, 'groupname': groupname})
 
 @login_required
 def manage_group_topics(request, groupname):
@@ -426,3 +447,28 @@ def remove_group_topic(request):
     topic_pub = request.POST['topic_pub']
     group_name = request.POST['group_name']
     return redirect('manage_group_topics', group_name)
+
+def group_add_member(request):
+    groupname = request.POST['groupname']
+    username = request.POST['username']
+    referer = request.POST['referer']
+    status_code, _ = engine.add_member_to_group(groupname, username, 'member')
+    return redirect(referer, groupname)
+
+def group_remove_member(request):
+    groupname = request.POST['groupname']
+    username = request.POST['username']
+    status_code, _ = engine.remov
+    return redirect('manage_group_members', groupname)
+
+def user_change_status(request):
+    groupname = request.POST['groupname']
+    username = request.POST['username']
+    if request.POST['membership'].lower() == 'member':
+        membership = 'owner'
+    else:
+        membership = 'member'
+    status_code, _ = engine.change_user_group_status(username, groupname, membership)
+    if status_code is not None:
+        messages.error(request, status_code)
+    return redirect('manage_group_members', groupname)
