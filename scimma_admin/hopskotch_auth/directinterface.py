@@ -262,13 +262,50 @@ class DirectInterface(ConnectionInterface):
             group = Group.objects.get(name=groupname)
         except ObjectDoesNotExist as dne:
             return f'Group "{groupname}" does not exist', None
-        membership = GroupMembership.objects.get()
+        membership = GroupMembership.objects.filter(user=user, group=group)
+        if not membership.exists():
+            return f'Group "{groupname}" does not include member "{username}"', None
+        membership.delete()
+        return None, {}
+        
 
-    def add_topic_to_group(self, username, group_name, topic_name):
-        pass
+    def add_topic_to_group(self, groupname, topicname, permission):
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        all_check = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation.All)
+        exists_check = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation[permission.capitalize()])
+        if all_check.exists() or exists_check.exists():
+            return f'Topic "{topicname}" already exists with either "{permission}" or "All"', None
+        GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=KafkaOperation[permission.capitalize()])
+        return None, {}
+        
+        
 
-    def remove_topic_from_group(self, username, group_name, topic_name):
-        pass
+    def remove_topic_from_group(self, groupname, topicname, permission):
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        try:
+            op = KafkaOperation[permission.capitalize()]
+        except Exception as e:
+            return f'Permission "{permission}" does not exist', None
+        try:
+            perm = GroupKafkaPermission.object.get(principal=group, topic=topic, operation=op)
+        except ObjectDoesNotExist as dne:
+            return f'Permission "{permission}" does not exist in group and topic "{topicname}"', None
+        perm.delete()
+        return None, {}
 
     def create_topic(self, username, group_name, topic_name, description, publicly_readable):
         try:

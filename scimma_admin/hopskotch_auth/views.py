@@ -185,27 +185,6 @@ def create_group(request):
     status_code, accessible_members = engine.get_all_users()
     form = CreateGroupForm()
     return render(request, 'hopskotch_auth/create_group.html', {'form': form, 'accessible_members': accessible_members})
-    '''
-    if request.method == 'POST':
-        group_name = request.POST['name_field']
-        desc_field = request.POST['desc_field']
-        status, _ = engine.create_group(request.user.username, group_name, desc_field)
-        if status != None:
-            messages.error(request, status)
-            return redirect('index')
-        print(request.POST)
-        for x in request.POST:
-            if x.startswith('mem_id'):
-                idx = x[7:-1]
-                username = request.POST[f'mem_id[{idx}]']
-                statusname = request.POST[f'member_radio[{idx}]']
-                status, _ = engine.add_member_to_group(group_name, username, statusname)
-        messages.success(request, 'Group created successfully')
-        return redirect('index')
-    form = CreateGroupForm(request.POST)
-    members = engine.get_all_users()
-    return render(request, 'hopskotch_auth/create_group.html', { 'form': form, 'accessible_member': members })
-    '''
 
 @login_required
 def finished_group(request):
@@ -441,24 +420,45 @@ def remove_topic_group(request):
         messages.error(request, status_code)
     return redirect('manage_topic', full_topic_name)
 
+def add_group_topic(request):
+    print(request.POST)
+    topicname = request.POST['topicname']
+    groupname = topicname.split('.')[0]
+    permission = request.POST['op_perm']
+    status_code, _ = engine.add_topic_to_group(groupname, topicname, permission)
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
+    return redirect('manage_group_topic', groupname)
+
+
 def remove_group_topic(request):
-    topic_name = request.POST['topic_name']
-    topic_desc = request.POST['topic_desc']
-    topic_pub = request.POST['topic_pub']
-    group_name = request.POST['group_name']
-    return redirect('manage_group_topics', group_name)
+    topicname = request.POST['topicname']
+    perm = request.POST['topic_pub']
+    groupname = request.POST['groupname']
+    status_code, _ = engine.remove_topic_from_group(groupname, topicname, perm)
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
+    return redirect('manage_group_topics', groupname)
 
 def group_add_member(request):
     groupname = request.POST['groupname']
     username = request.POST['username']
     referer = request.POST['referer']
     status_code, _ = engine.add_member_to_group(groupname, username, 'member')
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
     return redirect(referer, groupname)
 
 def group_remove_member(request):
     groupname = request.POST['groupname']
     username = request.POST['username']
-    status_code, _ = engine.remov
+    status_code, _ = engine.remove_member_from_group(groupname, username)
+    if status_code is not None:
+        messages.error(request, status_code)
+        return redirect('index')
     return redirect('manage_group_members', groupname)
 
 def user_change_status(request):

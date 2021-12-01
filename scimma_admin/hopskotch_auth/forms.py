@@ -18,22 +18,6 @@ class CreateCredentialForm(forms.Form):
         self.helper.form_method = 'POST'
         self.helper.layout = Layout(
             Field('desc_field', css_class='row'),
-            HTML('''
-                <h2>Added Permissions</h2>
-                <div class="border row mb-3">
-                    <table class="table" id="added_permissions">
-                        <thead>
-                            <th scope="col">Name</th>
-                            <th scope="col">Description</th>
-                            <th scope="col">Access Via</th>
-                            <th scope="col">Permissions</th>
-                            <th scope="col">Remove</th>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                    </table>
-                </div>
-            '''),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
                 Submit('save', 'Create', css_class='btn-primary'),

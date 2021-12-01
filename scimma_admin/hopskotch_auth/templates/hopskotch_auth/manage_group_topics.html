@@ -10,40 +10,66 @@
     <div class="container-fluid">
         <h2>Manage Group Topics</h2>
         {% crispy form %}
-        <h2>Added Topics</h2>
-        <div class="border row mb-3">
-            <table class="table" id="added_members">
-                <thead>
-                    <th scope="col">Name</th>
-                    <th scope="col">Description</th>
-                    <th scope="col">Accessible By</th>
-                    <th scope="col">Remove</th>
-                </thead>
-                <tbody>
-                    {% for topic in topics %}
-                    <tr scope="row">
-                        <form action="{% url 'remove_group_topic' %}" method="POST">
-                            {% csrf_token %}
-                            <input type="hidden" name="group_name" value="{{ groupname }}">
-                            <td scope="col" class="topic_name">
-                                <input type="text" class="form-control-plaintext" name="topic_name" value="{{ topic.name }}" readonly>
-                            </td>
-                            <td scope="col" class="topic_desc">
-                                <input type="text" class="form-control-plaintext" name="topic_desc" value="{{ topic.description }}" readonly>
-                            </td>
-                            <td scope="col" class="topic_pub">
-                                <input type="text" class="form-control-plaintext" name="topic_pub" value="{{ topic.accessible_by }}" readonly>
-                            </td>
-                            <td scope="col" class="remove_button">
-                                <button type="submit" class="btn btn-danger removeFrom">Remove</button>
-                            </td>
-                        </form>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <h2>Added Topic</h2>
+        <div id="added_permissions">
+          <table class="table table-hover" id="added_table">
+            <thead>
+              <th scope="col">Name</th>
+              <th scope="col">Description</th>
+              <th scope="col">Access Via</th>
+              <th scope="col">Permission</th>
+              <th scope="col">Remove</th>
+            </thead>
+            <tbody>
+              {% for topic in added_topics %}
+              <tr>
+                <form action="{% url 'remove_credential_permission' %}" method="POST">
+                  {% csrf_token %}
+                  <input type="hidden" name="credname" value="{{ credname }}">
+                  <td class="topic_name">
+                    <input type="text" class="form-control-plaintext" name="perm_name" value="{{ topic.topic }}" readonly>
+                  </td>
+                  <td class="topic_desc">
+                    {{ topic.topic_description }}
+                  </td>
+                  <td class="topic_accs">
+                    {{ topic.accessible_by }}
+                  </td>
+                  <td class="topic_perm">
+                    <input type="text" class="form-control-plaintext" name="perm_perm" value="{{ topic.permission_type }}">
+                  </td>
+                  <td class="topic_remv">
+                    <button type="submit" class="btn btn-danger removeButton">Remove</button>
+                  </td>
+                </form>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <h2>Available Topics</h2>
+        <form action="{% url 'add_group_topic' %}" method="POST">
+          {% csrf_token %}
+          <div class="row">
+            <input type="hidden" name="groupname" value="{{ groupname }}">
+            <div class="col">
+              <label for="id_perm_name" class="col-form-label">Add Topic to Group</label>
+            </div>
+            <div class="col">
+              <input id="id_topic_name" type="text" class="form-control" name="topicname" placeholder="Topic name" aria-label="Topic name" readonly>
+            </div>
+            <div class="col">
+              <select id="id_op_perm" class="form-select" name="op_perm" aria-label="Permission selection">
+                <option selected>Select a permission</option>
+                <option>Read</option>
+                <option>Write</option>
+              </select>
+            </div>
+            <div class="col">
+              <button type="submit" class="btn btn-primary">Add</button>
+            </div>
+          </div>
+        </form>
+        <h2>Available Topic</h2>
         <div id="cur_permissions">
             <table class="table table-hover" id="avail_table">
                 <thead>
@@ -61,6 +87,7 @@
                     <td class="topic_desc">{{ topic.topic_description }}</td>
                     <td class="topic_access">{{ topic.accessible_by }}</td>
                     <td>
+                      <form>
                       <button type="button" class="btn btn-primary addToCur objectModifier">Select</button></td>
                     </tr>
                     {% empty %}
@@ -71,6 +98,21 @@
                 </tbody>
             </table>
         </div>
+        <div class="accordion" id="credAccordion">
+            <div class="accordion-item mt-3 mb-1">
+            <h2 class="accordion-header" id="credHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCred" aria-expanded="false" aria-controls="collapseCred">
+                What do I do from here?
+              </button>
+            </h2>
+            <div id="collapseCred" class="accordion-collapse collapse" aria-labelledby="credHeading" data-bs-parent="#credAccordion">
+              <div class="accordion-body">
+                This is example text with some code probably.
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
