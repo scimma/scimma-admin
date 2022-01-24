@@ -7,10 +7,32 @@
 {% block page-header %}Manage Group Topics{% endblock %}
 
 {% block page-body %}
+<meta id="gtp_url" data-link="{% url 'get_topic_permissions' %}">
+<meta id="bstp_url" data-link="{% url 'bulk_set_topic_permissions' %}">
+<meta id="ctg_url" data-link="{% url 'create_topic_in_group' %}">
+<meta id="atg_url" data-link="{% url 'add_topic_to_group' %}">
+<meta id="rtg_url" data-link="{% url 'remove_topic_from_group' %}">
     <div class="container-fluid">
         <h2>Manage Group Topics</h2>
-        {% crispy form %}
-        <h2>Added Topic</h2>
+        <form method="POST">
+          {% csrf_token %}
+          <div class="row">
+              <label for="name_field" class="form-label">Name</label>
+              <input name="name_field" class="form-control" id="name_field" value="{{ cur_name }}" readonly>
+          </div>
+          <div class="row">
+              <label for="desc_field" class="form-label">Description</label>
+              <textarea id="desc_field" name="desc_field" class="form-field">{{ cur_description }}</textarea>
+          </div>
+          <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
+              <a class="btn btn-secondary" href="{% url 'index' %}">Cancel</a>
+              <button class="btn btn-primary" role="submit">Submit</button>
+          </div>
+      </form>
+        <h2>Added Topics
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-question-circle-fill" viewBox="0 0 16 16" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="All currently added topics. To edit the exact permissions for a topic click 'Edit'. To remove a topic from a group click 'Remove'" data-bs-original-title="Help">
+          <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247zm2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/>
+        </svg></h2>
         <div id="added_permissions">
           <table class="table table-hover" id="added_table">
             <thead>
@@ -21,82 +43,34 @@
               <th scope="col">Remove</th>
             </thead>
             <tbody>
-              {% for topic in added_topics %}
+              {% for topic in topics %}
               <tr>
-                <form action="{% url 'remove_credential_permission' %}" method="POST">
-                  {% csrf_token %}
-                  <input type="hidden" name="credname" value="{{ credname }}">
-                  <td class="topic_name">
-                    <input type="text" class="form-control-plaintext" name="perm_name" value="{{ topic.topic }}" readonly>
-                  </td>
-                  <td class="topic_desc">
-                    {{ topic.topic_description }}
-                  </td>
-                  <td class="topic_accs">
-                    {{ topic.accessible_by }}
-                  </td>
-                  <td class="topic_perm">
-                    <input type="text" class="form-control-plaintext" name="perm_perm" value="{{ topic.permission_type }}">
-                  </td>
-                  <td class="topic_remv">
-                    <button type="submit" class="btn btn-danger removeButton">Remove</button>
-                  </td>
-                </form>
+                <td class="topic_name">{{ topic.topicname }}</td>
+                <td class="topic_desc">{{ topic.description}}</td>
+                <td class="topic_accs">{{ topic.accessible_by }}</td>
+                <td class="topic_edit"><a class="btn btn-primary editButton" href="{% url 'manage_topic' topic.topicname %}">Edit</button></td>
+                <td class="topic_remv"><button type="button" class="btn btn-danger removeButton">Remove</button>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        <form action="{% url 'add_group_topic' %}" method="POST">
-          {% csrf_token %}
-          <div class="row">
-            <input type="hidden" name="groupname" value="{{ groupname }}">
-            <div class="col">
-              <label for="id_perm_name" class="col-form-label">Add Topic to Group</label>
-            </div>
-            <div class="col">
-              <input id="id_topic_name" type="text" class="form-control" name="topicname" placeholder="Topic name" aria-label="Topic name" readonly>
-            </div>
-            <div class="col">
-              <select id="id_op_perm" class="form-select" name="op_perm" aria-label="Permission selection">
-                <option selected>Select a permission</option>
-                <option>Read</option>
-                <option>Write</option>
-              </select>
-            </div>
-            <div class="col">
-              <button type="submit" class="btn btn-primary">Add</button>
-            </div>
+        <hr>
+        <h2>Create Topic
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-question-circle-fill" viewBox="0 0 16 16" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="Create a topic with the current group as the owner." data-bs-original-title="Help">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247zm2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/>
+          </svg>
+        </h2>
+        <div class="row  align-items-center">
+          <div class="col-auto">
+            Create Topic
           </div>
-        </form>
-        <h2>Available Topic</h2>
-        <div id="cur_permissions">
-            <table class="table table-hover" id="avail_table">
-                <thead>
-                    <tr>
-                        <th scope="col">Name</th>
-                        <th scope="col">Description</th>
-                        <th scope="col">Access Via</th>
-                        <th scope="col">Add</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for topic in accessible_topics %}
-                    <tr>
-                    <td class="topic_name">{{ topic.topic }}</td>
-                    <td class="topic_desc">{{ topic.topic_description }}</td>
-                    <td class="topic_access">{{ topic.accessible_by }}</td>
-                    <td>
-                      <form>
-                      <button type="button" class="btn btn-primary addToCur objectModifier">Select</button></td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                    <td class="info" colspan="3">This account does not have access to any topics</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+          <div class="col-auto">
+            <input type="text" class="form-control" id="input_create_topic" placeholder="Topic name">
+          </div>
+          <div class="col-auto">
+            <button type="button" id="confirm_create_topic" class="btn btn-primary">Create</button>
+          </div>
         </div>
         <div class="accordion" id="credAccordion">
             <div class="accordion-item mt-3 mb-1">
@@ -112,6 +86,66 @@
             </div>
           </div>
         </div>
+    </div>
+
+    <div class="modal fade" id="topicPermEditModal" tabindex="-1" aria-labelledby="topicPermEditLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="topicPermEditLabel">Modal title</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="currently_editing" value="">
+            <span class="border">
+              <div class="form-check form-switch">
+                <label for="Read_perm" class="form-check-label">Read</label>
+                <input type="checkbox" id="Read_perm" class="form-check-input" name="permCheck" value="Read">
+              </div>
+              <div class="form-check form-switch">
+                <label for="Write_perm" class="form-check-label">Write</label>
+                <input type="checkbox" id="Write_perm" class="form-check-input" name="permCheck" value="Write">
+              </div>
+              <div class="form-check form-switch">
+                <label for="Create_perm" class="form-check-label">Create</label>
+                <input type="checkbox" id="Create_perm" class="form-check-input" name="permCheck" value="Create">
+              </div>
+              <div class="form-check form-switch">
+                <label for="Delete_perm" class="form-check-label">Delete</label>
+                <input type="checkbox" id="Delete_perm" class="form-check-input" name="permCheck" value="Delete">
+              </div>
+              <div class="form-check form-switch">
+                <label for="Alter_perm" class="form-check-label">Alter</label>
+                <input type="checkbox" id="Alter_perm" class="form-check-input" name="permCheck" value="Alter">
+              </div>
+              <div class="form-check form-switch">
+                <label for="Describe_perm" class="form-check-label">Describe</label>
+                <input type="checkbox" id="Describe_perm" class="form-check-input" name="permCheck" value="Describe">
+              </div>
+              <div class="form-check form-switch">
+                <label for="ClusterAction_perm" class="form-check-label">ClusterAction</label>
+                <input type="checkbox" id="ClusterAction_perm" class="form-check-input" name="permCheck" value="ClusterAction">
+              </div>
+              <div class="form-check form-switch">
+                <label for="DescribeConfigs_perm" class="form-check-label">DescribeConfigs</label>
+                <input type="checkbox" id="DescribeConfigs_perm" class="form-check-input" name="permCheck" value="DescribeConfigs">
+              </div>
+              <div class="form-check form-switch">
+                <label for="AlterConfigs_perm" class="form-check-label">AlterConfigs</label>
+                <input type="checkbox" id="AlterConfigs_perm" class="form-check-input" name="permCheck" value="AlterConfigs">
+              </div>
+              <div class="form-check form-switch">
+                <label for="IdempotentWrite_perm" class="form-check-label">IdempotentWrite</label>
+                <input type="checkbox" id="IdempotentWrite_perm" class="form-check-input" name="permCheck" value="IdempotentWrite">
+              </div>
+            </span>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="save_edit">Save changes</button>
+          </div>
+        </div>
+      </div>
     </div>
 {% endblock %}
 

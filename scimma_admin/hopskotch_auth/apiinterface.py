@@ -46,31 +46,19 @@ class ApiInterface(ConnectionInterface):
 
 
 
-    def add_permission(self, username, credname, groupname, topicname, permission):
+    def add_permission(self, username, cred_name, group, topic, permission):
         data = {
-            'groupname': groupname,
-            'topicname': topicname,
-            'operation': permission,
+            'username': username,
+            'cred_name': cred_name,
+            'group': group,
+            'topic': topic,
+            'permission': permission,
         }
-        r = requests.post(f'http://localhost:5000/hopauth/users/{username}/credentials/{credname}/topics', data=data)
+        r = requests.post('http://localhost:5000/hopauth/add_credential_permission/', data=data)
         return r.status_code, {}
-    
-    def get_credential_topic_info(self, username, credname):
-        r = requests.get(f'http://localhost:5000/hopauth/users/{username}/credentials/{credname}/topics')
-        if r.status_code != 200:
-            return r.status_code, {}
-        return r.status_code, r.json()
 
 
-
-    def remove_permission(self, username, credname, groupname, topicname, permission):
-        data = {
-            'groupname': groupname,
-            'operation': permission,
-        }
-        r = requests.delete(f'http://localhost:5000/hopauth/users/{username}/credentials/{credname}/topics/{topicname}', data=data)
-        return r.status_code, {}
-        '''
+    def remove_permission(self, username, cred_name, group, topic, permission):
         try:
             credential = SCRAMCredentials.objects.get(username[cred_name])
         except ObjectDoesNotExist as dne:
@@ -84,7 +72,6 @@ class ApiInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             print('{} in remove_permission'.format(dne))
             return 403, {}
-        '''
 
 
     def suspend_credential(self, username, cred_name):

@@ -7,9 +7,24 @@
 {% block page-header %}Create Topic{% endblock %}
 
 {% block page-body %}
-    <div class="container-fluid">
+    <div class="container">
         <h2>Create Group</h2>
-        {% crispy form %}
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row">
+                <label class="form-label" for="name_input">Name</label>
+                <input class="form-control" id="name_input" name="name_field" required>
+            </div>
+            <div class="row">
+                <label class="form-label" for="desc_input">Description</label>
+                <textarea class="form-control" id="desc_input" name="desc_field"></textarea>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
+                <a class="btn btn-secondary" href="{% url 'index' %}">Cancel</a>
+                <button class="btn btn-primary" role="submit">Submit</button>
+            </div>
+        </form>
+
 {% endblock %}
 
 {% block scripts %}

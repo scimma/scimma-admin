@@ -50,11 +50,11 @@ class DirectInterface(ConnectionInterface):
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
-            print(f'User "{username}" does not exist'), None
+            return f'User "{username}" does not exist', None
         try:
             credential = SCRAMCredentials.objects.get(owner=user, username=credname)
         except ObjectDoesNotExist as dne:
-            print(f'Credentials "{credname}" does not exist')
+            return f'Credentials "{credname}" does not exist', None
         credential.description = description
         credential.save()
         return None, {}
@@ -71,19 +71,14 @@ class DirectInterface(ConnectionInterface):
                 'group': perm.topic.owning_group.name,
                 'topic': perm.topic.name,
                 'topic_description': perm.topic.description,
-                'permission_type': KafkaOperation(perm.operation).name,
+                'permission': KafkaOperation(perm.operation).name,
             }
             for perm in perms
         ]
         return None, data
 
     def add_permission(self, username, credname, groupname, topicname, permission):
-        if permission.lower() == 'read':
-            operation = KafkaOperation.Read
-        elif permission.lower() == 'write':
-            operation = KafkaOperation.Write
-        else:
-            return f'Permission name "{permission}" not valid', None
+        operation = KafkaOperation[permission]
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
@@ -99,52 +94,46 @@ class DirectInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             return f'Group with name "{groupname}" not found', None
         try:
-            topic = KafkaTopic.objects.get(owning_group=group, name='.'.join([groupname, topicname]))
+            topic = KafkaTopic.objects.get(owning_group=group, name=topicname)
         except ObjectDoesNotExist as dne:
             return f'Topic with group name "{groupname}"" and topic name "{topicname}"" does not exist', None
         found_one = False
-        perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation.All)
+        for perm in GroupKafkaPermission.objects.filter(topic=topic):
+            print('{}, {}, {}'.format(perm.principal, perm.topic, perm.operation.name))
+        perm = GroupKafkaPermission.objects.filter(topic=topic, operation=KafkaOperation.All)
         if not perm.exists():
-            perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=operation)
+            print('All does not exist, trying exact perm')
+            perm = GroupKafkaPermission.objects.filter(topic=topic, operation=operation)
             if not perm.exists():
                 return f'Topic\'s parent group does not have permission to add {permission}', None
-        
-        all_perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation.All)
-        if all_perm.exists():
-            if not CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=operation).exists():
+            else:
                 CredentialKafkaPermission.objects.create(
                     principal=cred,
-                    parent=all_perm[0],
+                    parent=perm[0],
                     topic=topic,
                     operation=operation
                 )
                 return None, {}
-            else:
-                return f'Credential {credname} already has permission "{permission}" from topic {topicname}', None
-        
-        op_perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=operation)
-        if op_perm.exists():
-            if not CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=operation).exists():
-                CredentialKafkaPermission.objects.create(
-                    principal=cred,
-                    parent=all_perm[0],
-                    topic=topic,
-                    operation=operation
-                )
-                return None, {}
-            else:
-                return f'Credential {credname} already has permission "{permission}" for topic {topicname}', None
+        else:
+            print('All exists')
+            CredentialKafkaPermission.objects.create(
+                principal=cred,
+                parent=perm[0],
+                topic=topic,
+                operation=operation
+            )
+            return None, {}
         return f'Topic\'s parent group does not have permission to add {permission}', None
     
     def get_credential_topic_info(self, username, credname):
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
-            print(f'User "{username}" does not exist'), None
+            return f'User "{username}" does not exist', None
         try:
             credential = SCRAMCredentials.objects.get(owner=user, username=credname)
         except ObjectDoesNotExist as dne:
-            print(f'Credentials "{credname}" does not exist')
+            return f'Credentials "{credname}" does not exist', None
         perms = CredentialKafkaPermission.objects.filter(principal=credential)
         data = [
             {
@@ -160,24 +149,28 @@ class DirectInterface(ConnectionInterface):
 
 
     def remove_permission(self, username, credname, groupname, topicname, permission):
-        if permission.lower() == 'read':
-            operation = KafkaOperation.Read
-        elif permission.lower() == 'write':
-            operation = KafkaOperation.Write
-        else:
-            return f'Permission name "{permission}" not valid', None
+        operation = KafkaOperation[permission]
         try:
             user = User.objects.get(username=username)
-            cred = SCRAMCredentials.objects.get(owner=user, username=credname)
-            group = Group.objects.get(name=groupname)
-            topic = KafkaTopic.objects.get(owning_group=group, name='.'.join([groupname, topicname]))
-            to_delete = CredentialKafkaPermission.objects.filter(
-                principal=cred,
-                topic=topic,
-                operation=operation
-            )
         except ObjectDoesNotExist as dne:
-            return f'In add_permission, a bad name was passed in', None
+            return f'User {username} does not exist', None
+        try:
+            cred = SCRAMCredentials.objects.get(owner=user, username=credname)
+        except ObjectDoesNotExist as dne:
+            return f'Credential {credname} does not exist', None
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group {groupname} does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic {topicname} does not exist', None
+        to_delete = CredentialKafkaPermission.objects.filter(
+            principal=cred,
+            topic=topic,
+            operation=operation
+        )
         to_delete.delete()
         return None, {}
 
@@ -192,7 +185,7 @@ class DirectInterface(ConnectionInterface):
         credential.save()
         return None, {}
 
-    def unsuspend_credential(self, username, cred_name):
+    def unsuspend_credential(self, username, credname):
         try:
             user = User.objects.get(username=username)
             credential = SCRAMCredentials.objects.get(owner=user, username=credname)
@@ -267,8 +260,8 @@ class DirectInterface(ConnectionInterface):
             return f'Group "{groupname}" does not include member "{username}"', None
         membership.delete()
         return None, {}
-        
-
+    
+    '''
     def add_topic_to_group(self, groupname, topicname, permission):
         try:
             group = Group.objects.get(name=groupname)
@@ -279,14 +272,15 @@ class DirectInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             return f'Topic "{topicname}" does not exist', None
         all_check = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation.All)
-        exists_check = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation[permission.capitalize()])
+        exists_check = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation[permission])
         if all_check.exists() or exists_check.exists():
             return f'Topic "{topicname}" already exists with either "{permission}" or "All"', None
-        GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=KafkaOperation[permission.capitalize()])
+        GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=KafkaOperation[permission])
         return None, {}
+    '''
         
         
-
+    '''
     def remove_topic_from_group(self, groupname, topicname, permission):
         try:
             group = Group.objects.get(name=groupname)
@@ -306,6 +300,7 @@ class DirectInterface(ConnectionInterface):
             return f'Permission "{permission}" does not exist in group and topic "{topicname}"', None
         perm.delete()
         return None, {}
+    '''
 
     def create_topic(self, username, group_name, topic_name, description, publicly_readable):
         try:
@@ -342,20 +337,45 @@ class DirectInterface(ConnectionInterface):
         if not GroupMembership.objects.filter(user=user, group=group, status=MembershipStatus.Owner).exists() or not user.is_staff:
             return 'User cannot delete topic because they are not an owner or a staff member', None
         with transaction.atomic():
+            print(GroupKafkaPermission.objects.filter(topic=topic))
             CredentialKafkaPermission.objects.filter(topic=topic).delete()
             GroupKafkaPermission.objects.filter(topic=topic).delete()
         topic.delete()
         return None, {}
 
 
-    def add_topic_permission(self, username, topic_name, permission):
-        pass
+    def add_topic_permission(self, username, group_name, topic_name, permission):
+        try:
+            topic = KafkaTopic.objects.get(name=topic_name)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topic_name}" does not exist', None
+        try:
+            group = Group.objects.get(name=group_name)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{group_name}" does not exist', None
+        perm = GroupKafkaPermission.objects.filter(principal=group, topic=topic, operation=KafkaOperation[permission])
+        if perm.exists():
+            return f'Permission "{permission}" for topic "{topic_name}" already exists', None
+        GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=KafkaOperation[permission])
+        return None, {}
 
 
-    def remove_topic_permission(self, username, topic_name, permission):
+    def remove_topic_permission(self, username, group_name, topic_name, permission):
+        try:
+            topic = KafkaTopic.objects.get(name=topic_name)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topic_name}" does not exist', None
+        try:
+            group = Group.objects.get(name=group_name)
+        except:
+            return f'Group "{group_name}" does not exist', None
+        try:
+            perm = GroupKafkaPermission.objects.get(principal=group, topic=topic, operation=KafkaOperation[permission])
+        except ObjectDoesNotExist as dne:
+            return f'Permission "{permission}" for topic "{topic_name}" does not exist', None
+        perm.delete()
+        return None, {}
         
-        CredentialKafkaPermission.objects.filter(topic=topic_name)
-        GroupKafkaPermission.object.filter(topic=topic_name)
     
     def get_credential_info(self, username, credname):
         try:
@@ -400,7 +420,7 @@ class DirectInterface(ConnectionInterface):
         added_topics = []
         for membership in memberships:
             group = membership.group
-            group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+            group_permissions = GroupKafkaPermission.objects.filter(principal=group)
             for permission in group_permissions:
                 if permission.topic.name not in added_topics:
                     data.append(
@@ -483,21 +503,22 @@ class DirectInterface(ConnectionInterface):
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
             return f'User "{username}" does not exist', None
-        data = []
+        data = {}
 
         # first, handle access via group permissions
         user_memberships = GroupMembership.objects.filter(user=user)
         for membership in user_memberships:
             group = membership.group
-            group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+            group_permissions = GroupKafkaPermission.objects.filter(principal=group)
             for permission in group_permissions:
-                data.append({
+                if permission.topic.name not in data:
+                    data[permission.topic.name] = {
                     'group': permission.principal.name,
                     'topic': permission.topic.name,
                     'group_description': permission.principal.description,
                     'topic_description': permission.topic.description,
                     'accessible_by': permission.principal.name
-                })
+                }
 
         # second, collect all public topics
         # By doing this second, if a user has non-public access to a topic which is also public, we will
@@ -505,16 +526,16 @@ class DirectInterface(ConnectionInterface):
         # wants to read, as it will indicate that specially configuring a credential is not needed.
         public_topics=KafkaTopic.objects.filter(publicly_readable=True)
         for topic in public_topics:
-            data.append({
-                'group': topic.owning_group.name,
-                'topic': topic.name,
-                'group_description': topic.owning_group.description,
-                'topic_description': topic.description,
-                'accessible_by': 'public'
-            })
-        
+            if topic.name not in data:
+                data.append({
+                    'group': topic.owning_group.name,
+                    'topic': topic.name,
+                    'group_description': topic.owning_group.description,
+                    'topic_description': topic.description,
+                    'accessible_by': 'public'
+                })   
 
-        return None, data
+        return None, list(data.values())
     
     def get_all_credentials(self):
         credentials = SCRAMCredentials.objects.all()
@@ -609,25 +630,24 @@ class DirectInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             return f'Group "{groupname}" does not exist', None
         topics = KafkaTopic.objects.filter(owning_group=group)
+        print([x.owning_group for x in KafkaTopic.objects.all()])
+        print(group)
+        print(topics)
         data = None
         if topics.exists():
             data = [
                 {
-                    'name': topic.name,
+                    'topicname': topic.name,
                     'accessible_by': 'Public' if topic.publicly_readable else topic.owning_group.name,
                     'public': topic.publicly_readable,
                     'description': topic.description
                 }
             for topic in topics]
-        return None, data
+            return None, data
+        return None, []
     
     def add_group_to_topic(self, topicname, groupname, permissionname):
-        if permissionname.lower() == 'read':
-            permission = KafkaOperation.Read
-        elif permissionname.lower() == 'write':
-            permission = KafkaOperation.Write
-        else:
-            return f'Bad permission ({permissionname}) supplied', None
+        permission = KafkaOperation[permissionname]
         try:
             group = Group.objects.get(name=groupname)
             topic = KafkaTopic.objects.get(name=topicname)
@@ -639,12 +659,7 @@ class DirectInterface(ConnectionInterface):
         return None, {}
     
     def remove_group_from_topic(self, topicname, groupname, permissionname):
-        if permissionname.lower() == 'read':
-            permission = KafkaOperation.Read
-        elif permissionname.lower() == 'write':
-            permission = KafkaOperation.Write
-        else:
-            return 
+        permission = KafkaOperation[permissionname]
         try:
             group = Group.objects.get(name=groupname)
             topic = KafkaTopic.objects.get(name=topicname)
@@ -702,3 +717,207 @@ class DirectInterface(ConnectionInterface):
         membership.status = permission
         membership.save()
         return None, {}
+    
+    def get_group_permissions(self, groupname, topicname):
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        all_perms = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
+        print(all_perms)
+        if all_perms.exists():
+            results = [
+                {
+                    'groupname': perm.principal.name,
+                    'groupdescription': perm.principal.description,
+                    'topicname': perm.topic.name,
+                    'topicdescription': perm.topic.description,
+                    'operation': perm.operation.name,
+                }
+            for perm in all_perms]
+            return None, results
+        return None, [] 
+    
+    def modify_group_description(self, groupname, description):
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        group.description = description
+        group.save()
+        return None, {}
+    
+    def get_topic_permissions(self, groupname, topicname):
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        all_perms = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
+        data = []
+        for perm in all_perms:
+            data.append(KafkaOperation(perm.operation).name)
+        
+        return None, data
+    
+    def add_topic_to_group(self, groupname, topicname):
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        exists_check = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
+        if exists_check.exists():
+            return f'There is already a permission added for group "{groupname}" and topic "{topicname}"', None
+        GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=KafkaOperation['All'])
+        return None, {}
+
+    def remove_topic_from_group(self, groupname, topicname):
+        try:
+            group = Group.objects.get(name=groupname)
+        except ObjectDoesNotExist as dne:
+            return f'Group "{groupname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        all_perms = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
+        with transaction.atomic():
+            all_perms.delete()
+        return None, {}
+    
+    def add_permission_to_group(self, credname, topicname, operation):
+        try:
+            cred = SCRAMCredentials.objects.get(username=credname)
+        except ObjectDoesNotExist as dne:
+            return f'Credential "{credname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        op = KafkaOperation[operation]
+        op_check = GroupKafkaPermission.objects.filter(topic=topic, operation=op)
+        if not op_check.exists():
+            return f'You cannot add {operation} to {credname} since it lacks the permission', None
+        cred_check = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=op)
+        if cred_check.exists():
+            return f'Credential "{credname}" already has permission "{operation}"', None
+        CredentialKafkaPermission.objects.create(
+            principal=cred,
+            parent=op_check.first(),
+            topic=topic,
+            operation=op
+        )
+        return None, {}
+    
+    def remove_permission_from_group(self, credname, topicname, operation):
+        try:
+            cred = SCRAMCredentials.objects.get(username=credname)
+        except ObjectDoesNotExist as dne:
+            return f'Credential "{credname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        op = KafkaOperation[operation]
+        cred_check = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=op)
+        if cred_check.exists():
+            cred_check.delete()
+            return None, {}
+        return f'Permission "{operation}" for topic "{topicname}" using credential "{credname}" does not exist', None
+    
+    def get_available_credential_permissions(self, username):
+        try:
+            user = User.objects.get(username=username)
+        except ObjectDoesNotExist as dne:
+            return f'User "{username}" does not exist', None
+        possible_permissions = []
+        for membership in user.groupmembership_set.all():
+            group = membership.group
+            group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+            for permission in group_permissions:
+                if permission.operation==KafkaOperation.All:
+                    for subpermission in KafkaOperation.__members__.items():
+                        possible_permissions.append({
+                            'group': permission.principal.name,
+                            'topic_id': permission.topic.id,
+                            'topic': permission.topic.name,
+                            'group_description': permission.principal.description,
+                            'topic_description': permission.topic.description,
+                            'operation': subpermission[1].name
+                        })
+                        #possible_permissions.append((permission.topic.name,permission.topic.description, permission.principal.name, subpermission[1].name))
+                else:
+                    possible_permissions.append({
+                        'group': permission.principal.name,
+                        'topic_id': permission.topic.id,
+                        'topic': permission.topic.name,
+                        'group_description': permission.principal.description,
+                        'topic_description': permission.topic.description,
+                        'operation': permission.operation.name
+                    })
+                    #possible_permissions.append((permission.topic.name,permission.operation.name))
+        # sort and eliminate duplicates
+        # sort on operation
+        #possible_permissions.sort(key=lambda p: p[1])
+        possible_permissions.sort(key=lambda p: p['operation'])
+        # sort on topic names, because that looks nice for users, but since there is a bijection 
+        # between topic names and IDs this will place all matching topic IDs together in blocks 
+        # in some order
+        #possible_permissions.sort(key=lambda p: p[0])
+        possible_permissions.sort(key=lambda p: p['topic'])
+        
+        def equivalent(p1, p2):
+            return p1['topic_id'] == p2['topic_id'] and p1['operation'] == p2['operation']
+            #return p1[0] == p2[0] and p1[-1] == p2[-1]
+
+        # remove adjacent (practical) duplicates which have different permission IDs
+        dedup = []
+        last = None
+        for p in possible_permissions:
+            if last is None or not equivalent(last,p):
+                dedup.append(p)
+                last=p
+        
+        return None, dedup
+    
+    def get_permissions_on_credential(self, credname, topicname):
+        try:
+            cred = SCRAMCredentials.objects.get(username=credname)
+        except ObjectDoesNotExist as dne:
+            return f'Credential "{credname}" does not exist', None
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
+        print('------------------------------------------------------------------------------------')
+        print([x.operation.name for x in cred_perms])
+        print('------------------------------------------------------------------------------------')
+        if cred_perms.exists():
+            return None, [x.operation.name for x in cred_perms]
+        return None, []
+    
+    def get_topic_groups(self, topicname):
+        try:
+            topic = KafkaTopic.objects.get(name=topicname)
+        except ObjectDoesNotExist as dne:
+            return f'Topic "{topicname}" does not exist', None
+        all_memberships = GroupKafkaPermission.objects.filter(topic=topic)
+        if all_memberships.exists():
+            cleaned_memberships = []
+            for x in all_memberships:
+                if x.principal.name not in cleaned_memberships:
+                    cleaned_memberships.append(x.principal.name)
+            return None, cleaned_memberships
+        return None, []

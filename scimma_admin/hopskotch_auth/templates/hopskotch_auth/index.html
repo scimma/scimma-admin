@@ -7,21 +7,17 @@
 {% endblock %}
 
 {% block page-header %}
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-danger" role="alert">
-                {{ message }}
-            </div>
-        {% endfor %}
-    {% endif %}
 {% endblock %}
 
 {% block page-body %}
+<meta id="dc_url" data-link="{% url 'delete_credential' %}">
+<meta id="dt_url" data-link="{% url 'delete_topic' %}">
+<meta id="dg_url" data-link="{% url 'delete_group' %}">
     <div class="container-fluid">
         <section class="mb-5 creds-list">
             <h2>
                 Credentials
-                <a href="{% url 'create_credential' %}" class="link-dark" data-bs-toggle="tooltip" title="" data-bs-original-title="Default tooltip">
+                <a href="{% url 'create_credential' %}" class="link-dark" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="Creates a new credential" data-bs-original-title="Help">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
                     </svg>
@@ -40,7 +36,7 @@
                 <tbody>
                     {% for cred in credentials %}
                     <tr>
-                        <td scope="row">{{ cred.username }}</td>
+                        <td scope="row" class="credname" data-name="{{ cred.username }}">{{ cred.username }}</td>
                         <td>{{ cred.created_at }}</td>
                         <td>{{ cred.description }}</td>
                         <td>
@@ -53,19 +49,13 @@
                             </form>
                         </td>
                         <td>
-                            <form action="javascript:void(0);">
-                                <a role="submit" class="btn btn-danger" href="{% url 'delete_credential' credname=cred.username redirect_to='index' %}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
-                                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
-                                    </svg>
-                                </button>
-                            </form>
+                            <button role="button" class="btn btn-danger deleteCredential">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
+                                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
+                                </svg>
+                            </button>
                         </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                    <td class="info" colspan="4">No existing credentials found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -88,11 +78,6 @@
         <section class="mb-5 topic-list">
             <h2>
                 Topics
-                <a href="{% url 'create_topic' %}" class="link-dark">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
-                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
-                    </svg>
-                </a>
             </h2>
             <table class="table" id="topic-table">
                 <thead>
@@ -107,7 +92,7 @@
                 <tbody>
                     {% for topic in accessible_topics %}
                     <tr>
-                        <td>{{ topic.topic }}</td>
+                        <td class="topicname" data-name="{{ topic.topic }}">{{ topic.topic }}</td>
                         <td>{{ topic.topic_description }}</td>
                         <td>{{ topic.accessible_by }}</td>
                         <td>
@@ -120,13 +105,13 @@
                             </form>
                         </td>
                         <td>
-                            <form action="javascript:void(0);">
-                                <a role="submit" class="btn btn-danger" href="{% url 'delete_topic' topic.topic %}">
+                            <form>
+                                <button type="button" class="btn btn-danger deleteTopic">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
                                         <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
                                     </svg>
-                                </a>
+                                </button>
                             </form>
                         </td>
                     </tr>
@@ -151,7 +136,7 @@
         <section class="py-1 group-list">
             <h2>
                 Groups
-                <a href="{% url 'create_group' %}" class="link-dark">
+                <a href="{% url 'create_group' %}" class="link-dark" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="Creates a new group" data-bs-original-title="Help">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
                     </svg>
@@ -170,7 +155,7 @@
                 <tbody>
                     {% for membership in memberships %}
                     <tr>
-                        <td>{{ membership.group_name }}</td>
+                        <td class="groupname" data-name="{{ membership.group_name }}">{{ membership.group_name }}</td>
                         <td>{{ membership.status }}</td>
                         <td>
                             <form action="javascript:void(0);">
@@ -195,16 +180,15 @@
                         <td>
                             <form>
                                 {% csrf_token %}
-                                <a role="submit" class="btn btn-danger" href="{% url 'delete_group' membership.group_name %}">
+                                <button type="button" class="btn btn-danger deleteGroup">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
                                         <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
                                     </svg>
-                                </a>
+                                </button>
                             </form>
                         </td>
                     </tr>
-                    
                     {% endfor %}
                 </tbody>
             </table>
@@ -224,9 +208,28 @@
             </div>
         </section>
     </div>
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="confirmModalLabel">Modal title</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="confirm_text">
+                    Are you sure you want to delete the <span id="deleteType"></span>: <span id="deleteName"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" id="confirmDelete">Confirm</button>
+            </div>
+          </div>
+        </div>
+      </div>
 {% endblock %}
 
 {% block scripts %}
 {{ block.super }}
-<script src="{% static 'hopskotch_auth/js/credential.js' %}"></script>
+<script src="{% static 'hopskotch_auth/js/index.js' %}"></script>
 {% endblock %}

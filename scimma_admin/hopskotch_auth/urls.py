@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import callbacks
 
 
 urlpatterns = [
@@ -13,12 +14,10 @@ urlpatterns = [
     path("delete_credential/<str:credname>&<str:redirect_to>", views.delete_credential, name="delete_credential"),
     path("suspend_credential/<str:credname>&<str:redirect_to>", views.suspend_credential, name="suspend_credential"),
     path("create_group", views.create_group, name="create_group"),
-    path("delete_group/<str:groupname>", views.delete_group, name="delete_group"),
     path("finished_group", views.finished_group, name="finished_group"),
     path("manage_credential/<str:username>", views.manage_credential, name="manage_credential"),
     path("create_topic", views.create_topic, name="create_topic"),
     path("manage_topic/<str:topicname>", views.manage_topic, name="manage_topic"),
-    path("delete_topic/<str:topicname>", views.delete_topic, name="delete_topic"),
     path("manage_group_members/<str:groupname>", views.manage_group_members, name="manage_group_members"),
     path("manage_group_topics/<str:groupname>", views.manage_group_topics, name="manage_group_topics"),
     path("admin_credential", views.admin_credential, name="admin_credential"),
@@ -35,4 +34,19 @@ urlpatterns = [
     path("add_group_topic", views.add_group_topic, name="add_group_topic"),
     path("remove_group_topic", views.remove_group_topic, name="remove_group_topic"),
     path("user_change_status", views.user_change_status, name="user_change_status"),
+    path("get_topic_permissions", views.get_topic_permissions, name="get_topic_permissions"),
+    path("bulk_set_topic_permissions", views.bulk_set_topic_permissions, name="bulk_set_topic_permissions"),
+    path("create_topic_in_group", views.create_topic_in_group, name="create_topic_in_group"),
+    path("add_topic_to_group", views.add_topic_to_group, name="add_topic_to_group"),
+    path("remove_topic_from_group", views.remove_topic_from_group, name="remove_topic_from_group"),
+    path("get_available_credential_topics", views.get_available_credential_topics, name="get_available_credential_topics"),
+    path("bulk_set_credential_permissions", views.bulk_set_credential_permissions, name="bulk_set_credential_permissions"),
+    path("get_group_permissions", callbacks.get_group_permissions, name="get_group_permissions"),
+    path("bulk_set_group_permissions", callbacks.bulk_set_group_permissions, name="bulk_set_group_permissions"),
+    path("delete_all_credential_permissions", views.delete_all_credential_permissions, name="delete_all_credential_permissions"),
+    path("add_all_credential_permission", callbacks.add_all_credential_permission, name="add_all_credential_permission"),
+    path("delete_credential", callbacks.delete_credential, name="delete_credential"),
+    path("delete_topic", callbacks.delete_topic, name="delete_topic"),
+    path("delete_group", callbacks.delete_group, name="delete_group"),
+    path("download", views.download, name="download"),
 ] 

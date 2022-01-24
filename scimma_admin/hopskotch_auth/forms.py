@@ -42,6 +42,40 @@ class ManageCredentialForm(forms.Form):
         self.helper.layout = Layout(
             Field('name_field', readonly=True),
             Field('desc_field'),
+            HTML('''
+                <h2>Added Permissions</h2>
+                <div class="border row mb-3">
+                    <table class="table" id="added_permissions">
+                        <thead>
+                            <th scope="col">Name</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Access Via</th>
+                            <th scope="col">Permissions</th>
+                            <th scope="col">Remove</th>
+                        </thead>
+                        <tbody>
+                            {% for topic in added_topics %}
+                            <tr scope="row">
+                                <td class="topic_name"><input type="text" class="form-control-plaintext" name="group_name[{{ forloop.counter0 }}]" value="{{ topic.topic }}" readonly></td>
+                                <td class="topic_desc"><input type="text" class="form-control-plaintext" name="desc_field[{{ forloop.counter0 }}]" value="{{ topic.description }}" readonly></td>
+                                <td class="topic_access">{{ topic.access_via }}</td>
+                                <td scope="col" class="perm_fields">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="perm_1[{{ forloop.counter0 }}]" name="read_[{{ forloop.counter0 }}]" value="read_perm" {% if topic.read %}checked{% endif %}>
+                                        <label class="form-check-label" for="perm_1[{{ forloop.counter0 }}]">Read</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="perm_[{{ forloop.counter0 }}]" name="write_[{{ forloop.counter0 }}]" value="write_perm" {% if topic.write %}checked{% endif %}>
+                                        <label class="form-check-label" for="perm_2[{{ forloop.counter0 }}]">Write</label>
+                                    </div>
+                                </td>
+                                <td scope="col" class="remove_button"><button type="button" class="btn btn-danger removeFrom objectModifier">Remove</button></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            '''),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
                 Submit('save', 'Modify', css_class='btn-primary'),
@@ -141,6 +175,36 @@ class ManageTopicForm(forms.Form):
             Field('name_field', css_class='row', readonly=True),
             Field('desc_field', css_class='row'),
             Field('visibility_field', css_class='row form-check form-switch'),
+            HTML('''
+                <h2>Added Groups</h2>
+                <div class="border row mb-3">
+                    <table class="table" id="added_groups">
+                        <thead>
+                            <th scope="col">Group</th>
+                            <th scope="col">Permission</th>
+                            <th scope="col">Remove</th>
+                        </thead>
+                        <tbody>
+                            {% for group in group_list %}
+                            <tr scope="row">
+                                <td scope="col" class="group_name"><input type="text" class="form-control-plaintext" name="group_name[{{ forloop.counter0 }}]" value="group.name" readonly></td>
+                                <td scope="col" class="perm_fields">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="perm_1[{{ forloop.counter0 }}]" name="read_[{{ forloop.counter0 }}]" value="read_perm">
+                                        <label class="form-check-label" for="perm_1[{{ forloop.counter0 }}]">Read</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="perm_[{{ forloop.counter0 }}]" name="write_[{{ forloop.counter0 }}]" value="write_perm">
+                                        <label class="form-check-label" for="perm_2[{{ forloop.counter0 }}]">Write</label>
+                                    </div>
+                                </td>
+                                <td scope="col" class="remove_button"><button type="button" class="btn btn-danger removeFrom">Remove</button></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            '''),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
                 Submit('save', 'Modify', css_class='btn-primary'),
@@ -188,6 +252,48 @@ class ManageGroupMemberForm(forms.Form):
         self.helper.layout = Layout(
             Field('name_field', css_class='row', readonly=True),
             Field('desc_field', css_class='row'),
+            HTML('''
+                <h2>Added Members</h2>
+                <div class="border row mb-3">
+                    <table class="table" id="added_members">
+                        <thead>
+                            <th scope="col">ID</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Permission</th>
+                            <th scope="col">Remove</th>
+                        </thead>
+                        <tbody>
+                            {% for member in members %}
+                            <tr scope="row">
+                                <td scope="col" class="mem_id">
+                                    <input type="text" class="form-control-plaintext" name="mem_id[{{ forloop.counter0 }}]" value="{{ member.id }}" readonly>
+                                </td>
+                                <td scope="col" class="mem_name">
+                                    <input type="text" class="form-control-plaintext" name="mem_name[{{ forloop.counter0 }}]" value="{{ member.name }}" readonly>
+                                </td>
+                                <td scope="col" class="mem_email">
+                                    <input type="text" class="form-control-plaintext" name="mem_email[{{ forloop.counter0 }}]" value="{{ member.email }}" readonly>
+                                </td>
+                                <td scope="col" class="mem_type">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" id="perm_mem[{{ forloop.counter0 }}]" name="member_radio[{{ forloop.counter0 }}]" value="member" {% if member.status == 1 %}checked{% endif %}>
+                                        <label class="form-check-label" for="perm_mem[{{ forloop.counter0 }}]">Member</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" id="perm_own[{{ forloop.counter0 }}]" name="member_radio[{{ forloop.counter0 }}]" value="owner" {% if member.status == 2 %}checked{% endif %}>
+                                        <label class="form-check-label" for="perm_own[{{ forloop.counter0 }}]">Owner</label>
+                                    </div>
+                                </td>
+                                <td scope="col" class="remove_button">
+                                    <button type="button" class="btn btn-danger removeFrom">Remove</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            '''),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
                 Submit('save', 'Create', css_class='btn-primary'),
@@ -212,9 +318,40 @@ class ManageGroupTopicForm(forms.Form):
         self.helper.layout = Layout(
             Field('name_field', css_class='row', readonly=True),
             Field('desc_field', css_class='row'),
+            HTML('''
+                <h2>Added Topics</h2>
+                <div class="border row mb-3">
+                    <table class="table" id="added_members">
+                        <thead>
+                            <th scope="col">Name</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Public</th>
+                            <th scope="col">Remove</th>
+                        </thead>
+                        <tbody>
+                            {% for topic in topics %}
+                            <tr scope="row">
+                                <td scope="col" class="topic_name">
+                                    <input type="text" class="form-control-plaintext" name="mem_id[{{ forloop.counter0 }}]" value="{{ topic.name }}" readonly>
+                                </td>
+                                <td scope="col" class="topic_desc">
+                                    <input type="text" class="form-control-plaintext" name="mem_name[{{ forloop.counter0 }}]" value="{{ topic.description }}" readonly>
+                                </td>
+                                <td scope="col" class="topic_pub">
+                                    <input type="text" class="form-control-plaintext" name="mem_email[{{ forloop.counter0 }}]" value="{{ topic.public }}" readonly>
+                                </td>
+                                <td scope="col" class="remove_button">
+                                    <button type="button" class="btn btn-danger removeFrom">Remove</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            '''),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
-                Submit('save', 'Save', css_class='btn-primary'),
+                Submit('save', 'Create', css_class='btn-primary'),
                 css_class = 'd-grid gap-2 d-md-flex justify-content-md-end'
             )
         )
