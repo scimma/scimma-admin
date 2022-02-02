@@ -11,7 +11,6 @@ urlpatterns = [
     path("login_failure", views.login_failure, name="login_failure"),
 
     path("create_credential", views.create_credential, name="create_credential"),
-    path("delete_credential/<str:credname>&<str:redirect_to>", views.delete_credential, name="delete_credential"),
     path("suspend_credential/<str:credname>&<str:redirect_to>", views.suspend_credential, name="suspend_credential"),
     path("create_group", views.create_group, name="create_group"),
     path("finished_group", views.finished_group, name="finished_group"),
