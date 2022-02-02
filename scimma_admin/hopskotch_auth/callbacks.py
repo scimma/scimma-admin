@@ -29,6 +29,62 @@ def add_all_credential_permission(request):
     return JsonResponse(data={}, status=200)
 
 @login_required
+def get_available_credential_topics(request):
+    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    possible_perms = []
+    cred_perms = []
+    for membership in GroupMembership.objects.filter(user=request.user):
+        group = membership.group
+        group_permission = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+        for permission in group_permission:
+            if permission.operation == KafkaOperation.All:
+                for subpermissions in KafkaOperation.__members__.items():
+                    possible_perms.append({
+                        'topic_id': permission.topic.id,
+                        'topic': permission.topic.name,
+                        'description': permission.topic.description,
+                        'access_via': permission.principal.name,
+                        'operation': subpermissions[1].name,
+                    })
+            else:
+                possible_perms.append({
+                    'topic_id': permission.topic.id,
+                    'topic': permission.topic.name,
+                    'description': permission.topic.description,
+                    'access_via': permission.principal.name,
+                    'operation': permission.operation.name,
+                })
+    
+    possible_perms.sort(key=lambda p: p['operation'])
+    possible_perms.sort(key=lambda p: p['topic'])
+    def equivalent(p1, p2):
+        return p1['topic_id'] == p2['topic_id'] and p1['operation'] == p2['operation']
+    
+    cleaned_perms = []
+    last = None
+    for p in possible_perms:
+        if last is None or not equivalent(last, p):
+            cleaned_perms.append(p)
+            last = p
+    
+    try:
+        cred = SCRAMCredentials.objects.get(username=credname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
+    try:
+        topic = KafkaTopic.objects.get(name=topicname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
+    added_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
+    cred_perms = []
+    if added_perms.exists():
+        cred_perms = [x.operation.name for x in added_perms]
+
+    return JsonResponse(data={'data': cleaned_perms, 'cred_data': cred_perms}, status=200)
+
+@login_required
 def get_group_permissions(request):
     all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
     topicname = request.POST['topicname']
@@ -90,6 +146,19 @@ def bulk_set_group_permissions(request):
         new_obj.save()
     return JsonResponse(data={}, status=200)
 
+def toggle_suspend_credential(request):
+    credname = request.POST['credname']
+    try:
+        cred = SCRAMCredentials.objects.get(username=credname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
+    if request.user == cred.owner or request.user.is_staff:
+        is_suspended = not cred.suspended
+        cred.suspended = not cred.suspended
+        cred.save()
+        return JsonResponse(data={'suspended': is_suspended}, status=200)
+    return JsonResponse(data={'error': 'You must either be the owner or a staff member'}, status=403)
+
 def delete_credential(request):
     credname = request.POST['credname']
     try:
@@ -128,3 +197,183 @@ def delete_group(request):
         return JsonResponse(data={'error': f'You cannot delete "{groupname}" unless you are staff'}, status=403)
     group.delete()
     return JsonResponse(data={}, status=200)
+
+def bulk_set_credential_permissions(request):
+    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    groupname = topicname.split('.')[0]
+    permissions = request.POST.getlist('permissions')
+    try:
+        cred = SCRAMCredentials.objects.get(username=credname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
+    try:
+        topic = KafkaTopic.objects.get(name=topicname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
+    cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
+    if cred_perms.exists():
+        cred_perms = [x.operation.name for x in cred_perms]
+    else:
+        cred_perms = []
+    if 'All' in cred_perms:
+        if permissions == all_perms:
+            return JsonResponse(data={}, status=200)
+        cred_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+        status_code, _ = remove_permission(request.user.username, credname, groupname, topicname, 'All')
+        if status_code is not None:
+            return JsonResponse(data={'error': status_code}, status=404)
+        for perm in cred_perms:
+            status_code, _ = add_permission(request.user.username, credname, groupname, topicname, perm)
+    for perm in cred_perms:
+        if perm not in permissions:
+            status_code, _ = remove_permission(request.user.username, credname, groupname, topicname, perm)
+            if status_code is not None:
+                print(status_code)
+                print('Removing {} not found'.format(perm))
+                return JsonResponse(data={'error': status_code}, status=404)
+    for perm in permissions:
+        if perm not in cred_perms:
+            status_code, _ = add_permission(request.user.username, credname, groupname, topicname, perm)
+            if status_code is not None:
+                print(status_code)
+                print('Adding {} not found'.format(perm))
+                return JsonResponse(data={'error': status_code}, status=404)
+    return JsonResponse(data={}, status=200)
+
+def delete_all_credential_permissions(request):
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    groupname = topicname.split('.')[0]
+    try:
+        cred = SCRAMCredentials.objects.get(username=credname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
+    try:
+        topic = KafkaTopic.objects.get(name=topicname)
+    except ObjectDoesNotExist as dne:
+        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
+    cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
+    if cred_perms.exists():
+        cred_perms = [x.operation.name for x in cred_perms]
+    else:
+        cred_perms = []
+    for perm in cred_perms:
+
+        status_code, _ = remove_permission(request.user.username, credname, groupname, topicname, perm)
+        if status_code is not None:
+            return JsonResponse(data={'error': status_code}, status=404)
+
+def get_user_available_permissions(user):
+    possible_permissions = {}
+    for membership in user.groupmembership_set.all():
+        group = membership.group
+        group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+        for permission in group_permissions:
+            if permission.topic.name not in possible_permissions:
+                possible_permissions[permission.topic.name] = {
+                    'topic': permission.topic.name,
+                    'description': permission.topic.description,
+                    'access_via': permission.principal.name,
+                    'operation': permission.operation.name
+                }
+    possible_permissions = list(possible_permissions.values())
+    # sort and eliminate duplicates
+    # sort on operation
+    #possible_permissions.sort(key=lambda p: p[1])
+    possible_permissions.sort(key=lambda p: p['operation'])
+    # sort on topic names, because that looks nice for users, but since there is a bijection 
+    # between topic names and IDs this will place all matching topic IDs together in blocks 
+    # in some order
+    #possible_permissions.sort(key=lambda p: p[0])
+    possible_permissions.sort(key=lambda p: p['topic'])
+    
+    def equivalent(p1, p2):
+        return p1['topic'] == p2['topic']
+        #return p1['topic_id'] == p2['topic_id'] and p1['operation'] == p2['operation']
+        #return p1[0] == p2[0] and p1[-1] == p2[-1]
+
+    # remove adjacent (practical) duplicates which have different permission IDs
+    dedup = []
+    last = None
+    for p in possible_permissions:
+        if last is None or not equivalent(last,p):
+            dedup.append(p)
+            last=p
+    
+    return dedup
+
+def add_permission(username, credname, groupname, topicname, permission):
+    operation = KafkaOperation[permission]
+    try:
+        user = User.objects.get(username=username)
+    except ObjectDoesNotExist as dne:
+        return f'User "{username} does not exist', None
+    try:
+        cred = SCRAMCredentials.objects.get(username=credname)
+        if cred.owner.username != user.username and not user.is_staff:
+            return f'User "{username}" does not have permissions for credential {credname} and is not staff', None
+    except:
+        return f'Credential with owner "{username}" and credential name "{credname}"'
+    try:
+        group = Group.objects.get(name=groupname)
+    except ObjectDoesNotExist as dne:
+        return f'Group with name "{groupname}" not found', None
+    try:
+        topic = KafkaTopic.objects.get(owning_group=group, name=topicname)
+    except ObjectDoesNotExist as dne:
+        return f'Topic with group name "{groupname}"" and topic name "{topicname}"" does not exist', None
+    found_one = False
+    for perm in GroupKafkaPermission.objects.filter(topic=topic):
+        print('{}, {}, {}'.format(perm.principal, perm.topic, perm.operation.name))
+    perm = GroupKafkaPermission.objects.filter(topic=topic, operation=KafkaOperation.All)
+    if not perm.exists():
+        print('All does not exist, trying exact perm')
+        perm = GroupKafkaPermission.objects.filter(topic=topic, operation=operation)
+        if not perm.exists():
+            return f'Topic\'s parent group does not have permission to add {permission}', None
+        else:
+            CredentialKafkaPermission.objects.create(
+                principal=cred,
+                parent=perm[0],
+                topic=topic,
+                operation=operation
+            )
+            return None, {}
+    else:
+        print('All exists')
+        CredentialKafkaPermission.objects.create(
+            principal=cred,
+            parent=perm[0],
+            topic=topic,
+            operation=operation
+        )
+        return None, {}
+    return f'Topic\'s parent group does not have permission to add {permission}', None
+
+def remove_permission(username, credname, groupname, topicname, permission):
+    operation = KafkaOperation[permission]
+    try:
+        user = User.objects.get(username=username)
+    except ObjectDoesNotExist as dne:
+        return f'User {username} does not exist', None
+    try:
+        cred = SCRAMCredentials.objects.get(owner=user, username=credname)
+    except ObjectDoesNotExist as dne:
+        return f'Credential {credname} does not exist', None
+    try:
+        group = Group.objects.get(name=groupname)
+    except ObjectDoesNotExist as dne:
+        return f'Group {groupname} does not exist', None
+    try:
+        topic = KafkaTopic.objects.get(name=topicname)
+    except ObjectDoesNotExist as dne:
+        return f'Topic {topicname} does not exist', None
+    to_delete = CredentialKafkaPermission.objects.filter(
+        principal=cred,
+        topic=topic,
+        operation=operation
+    )
+    to_delete.delete()
+    return None, {}

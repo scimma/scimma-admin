@@ -43,18 +43,8 @@ MESSAGE_TAGS = {
 
 def admin_required(func):
     def admin_check(*args, **kwargs):
-        print('***********************************')
         request = args[0]
-        status_code, is_admin = engine.is_user_admin(request.user.username)
-        print(args)
-        print(request)
-        print(status_code)
-        print(is_admin)
-        print('***********************************')
-        if status_code is not None:
-            messages.error(request, 'Something went wrong with checking for admin status')
-            return redirect('index')
-        is_admin = is_admin['is_admin']
+        is_admin = request.user.is_staff
         if is_admin:
             return func(*args, **kwargs)
         return render(request, 'hopskotch_auth/admin_required.html')
@@ -93,14 +83,53 @@ def redirect_with_error(request, operation, reason, redirect_to):
 
 @login_required
 def index(request):
-    _, credentials = engine.get_user_credentials(request.user.username)
-    _, memberships = engine.get_user_groups(request.user.username)
-    _, accessible_topics = engine.get_user_topics(request.user.username)
+    clean_credentials = []
+    clean_memberships = []
+    clean_topics = []
+    topic_lookup = []
+    # Get all credentials
+    credentials = SCRAMCredentials.objects.filter(owner=request.user)
+    for cred in credentials:
+        clean_credentials.append({
+            'username': cred.username,
+            'created_at': cred.created_at.strftime("%Y/%m/%d %H:%M"),
+            'description': cred.description
+        })
+
+    memberships = GroupMembership.objects.filter(user=request.user)
+    
+    # Get group memberships and while we are here topics too
+    for membership in memberships:
+        clean_memberships.append({
+            'group_id': membership.group.id,
+            'group_name': membership.group.name,
+            'status': membership.status.name,
+            'member_count': membership.group.members.count(),
+        })
+        group_permissions = GroupKafkaPermission.objects.filter(principal=membership.group)
+        for permission in group_permissions:
+            if permission.topic.name not in topic_lookup:
+                clean_topics.append({
+                    'topic': permission.topic.name,
+                    'topic_description': permission.topic.description,
+                    'accessible_by': membership.group.name,
+                })
+                topic_lookup.append(permission.topic.name)
+
+    # Get all public topics
+    public_topics = KafkaTopic.objects.filter(publicly_readable=True)
+    for topic in public_topics:
+        if topic.name not in topic_lookup:
+            clean_topics.append({
+                'topic': topic.name,
+                'topic_description': topic.description,
+                'accessible_by': 'Public'
+            })
+    
     return render(
         request, 'hopskotch_auth/index.html',
-        dict(credentials=credentials, memberships=memberships,
-             accessible_topics=accessible_topics),
-    )
+        {'credentials': clean_credentials, 'memberships': clean_memberships,
+        'accessible_topics': clean_topics})
 
 
 def login(request):
@@ -121,28 +150,22 @@ def create_credential(request):
     if request.method == 'POST':
         form = CreateCredentialForm(request.POST)
         description = request.POST['desc_field']
-        status_code, return_dict = engine.new_credential(request.user.username, description)
-
-        if status_code is not None:
-            messages.warning(request, 'Credential not successfully made')
-            return redirect('index')
+        username = rand_username(request.user)
+        alphabet = string.ascii_letters + string.digits
+        rand_password = "".join(secrets.choice(alphabet) for i in range(32))
+        rand_salt = secrets.token_bytes(32)
+        creds = SCRAMCredentials.generate(
+            owner=request.user,
+            username=username,
+            password=rand_password,
+            alg=SCRAMAlgorithm.SHA512,
+            salt=rand_salt
+        )
+        creds.description = description
+        creds.save()
         
-        username, password = return_dict['username'], return_dict['password']
-        perms = []
-        for x in request.POST:
-            #if x.startswith('group_name'):
-            # Collect indexed group_name, desc_field and read/write
-            if 'group_name' in x:
-                end_idx = x.find(']')
-                start_idx = len('group_name[')
-                idx = int(x[start_idx:end_idx])
-                group_name = request.POST['group_name[{}]'.format(idx)]
-                desc_field = request.POST['desc_field[{}]'.format(idx)]
-                perms = {'read': False, 'write': False}
-                if 'read_[{}]'.format(idx) in request.POST:
-                    engine.add_permission(request.user.username, username, *(group_name.split('.')), 'read')
-                if 'write_[{}]'.format(idx) in request.POST:
-                    engine.add_permission(request.user.username, username, *(group_name.split('.')), 'write')
+        
+        username, password = creds.username, rand_password
         messages.warning(request, 'PLEASE READ. This information will only be displayed once. Please copy this information down and/or download it as a CSV via the button below')
         return render(request, 'hopskotch_auth/finished_credential.html',
                     {
@@ -150,26 +173,7 @@ def create_credential(request):
                         'cred_password': password,
                         'cred_description': description,
                     })
-    status_code, accessible_topics = engine.user_accessible_topics(request.user.username)
-    accessible_topics.sort(key=lambda t: t['topic'])
-    if status_code is not None:
-        messages.error(request, 'Bad HTTP request for getting user topics, redirected to main page')
-        return redirect('index')
-    form = CreateCredentialForm()
-    return render(request, 'hopskotch_auth/create_credential.html',
-        dict(accessible_topics=accessible_topics, form=form)
-    )
-
-@login_required
-def delete_credential(request, credname, redirect_to='index'):
-    status_code, return_dict = engine.delete_credential(request.user.username, credname)
-    if status_code is not None:
-        messages.error(request, 'Something went wrong. Credential not deleted')
-    if redirect_to == 'index':
-        return redirect('index')
-    elif redirect_to == 'admin':
-        return redirect('admin_credential')
-    return redirect('index')
+    return render(request, 'hopskotch_auth/create_credential.html')
 
 @login_required
 def suspend_credential(request, credname='', redirect_to='index'):
@@ -414,14 +418,7 @@ def manage_group_topics(request, groupname):
     if status_code is not None:
         print(status_code)
         messages.error(request, status_code)
-    clean_topics_addible = []
     clean_topics_added = {}
-    print('------------------------------------------------------------------------------------')
-    print(groupname)
-    print(group_obj)
-    print(topics_added)
-    print(user_topics)
-    print('------------------------------------------------------------------------------------')
     for topic in topics_added:
         if topic['topicname'] not in clean_topics_added:
             clean_topics_added[topic['topicname']] = {
@@ -434,19 +431,39 @@ def manage_group_topics(request, groupname):
 @admin_required
 @login_required
 def admin_credential(request):
-    status_code, clean_creds = engine.get_all_credentials()
+    credentials = SCRAMCredentials.objects.all()
+    clean_creds = [{
+        'username': credential.owner.username,
+        'credname': credential.username,
+        'created_at': credential.created_at,
+        'suspended': credential.suspended,
+        'description': credential.description,
+    } for credential in credentials]
     return render(request, 'hopskotch_auth/admin_credential.html', {'all_credentials': clean_creds})
 
 @admin_required
 @login_required
 def admin_topic(request):
-    status_code, clean_topics = engine.get_all_topics()
+    topics = KafkaTopic.objects.all()
+    clean_topics = [{
+        'owning_group': topic.owning_group.name,
+        'name': topic.name,
+        'description': topic.description,
+        'publicly_readable': topic.publicly_readable,
+    } for topic in topics]
     return render(request, 'hopskotch_auth/admin_topic.html', {'all_topics': clean_topics})
 
 @admin_required
 @login_required
 def admin_group(request):
-    status_code, clean_groups = engine.get_all_groups()
+    groups = Group.objects.all()
+    clean_groups = [{
+        'name': group.name,
+        'description': group.description,
+        'members': [
+            member.username
+        for member in group.members.all()]
+    } for group in groups]
     for group in clean_groups:
         group['mem_count'] = len(group['members'])
     return render(request, 'hopskotch_auth/admin_group.html', {'all_groups': clean_groups})
@@ -713,11 +730,6 @@ def delete_all_credential_permissions(request):
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     groupname = topicname.split('.')[0]
-    print('----------------------------------------------------------------------')
-    print(credname)
-    print(topicname)
-    print(groupname)
-    print('----------------------------------------------------------------------')
     status_code, cred_perms = engine.get_permissions_on_credential(credname, topicname)
     if status_code is not None:
         return JsonResponse(data={'error': status_code}, status=404)
