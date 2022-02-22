@@ -260,10 +260,10 @@ def delete_all_credential_permissions(request):
     else:
         cred_perms = []
     for perm in cred_perms:
-
         status_code, _ = remove_permission(request.user.username, credname, groupname, topicname, perm)
         if status_code is not None:
             return JsonResponse(data={'error': status_code}, status=404)
+    return JsonResponse(data={}, status=200)
 
 def get_user_available_permissions(user):
     possible_permissions = {}
