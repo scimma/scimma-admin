@@ -304,7 +304,7 @@ def create_topic(request):
                             'write'
                         )
                         if status_code is not None:
-                            messages.error(request=request, message=f'Failed to add read permission to {group_name}')
+                            messages.error(request=request, message=f'Failed to add write permission to {group_name}')
                             return redirect('index')
             messages.success(request=request, message='Topic created successfully')
             return redirect('index')
