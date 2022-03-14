@@ -97,12 +97,8 @@ class DirectInterface(ConnectionInterface):
             topic = KafkaTopic.objects.get(owning_group=group, name=topicname)
         except ObjectDoesNotExist as dne:
             return f'Topic with group name "{groupname}"" and topic name "{topicname}"" does not exist', None
-        found_one = False
-        for perm in GroupKafkaPermission.objects.filter(topic=topic):
-            print('{}, {}, {}'.format(perm.principal, perm.topic, perm.operation.name))
         perm = GroupKafkaPermission.objects.filter(topic=topic, operation=KafkaOperation.All)
         if not perm.exists():
-            print('All does not exist, trying exact perm')
             perm = GroupKafkaPermission.objects.filter(topic=topic, operation=operation)
             if not perm.exists():
                 return f'Topic\'s parent group does not have permission to add {permission}', None
@@ -115,7 +111,6 @@ class DirectInterface(ConnectionInterface):
                 )
                 return None, {}
         else:
-            print('All exists')
             CredentialKafkaPermission.objects.create(
                 principal=cred,
                 parent=perm[0],
@@ -337,7 +332,6 @@ class DirectInterface(ConnectionInterface):
         if not GroupMembership.objects.filter(user=user, group=group, status=MembershipStatus.Owner).exists() or not user.is_staff:
             return 'User cannot delete topic because they are not an owner or a staff member', None
         with transaction.atomic():
-            print(GroupKafkaPermission.objects.filter(topic=topic))
             CredentialKafkaPermission.objects.filter(topic=topic).delete()
             GroupKafkaPermission.objects.filter(topic=topic).delete()
         topic.delete()
@@ -630,9 +624,6 @@ class DirectInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             return f'Group "{groupname}" does not exist', None
         topics = KafkaTopic.objects.filter(owning_group=group)
-        print([x.owning_group for x in KafkaTopic.objects.all()])
-        print(group)
-        print(topics)
         data = None
         if topics.exists():
             data = [
@@ -728,7 +719,6 @@ class DirectInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             return f'Topic "{topicname}" does not exist', None
         all_perms = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
-        print(all_perms)
         if all_perms.exists():
             results = [
                 {
@@ -901,9 +891,6 @@ class DirectInterface(ConnectionInterface):
         except ObjectDoesNotExist as dne:
             return f'Topic "{topicname}" does not exist', None
         cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
-        print('------------------------------------------------------------------------------------')
-        print([x.operation.name for x in cred_perms])
-        print('------------------------------------------------------------------------------------')
         if cred_perms.exists():
             return None, [x.operation.name for x in cred_perms]
         return None, []
