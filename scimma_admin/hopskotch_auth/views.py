@@ -1,10 +1,13 @@
+from typing import Any, Callable, Dict, TypeVar, cast
+
 from tokenize import group
 from urllib.request import HTTPRedirectHandler
 from .apps import HopskotchAuthConfig
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse, JsonResponse, HttpResponseRedirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import connection, transaction
@@ -15,23 +18,17 @@ from wsgiref.util import FileWrapper
 from io import StringIO
 from django.views.decorators.csrf import csrf_exempt
 
-
-
 from mozilla_django_oidc.auth import get_user_model
 
 from .forms import *
 from .directinterface import DirectInterface
-from .apiinterface import ApiInterface
 from .models import *
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-if HopskotchAuthConfig.connection == 'direct':
-    engine = DirectInterface()
-elif HopskotchAuthConfig.connection == 'api':
-    engine = ApiInterface()
+engine = DirectInterface()
 
 MESSAGE_TAGS = {
         messages.DEBUG: 'alert-secondary',
@@ -41,16 +38,20 @@ MESSAGE_TAGS = {
         messages.ERROR: 'alert-danger',
  }
 
-def admin_required(func):
-    def admin_check(*args, **kwargs):
-        request = args[0]
+class AuthenticatedHttpRequest(HttpRequest):
+    user: User
+
+WrappedFunc = TypeVar('WrappedFunc', bound=Callable[..., Any])
+
+def admin_required(func: WrappedFunc) -> WrappedFunc:
+    def admin_check(request: AuthenticatedHttpRequest, *args: Any, **kwargs: Dict[str,Any]) -> Any:
         is_admin = request.user.is_staff
         if is_admin:
-            return func(*args, **kwargs)
+            return func(request, *args, **kwargs)
         return render(request, 'hopskotch_auth/admin_required.html')
-    return admin_check
+    return cast(WrappedFunc, admin_check)
 
-def client_ip(request):
+def client_ip(request: HttpRequest) -> str:
     """Determine the original client IP address, taking into account headers set
     by the load balancer, if they exist.
     """
@@ -62,10 +63,10 @@ def client_ip(request):
         return header
     return request.META["REMOTE_ADDR"]
 
-def download(request):
+def download(request: AuthenticatedHttpRequest) -> HttpResponse:
     myfile = StringIO()
     myfile.write("username,password\n")
-    myfile.write(f"{request.POST['username']},{request.POST['password']}")       
+    myfile.write(f"{request.POST['username']},{request.POST['password']}")
     myfile.flush()
     myfile.seek(0) # move the pointer to the beginning of the buffer
     response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
@@ -74,99 +75,94 @@ def download(request):
                 f"{request.user.username} ({request.user.email}) at {client_ip(request)}")
     return response
 
-def redirect_with_error(request, operation, reason, redirect_to):
-    logger.info(f"Ignored request by user {request.user.username} ({request.user.email}. "
+def redirect_with_error(request: AuthenticatedHttpRequest, operation: str, reason: str,
+                        redirect_to: str, *redir_args, **redir_kwargs) -> HttpResponse:
+    logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
                 f"Operation={operation}, Reason={reason}")
     messages.error(request, reason)
-    return redirect(redirect_to)
+    return redirect(redirect_to,  permanent=False, *redir_args, **redir_kwargs)
+
+def json_with_error(request: AuthenticatedHttpRequest, operation: str, reason: str,
+                    status: int) -> JsonResponse:
+    logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
+                f"Operation={operation}, Reason={reason}")
+    return JsonResponse(status=status, data={'error': reason})
 
 
 @login_required
-def index(request):
+def index(request: AuthenticatedHttpRequest) -> HttpResponse:
     clean_credentials = []
     clean_memberships = []
     clean_topics = []
-    topic_lookup = []
-    # Get all credentials
-    credentials = SCRAMCredentials.objects.filter(owner=request.user)
-    for cred in credentials:
-        clean_credentials.append({
-            'username': cred.username,
-            'created_at': cred.created_at.strftime("%Y/%m/%d %H:%M"),
-            'description': cred.description
-        })
 
-    memberships = GroupMembership.objects.filter(user=request.user)
-    
-    # Get group memberships and while we are here topics too
-    for membership in memberships:
-        clean_memberships.append({
-            'group_id': membership.group.id,
-            'group_name': membership.group.name,
-            'status': membership.status.name,
-            'member_count': membership.group.members.count(),
-        })
-        group_permissions = GroupKafkaPermission.objects.filter(principal=membership.group)
-        for permission in group_permissions:
-            if permission.topic.name not in topic_lookup:
-                clean_topics.append({
-                    'topic': permission.topic.name,
-                    'topic_description': permission.topic.description,
-                    'accessible_by': membership.group.name,
-                })
-                topic_lookup.append(permission.topic.name)
-
-    # Get all public topics
-    public_topics = KafkaTopic.objects.filter(publicly_readable=True)
-    for topic in public_topics:
-        if topic.name not in topic_lookup:
-            clean_topics.append({
-                'topic': topic.name,
-                'topic_description': topic.description,
-                'accessible_by': 'Public'
+    creds_result = engine.get_user_credentials(request.user)
+    if not creds_result:
+        # we don't use redirect_with_error for these, because the place we would usually redirect would be
+        # the index, and we don't want an infinite redirect loop if something goes wrong.
+        messages.error(request, creds_result.err())
+    else:
+        for cred in creds_result.ok():
+            clean_credentials.append({
+                'username': cred.username,
+                'created_at': cred.created_at.strftime("%Y/%m/%d %H:%M"),
+                'description': cred.description
             })
-    
+
+    memberships_result = engine.get_user_group_memberships(request.user)
+    if not memberships_result:
+        messages.error(request, memberships_result.err())
+    else:
+        for membership in memberships_result.ok():
+            clean_memberships.append({
+                'group_id': membership.group.id,
+                'group_name': membership.group.name,
+                'status': membership.status.name,
+                'member_count': membership.group.members.count(),
+            })
+
+    topics_result = engine.get_user_accessible_topics(request.user)
+    if not topics_result:
+        messages.error(request, topics_result.err())
+    else:
+        for topic, means in topics_result.ok():
+            clean_topics.append({
+                                'topic': topic.name,
+                                'topic_description': topic.description,
+                                'accessible_by': means
+                                })
+
     return render(
         request, 'hopskotch_auth/index.html',
         {'credentials': clean_credentials, 'memberships': clean_memberships,
         'accessible_topics': clean_topics})
 
 
-def login(request):
+def login(request: AuthenticatedHttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(settings.LOGIN_REDIRECT_URL)
     return render(request, 'hopskotch_auth/login.html',)
 
 
-def logout(request):
+def logout(request: AuthenticatedHttpRequest) -> HttpResponse:
     return HttpResponse("you're logged out!")
 
 
-def login_failure(request):
+def login_failure(request: AuthenticatedHttpRequest) -> HttpResponse:
     return render(request, 'hopskotch_auth/login_failure.html')
 
 @login_required
-def create_credential(request):
+def create_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
     if request.method == 'POST':
         form = CreateCredentialForm(request.POST)
         description = request.POST['desc_field']
-        username = rand_username(request.user)
-        alphabet = string.ascii_letters + string.digits
-        rand_password = "".join(secrets.choice(alphabet) for i in range(32))
-        rand_salt = secrets.token_bytes(32)
-        creds = SCRAMCredentials.generate(
-            owner=request.user,
-            username=username,
-            password=rand_password,
-            alg=SCRAMAlgorithm.SHA512,
-            salt=rand_salt
-        )
-        creds.description = description
-        creds.save()
-        
-        
-        username, password = creds.username, rand_password
-        messages.warning(request, 'PLEASE READ. This information will only be displayed once. Please copy this information down and/or download it as a CSV via the button below')
+        cred_result = engine.new_credential(request.user, description)
+        if not cred_result:
+            return redirect_with_error(request, "create_credential", cred_result.err(), 'index')
+
+        username = cred_result.ok()['username']
+        password = cred_result.ok()['password']
+        messages.warning(request, 'PLEASE READ. This information will only be displayed once. '
+                         'Please copy this information down and/or download it as a CSV file via the button below')
         return render(request, 'hopskotch_auth/finished_credential.html',
                     {
                         'cred_username': username,
@@ -176,12 +172,19 @@ def create_credential(request):
     return render(request, 'hopskotch_auth/create_credential.html')
 
 @login_required
-def suspend_credential(request, credname='', redirect_to='index'):
-    status_code, cred = engine.get_credential_info(request.user.username, credname)
-    if cred['suspended']:
-        status_code, return_dict = engine.unsuspend_credential(request.user, credname)
+def suspend_credential(request: AuthenticatedHttpRequest, credname: str='', redirect_to: str='index') -> HttpResponse:
+    # TODO: passing request.user.username is wrong; we need to pass the (expected) owning user
+    cred_result = engine.get_credential(request.user, credname)
+    if not cred_result:
+        messages.error(request, cred_result.err())
     else:
-        status_code, return_dict = engine.suspend_credential(request.user, credname)
+        cred = cred_result.ok()
+        if cred.suspended:
+            result = engine.unsuspend_credential(request.user, cred)
+        else:
+            result = engine.suspend_credential(request.user, cred)
+        if not result:
+            messages.error(request, result.err())
     if redirect_to == 'index':
         return redirect('index')
     elif redirect_to == 'admin':
@@ -189,125 +192,124 @@ def suspend_credential(request, credname='', redirect_to='index'):
     return redirect('index')
 
 @login_required
-def manage_credential(request, username):
+def manage_credential(request: AuthenticatedHttpRequest, username: str) -> HttpResponse:
     if request.method == 'POST':
-        try:
-            cred = SCRAMCredentials.objects.get(username=request.POST['name_field'])
-        except ObjectDoesNotExist as dne:
-            messages.error(request, f'Could not find credential with name {username}')
-            return redirect('index')
-        cred.description = request.POST['desc_field']
-        cred.save()
+        # TODO: data pulled from request.POST must be sanitized
+        result = engine.update_credential(request.user, username, request.POST['desc_field'])
+        if not result:
+            return redirect_with_error(request, "manage_credential", result.err(), 'index')
         return HttpResponseRedirect(request.path_info)
 
-    try:
-        cred = SCRAMCredentials.objects.get(username=username)
-    except ObjectDoesNotExist as dne:
-        messages.error(request, f'Credential with name "{username}" could not be found')
-        return redirect('index')
-    
-    # Get all currently added credentials
-    cred_permissions = CredentialKafkaPermission.objects.filter(principal=cred)
+    cred_result = engine.get_credential(request.user, username)
+    if not cred_result:
+        return redirect_with_error(request, "manage_credential", cred_result.err(), 'index')
+    cred = cred_result.ok()
+
+    # Get all currently added permissions
+    perms_result = engine.get_credential_permissions(request.user, cred.username)
+    if not perms_result:
+        return redirect_with_error(request, "manage_credential", perms_result.err(), 'index')
+    # TODO: this code makes no sense; a credential has permissions to topics, and may have several for a
+    # given topic, it does not have topics themselves
     added_topics = []
     easy_lookup = []
-    for cred_added in cred_permissions:
-        if cred_added.topic.name not in easy_lookup:
-            easy_lookup.append(cred_added.topic.name)
+    for perm in perms_result.ok():
+        if perm.topic.name not in easy_lookup:
+            easy_lookup.append(perm.topic.name)
             added_topics.append({
-                'topic': cred_added.topic.name,
-                'description': cred_added.topic.description,
-                'access_via': cred_added.parent.principal.name,
+                'topic': perm.topic.name,
+                'description': perm.topic.description,
+                'access_via': perm.parent.principal.name,
             })
+    avail_perms = engine.get_available_credential_permissions(request.user)
+    if not avail_perms:
+        return redirect_with_error(request, "manage_credential", avail_perms.err(), 'index')
+    avail_topics = [{"topic": x[0].topic.name,
+                     "topic_description": x[0].topic.description,
+                     "accessible_by": x[0].principal.name
+                    } for x in avail_perms.ok() if x[0].topic.name not in easy_lookup]
 
-    avail_topics = get_user_available_permissions(request.user)
-    avail_topics = [x for x in avail_topics if x['topic'] not in easy_lookup]
-    
-    return render(request, 
-        'hopskotch_auth/manage_credential.html', 
+    return render(request,
+        'hopskotch_auth/manage_credential.html',
         {
-            'accessible_topics': avail_topics, 
-            'added_topics': added_topics, 
-            'cur_username': cred.username, 
+            'accessible_topics': avail_topics,
+            'added_topics': added_topics,
+            'cur_username': cred.username,
             'cur_desc': cred.description})
 
 @login_required
-def create_group(request):
+def create_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     if request.method == 'POST':
-        # Step 1: Remove all users
-        # Step 2: Get all users added from request into list with {name: perm} pairings
-        # Step 3: Use engine to add users back
         groupname = request.POST['name_field']
         descfield = request.POST['desc_field']
-        status, _ = engine.create_group(request.user.username, groupname, descfield)
-        if status is not None:
-            messages.error(request, status)
-            return redirect('index')
-        status, _ = engine.add_member_to_group(groupname, request.user.username, 'owner')
-        if status is not None:
-            messages.error(request, status)
-            return redirect('index')
+        create_result = engine.create_group(request.user, groupname, descfield)
+        if not create_result:
+            return redirect_with_error(request, "create_group", create_result.err(), 'index')
         return redirect('manage_group_members', groupname)
-    status_code, accessible_members = engine.get_all_users()
+    users_result = engine.get_all_users()
+    if not users_result:
+        return redirect_with_error(request, "create_group", users_result.err(), 'index')
     form = CreateGroupForm()
-    return render(request, 'hopskotch_auth/create_group.html', {'form': form, 'accessible_members': accessible_members})
+    return render(request, 'hopskotch_auth/create_group.html', {'form': form, 'accessible_members': users_result.ok()})
 
 @login_required
-def finished_group(request):
-    # Capture all objects in post, then submit to databnase
+def finished_group(request: AuthenticatedHttpRequest) -> HttpResponse:
+    # Capture all objects in post, then submit to database
     return render(request, 'hopskotch_auth/index.html')
 
 @login_required
-def create_topic(request):
-    status_code, all_groups = engine.get_user_groups(request.user.username)
+def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
+    groups_result = engine.get_user_group_memberships(request.user)
+    if not groups_result:
+        redirect_with_error(request, "create_topic", groups_result.err(), 'index')
+    all_groups = groups_result.ok()
     owned_groups = []
     available_groups = []
-    for group in all_groups:
-        if group['status'].lower() == 'owner':
-            owned_groups.append(group)
-        available_groups.append(group)
+    for membership in all_groups:
+        if membership == MembershipStatus.Owner:
+            owned_groups.append(membership.group)
+        available_groups.append(membership.group)
     if request.method == 'POST':
         if request.POST['submit'].lower() == 'select':
             owner = request.POST['submit_owner']
             form = CreateTopicForm(owning_group=owner)
+            # TODO: Why is this a list since it appears it should contain only a single group?
             available_groups = [group for group in available_groups if group['group_name'] != owner]
-            return render(request, 'hopskotch_auth/create_topic.html', {'form': form, 'all_groups': available_groups, 'owning_group': owner})
+            return render(request, 'hopskotch_auth/create_topic.html',
+                          {'form': form, 'all_groups': available_groups, 'owning_group': owner})
         elif request.POST['submit'].lower() == 'create':
-            status_code, _ = engine.create_topic(
-                request.user.username,
-                request.POST['owning_group_field'],
-                request.POST['name_field'],
+            owning_group_name = request.POST['owning_group_field']
+            topic_name = request.POST['name_field']
+            create_result = engine.create_topic(
+                request.user,
+                owning_group_name,
+                topic_name,
                 request.POST['desc_field'],
                 True if 'visibility_field' in request.POST else False
             )
-            if status_code is not None:
-                messages.error(request=request, message='Topic creation failed, please try again')
-                return redirect('index')
+            if not create_result:
+                redirect_with_error(request, "create_topic", 'Topic creation failed, please try again. '
+                                    'Reason: '+groups_result.err(), 'index')
+            topic_name = owning_group_name+'.'+topic_name
             for x in request.POST:
+                # TODO: among other issues, this encoding does not cover the full range of possible permissions
                 if x.startswith('group_name['):
                     idx = x[len('group_name['):-1]
                     group_name = request.POST[f'group_name[{idx}]']
                     read_perm = True if f'read_[{idx}]' in request.POST else False
                     write_perm = True if f'write_[{idx}]' in request.POST else False
                     if read_perm:
-                        status_code, _ = engine.add_group_to_topic(
-                            request.POST['name_field'],
-                            request.POST['owning_group_field'],
-                            'read'
-                        )
-                        if status_code is not None:
+                        perm_result = engine.add_group_topic_permission(request.user, group_name,
+                                                                        topic_name, KafkaOperation.Read)
+                        if not perm_result:
                             messages.error(request=request, message=f'Failed to add read permission to {group_name}')
-                            return redirect('index')
                     if write_perm:
-                        status_code, _ = engine.add_group_to_topic(
-                            request.POST['name_field'],
-                            request.POST['owning_group_field'],
-                            'write'
-                        )
-                        if status_code is not None:
+                        perm_result = engine.add_group_topic_permission(request.user, group_name,
+                                                                        topic_name, KafkaOperation.Write)
+                        if not perm_result:
                             messages.error(request=request, message=f'Failed to add write permission to {group_name}')
-                            return redirect('index')
             messages.success(request=request, message='Topic created successfully')
-            return redirect('index')
+            return redirect('index') # TODO: should redirect to the management page for the topic
         else:
             messages.warning(request=request, message='Something went wrong')
             return redirect('index')
@@ -316,159 +318,182 @@ def create_topic(request):
     return render(request, 'hopskotch_auth/create_topic.html', {'owner_form': owner_form, 'form': form, 'owned_groups': owned_groups, 'all_groups': available_groups})
 
 
-
-
 @login_required
-def manage_topic(request, topicname):
+def manage_topic(request, topicname) -> HttpResponse:
     if request.method == 'POST':
         full_topic_name = '{}.{}'.format(
                 request.POST['owning_group_field'],
                 request.POST['name_field']
             )
-        try:
-            topic = KafkaTopic.objects.get(name=full_topic_name)
-        except ObjectDoesNotExist as dne:
-            messages.error(request, f'Could not update "{full_topic_name}" as it was not found')
-            return redirect('index')
-        topic.description = request.POST['desc_field']
+        topic_result = engine.get_topic(full_topic_name)
+        if not topic_result:
+            redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
+        topic = topic_result.ok()
+        if 'desc_field' in request.POST:
+            update_result = engine.update_topic_description(request.user, topic, request.POST['desc_field'])
+            if not update_result:
+                redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         if 'visibility_field' in request.POST:
-            topic.publicly_readable = True
-        else:
-            topic.publicly_readable = False
-        topic.save()
+            update_result = engine.update_topic_visibility(request.user, topic, request.POST['visibility_field'])
+            if not update_result:
+                redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         return HttpResponseRedirect(request.path_info)
-    group, topic = topicname.split('.')
-    try:
-        topic = KafkaTopic.objects.get(name=topicname)
-    except ObjectDoesNotExist as dne:
-        messages.error(request, f'Topic "{topicname}" cannot be found')
-        return redirect('index')
-    groups_added = GroupKafkaPermission.objects.filter(topic=topic)
-    if request.user.is_staff:
-        groups_available = GroupMembership.objects.filter(user=request.user)
-    else:
-        groups_available = GroupMembership.objects.filter(user=request.user, status=MembershipStatus.Owner)
-    
+    topic_result = engine.get_topic(topicname)
+    if not topic_result:
+        redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
+    topic = topic_result.ok()
+
+    access_result = engine.get_groups_with_access_to_topic(topic)
+    if not access_result:
+        redirect_with_error(request, "manage_topic", access_result.err(), 'index')
+    groups_added = access_result.ok()
+
+    groups_result = engine.get_all_groups()
+    if not groups_result:
+        redirect_with_error(request, "manage_topic", groups_result.err(), 'index')
+    groups_available = groups_result.ok()
+
     cleaned_added = []
     cleaned_available = []
     for group in groups_available:
         is_added = False
         for added in groups_added:
-            if group.group == added.principal:
+            if group == added.principal:
                 is_added = True
                 break
         if is_added:
-            cleaned_added.append(group.group.name)
+            cleaned_added.append(group.name)
         else:
-            cleaned_available.append(group.group.name)
-    return render(request, 
-            'hopskotch_auth/manage_topic.html', 
-            {'topic_owner': topic.owning_group.name, 
-            'topic_name': topic.name.split('.')[1], 
-            'topic_desc': topic.description, 
-            'is_visible': topic.publicly_readable, 
-            'all_groups': cleaned_available, 
+            cleaned_available.append(group.name)
+    return render(request,
+            'hopskotch_auth/manage_topic.html',
+            {'topic_owner': topic.owning_group.name,
+            'topic_name': topic.name.split('.')[1],
+            'topic_desc': topic.description,
+            'is_visible': topic.publicly_readable,
+            'all_groups': cleaned_available,
             'group_list': cleaned_added}
         )
 
 @login_required
-def manage_group_members(request, groupname):
+def manage_group_members(request, groupname) -> HttpResponse:
     if request.method == 'POST':
         description = request.POST['desc_field']
-        status_code, _ = engine.modify_group_description(groupname, description)
-        if status_code is not None:
-            messages.error(request, status_code)
+        modify_result = engine.modify_group_description(groupname, description)
+        if not modify_result:
+            redirect_with_error(request, "modify_group_description", modify_result.err(),
+                                'manage_group_members', groupname=groupname)
         else:
             messages.success(request, 'Successfully modified description')
         return redirect('manage_group_members', groupname=groupname)
-    status_code, users = engine.get_all_users()
-    status_code, group_obj = engine.get_group_info(groupname)
-    status_code, clean_members = engine.get_group_members(groupname)
+    users_result = engine.get_all_users()
+    if not users_result:
+        redirect_with_error(request, "modify_group_description", users_result.err(), 'index')
+    users = users_result.ok()
+    group_result = engine.get_group(groupname)
+    if not group_result:
+        redirect_with_error(request, "modify_group_description", group_result.err(), 'index')
+    group = group_result.ok()
+    members_result = engine.get_group_members(group)
+    if not members_result:
+        redirect_with_error(request, "modify_group_description", members_result.err(), 'index')
+    members = members_result.ok()
+    # TODO: Quadratic-ish complexity needs fixing
     cleaned_users = []
     for user in users:
         is_member = False
-        for member in clean_members:
-            if user['username'] == member['username']:
+        for membership in members:
+            if user == membership.user:
                 is_member = True
                 break
         if not is_member:
             cleaned_users.append(user)
+    clean_members = [m.user for m in members]
 
-    form = ManageGroupMemberForm(group_obj['name'], group_obj['description'])
-    return render(request, 'hopskotch_auth/manage_group_members.html', {'form': form, 'members': clean_members, 'accessible_members': cleaned_users, 'groupname': groupname, 'cur_name': group_obj['name'], 'cur_description': group_obj['description']})
+    form = ManageGroupMemberForm(group.name, group.description)
+    return render(request, 'hopskotch_auth/manage_group_members.html',
+                  {'form': form, 'members': clean_members, 'accessible_members': cleaned_users,
+                  'groupname': groupname, 'cur_name': group.name, 'cur_description': group.description})
 
 @login_required
-def manage_group_topics(request, groupname):
+def manage_group_topics(request, groupname) -> HttpResponse:
     if request.method == 'POST':
         description = request.POST['desc_field']
-        status_code, _ = engine.modify_group_description(groupname, description)
-        if status_code is not None:
-            messages.error(request, status_code)
+        modify_result = engine.modify_group_description(groupname, description)
+        if not modify_result:
+            redirect_with_error(request, "manage_group_topics", modify_result.err(),
+                                'manage_group_topics', groupname=groupname)
         else:
             messages.success(request, 'Successfully modified description')
-        return redirect('manage_group_members', groupname=groupname)
-    status_code, group_obj = engine.get_group_info(groupname)
-    if status_code is not None:
-        print(status_code)
-    status_code, topics_added = engine.get_group_topics(groupname)
-    if status_code is not None:
-        print(status_code)
-        messages.error(request, status_code)
-    status_code, user_topics = engine.get_user_topics(request.user.username)
-    if status_code is not None:
-        print(status_code)
-        messages.error(request, status_code)
+        return redirect('manage_group_topics', groupname=groupname)
+    group_result = engine.get_group(groupname)
+    if not group_result:
+        redirect_with_error(request, "manage_group_topics", group_result.err(), 'index')
+    group = group_result.ok()
+    topics_result = engine.get_group_topics(groupname)
+    if not topics_result:
+        redirect_with_error(request, "manage_group_topics", topics_result.err(), 'index')
+    topics = topics_result.ok()
+    # TODO: Is this supposed to be the topics the group owns (from get_group_topics) or the topics
+    # to which the group has some access (from get_group_accessible_topics)
     clean_topics_added = {}
-    for topic in topics_added:
-        if topic['topicname'] not in clean_topics_added:
-            clean_topics_added[topic['topicname']] = {
-                'topicname': topic['topicname'],
-                'description': topic['description'],
-                'accessible_by': topic['accessible_by'],
+    for topic in topics:
+        if topic.name not in clean_topics_added:
+            clean_topics_added[topic.name] = {
+                'topicname': topic.name,
+                'description': topic.description,
+                #'accessible_by': topic['accessible_by'], # not valid for a group
             }
-    return render(request, 'hopskotch_auth/manage_group_topics.html', {'topics': clean_topics_added.values(), 'groupname': groupname, 'cur_name': group_obj['name'], 'cur_description': group_obj['description'] })
+    return render(request, 'hopskotch_auth/manage_group_topics.html',
+                  {'topics': clean_topics_added.values(), 'groupname': group.name,
+                  'cur_name': group.name, 'cur_description': group.description })
 
 @admin_required
 @login_required
-def admin_credential(request):
-    credentials = SCRAMCredentials.objects.all()
+def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
+    creds_result = engine.get_all_credentials()
+    if not creds_result:
+        redirect_with_error(request, "admin_credential", creds_result.err(), 'index')
     clean_creds = [{
         'username': credential.owner.username,
         'credname': credential.username,
         'created_at': credential.created_at,
         'suspended': credential.suspended,
         'description': credential.description,
-    } for credential in credentials]
+    } for credential in creds_result.ok()]
     return render(request, 'hopskotch_auth/admin_credential.html', {'all_credentials': clean_creds})
 
 @admin_required
 @login_required
-def admin_topic(request):
-    topics = KafkaTopic.objects.all()
+def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
+    topics_result = engine.get_all_topics()
+    if not topics_result:
+        redirect_with_error(request, "admin_topic", topics_result.err(), 'index')
     clean_topics = [{
         'owning_group': topic.owning_group.name,
         'name': topic.name,
         'description': topic.description,
         'publicly_readable': topic.publicly_readable,
-    } for topic in topics]
+    } for topic in topics_result.ok()]
     return render(request, 'hopskotch_auth/admin_topic.html', {'all_topics': clean_topics})
 
 @admin_required
 @login_required
-def admin_group(request):
-    groups = Group.objects.all()
+def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
+    groups_result = engine.get_all_groups()
+    if not groups_result:
+        redirect_with_error(request, "admin_group", groups_result.err(), 'index')
     clean_groups = [{
         'name': group.name,
         'description': group.description,
-        'members': [
-            member.username
-        for member in group.members.all()]
-    } for group in groups]
+        'members': [member.user.username
+                    for member in engine.get_group_members(group).ok()]
+    } for group in groups_result.ok()]
     for group in clean_groups:
         group['mem_count'] = len(group['members'])
     return render(request, 'hopskotch_auth/admin_group.html', {'all_groups': clean_groups})
 
-def add_credential_permission(request):
+def add_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
     if request.method != 'POST' or \
         'credname' not in request.POST or \
         'perm_name' not in request.POST or \
@@ -477,31 +502,33 @@ def add_credential_permission(request):
             'error': 'Bad request'
         })
     credname = request.POST['credname']
-    perm_name = request.POST['perm_name']
+    topic_name = request.POST['perm_name']
     perm_perm = request.POST['perm_perm']
-    group, topic = perm_name.split('.')
-    status_code, _ = engine.add_permission(request.user.username, credname, group, topic, perm_perm.lower())
-    if status_code is not None:
-        return JsonResponse(status=404, data={'error': status_code})
+    operation = KafkaOperation[perm_perm]
+    add_result = engine.add_credential_permission(request.user, credname, topic_name, operation)
+    if not add_result:
+        return json_with_error(request, "add_credential_permission", add_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
-def remove_credential_permission(request):
+def remove_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
     if request.method != 'POST' or \
         'credname' not in request.POST or \
         'perm_name' not in request.POST or \
         'perm_perm' not in request.POST:
-        messages.error(request, 'Error in removing credential permission')
-        return redirect('index')
+        return json_with_error(request, "remove_credential_permission", "Invalid request", 400)
     credname = request.POST['credname']
-    perm_name = request.POST['perm_name']
+    topic_name = request.POST['perm_name']
     perm_perm = request.POST['perm_perm']
-    group, topic = perm_name.split('.')
-    status_code, _ = engine.remove_permission(request.user.username, credname, group, topic, perm_perm.lower())
-    if status_code is not None:
-        messages.error(request, status_code)
+    operation = KafkaOperation[perm_perm]
+    remove_result = engine.remove_credential_permission(request.user, credname, topic_name, operation)
+    if not remove_result:
+        return json_with_error(request, "remove_credential_permission", remove_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
-def add_topic_group(request):
+# TODO: Purpose of these functions completely impossible to determine from names.
+# They appear to never be used?
+'''
+def add_topic_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     topic_name = request.POST['topic_name']
     owning_group = request.POST['owning_group']
     new_group = request.POST['group_name']
@@ -512,7 +539,7 @@ def add_topic_group(request):
         messages.error(request, status_code)
     return redirect('manage_topic', full_topic_name)
 
-def remove_topic_group(request):
+def remove_topic_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     topic_name = request.POST['topic_name']
     owning_group = request.POST['owning_group']
     new_group = request.POST['group_name']
@@ -524,7 +551,7 @@ def remove_topic_group(request):
     return redirect('manage_topic', full_topic_name)
 
 @login_required
-def add_group_topic(request):
+def add_group_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
     print(request.POST)
     topicname = request.POST['topicname']
     groupname = topicname.split('.')[0]
@@ -536,7 +563,7 @@ def add_group_topic(request):
     return redirect('manage_group_topic', groupname)
 
 @login_required
-def remove_group_topic(request):
+def remove_group_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
     topicname = request.POST['topicname']
     perm = request.POST['topic_pub']
     groupname = request.POST['groupname']
@@ -545,106 +572,64 @@ def remove_group_topic(request):
         messages.error(request, status_code)
         return redirect('index')
     return redirect('manage_group_topics', groupname)
+'''
 
 @login_required
-def group_add_member(request):
+def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
     groupname = request.POST['groupname']
     username = request.POST['username']
-    status_code, _ = engine.add_member_to_group(groupname, username, 'member')
-    if status_code is not None:
-        return JsonResponse(data={}, status=404)
+    add_result = engine.add_member_to_group(groupname, username, MembershipStatus.Member)
+    if not add_result:
+        return json_with_error(request, "group_add_member", add_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
 @login_required
-def group_remove_member(request):
+def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
     groupname = request.POST['groupname']
     username = request.POST['username']
-    status_code, _ = engine.remove_member_from_group(groupname, username)
-    if status_code is not None:
-        return JsonResponse(data={}, status=404)
+    remove_result = engine.remove_member_from_group(groupname, username)
+    if not remove_result:
+        return json_with_error(request, "group_remove_member", remove_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
 @login_required
-def user_change_status(request):
+def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
     groupname = request.POST['groupname']
     username = request.POST['username']
     membership = request.POST['status'].lower()
-    status_code, _ = engine.change_user_group_status(username, groupname, membership)
-    if status_code is not None:
-        return JsonResponse(data={}, status=404)
+    member_status = MembershipStatus[membership]
+    status_result = engine.change_user_group_status(username, groupname, member_status)
+    if not status_result:
+        return json_with_error(request, "user_change_status", status_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
 @login_required
-def get_topic_permissions(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+def get_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
-    status_code, data = engine.get_topic_permissions(groupname, topicname)
-    if len(data) > 0 and data == ['All']:
-        data = all_perms
-    if status_code is not None:
-        return JsonResponse(data={}, status=404)
+    perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
+    if not perms_result:
+        return json_with_error(request, "get_topic_permissions", perms_result.err(), 400)
+    data = [str(p.operation) for p in perms_result.ok()]
     return JsonResponse(data={'data': data}, status=200)
 
+# TODO: Why is this called '_in_group'?
 @login_required
-def bulk_set_topic_permissions(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
-
-    groupname = request.POST['groupname']
-    topicname = request.POST['topicname']
-    permissions = request.POST.getlist('permissions')
-
-    status_code, data = engine.get_topic_permissions(groupname, topicname)
-
-    # These are used for debugging purposes, you don't NEED these but if you need to make sure it is working properly printing them is helpful
-    to_remove = []
-    to_add = []
-
-    # This scheme does not use the 'All' permission, all legacy ones using 'All' will be accepted but subsequently converted away on first edit
-    if data == ['All']:
-        if permissions == all_perms:
-            print('All is already set')
-            return JsonResponse(data={}, status=200)
-        else:
-            data = []
-            status_code, _ = engine.remove_topic_permission(request.user.username, groupname, topicname, 'All')
-            if status_code is not None:
-                return JsonResponse(data={}, status=404)
-
-    for perm in permissions:
-        if perm not in data:
-            to_add.append(perm)
-            status_code, _ = engine.add_topic_permission(request.user.username, groupname, topicname, perm)
-            if status_code is not None:
-                print('Error adding ' + perm)
-                return JsonResponse(data={'error': 'Error adding ' + perm}, status=404)
-    
-    for perm in data:
-        if perm not in permissions:
-            to_remove.append(perm)
-            status_code, _ = engine.remove_topic_permission(request.user.username, groupname, topicname, perm)
-            if status_code is not None:
-                print('Error removing ' + perm)
-                return JsonResponse(data={'error': 'Error removing ' + perm}, status=404)
-    
-    return JsonResponse(data={}, status=200)
-
-@login_required
-def create_topic_in_group(request):
+def create_topic_in_group(request: AuthenticatedHttpRequest) -> JsonResponse:
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
 
-    status_code, _ = engine.create_topic(request.user.username, groupname, topicname, '', False)
-    if status_code is not None:
-        print(status_code)
-        print('From create topic')
-        return JsonResponse(data={'error': status_code}, status=404)
-    topicname = '{}.{}'.format(groupname, topicname)
-    editpath = reverse('manage_topic', args=(topicname,))
+    create_result = engine.create_topic(request.user, groupname, topicname, '', False)
+    if not create_result:
+        return json_with_error(request, "create_topic", create_result.err(), 400)
+    full_topic_name = '{}.{}'.format(groupname, topicname)
+    editpath = reverse('manage_topic', args=(full_topic_name,))
     return JsonResponse(data={'editpath': editpath}, status=200)
 
+# TODO: Function name makes no sense; unclear what this should do. Appears to be unused?
+'''
 @login_required
-def add_topic_to_group(request):
+def add_topic_to_group(request: AuthenticatedHttpRequest) -> JsonResponse:
     topicname = request.POST['topicname']
     groupname = request.POST['groupname']
 
@@ -652,124 +637,67 @@ def add_topic_to_group(request):
     if status_code is not None:
         return JsonResponse(data={'error': status_code}, status=404)
     return JsonResponse(data={}, status=200)
+'''
 
+# TODO: Function name makes no sense; unclear what this should do. Appears to be unused?
+'''
 @login_required
-def remove_topic_from_group(request):
+def remove_topic_from_group(request: AuthenticatedHttpRequest) -> JsonResponse:
     topicname = request.POST['topicname']
     groupname = request.POST['groupname']
     status_code, _ = engine.delete_topic(request.user.username, groupname, topicname)
     if status_code is not None:
         return JsonResponse(data={'error': status_code}, status=404)
     return JsonResponse(data={}, status=200)
+'''
 
+# TODO: Appears to be unused
+'''
 @login_required
-def get_available_credential_topics(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonResponse:
     credname = request.POST['credname']
     topicname = request.POST['topicname']
-    status_code, avail_perms = engine.get_available_credential_permissions(request.user.username)
-    if status_code is not None:
-        return JsonResponse(data={}, status_code=404)
+    perms_result = engine.get_available_credential_permissions(request.user.username)
+    if not perms_result:
+        return json_with_error(request, "get_available_credential_topics", perms_result.err(), 400)
+    # TODO: Why is this filtering by tpic name?
+    # Computing all possible permissions is fairly expensive, we should do it as few times as possible,
+    # not repeat for each topic. If the UI wants to display split by topic it should do that itself.
     possible_perms = []
     for perm in avail_perms:
         if perm['topic'] == topicname:
             possible_perms.append(perm)
-    status_code, cred_perms = engine.get_permissions_on_credential(credname, topicname)
-    if 'All' in cred_perms:
-        cred_perms = all_perms
-    print('------------------------------------------------------------------------------------')
-    print(credname)
-    print(topicname)
-    print([x['operation'] for x in possible_perms])
-    print(cred_perms)
-    print('------------------------------------------------------------------------------------')
+    existing_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    if not existing_result:
+        return json_with_error(request, "get_available_credential_topics", existing_result.err(), 400)
+    cred_perms = [str(p.operation) for p in existing_result.ok()]
     return JsonResponse(data={'data': possible_perms, 'cred_data': cred_perms}, status=200)
+'''
 
+# TODO: When is this operation useful?
 @login_required
-def bulk_set_credential_permissions(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
     credname = request.POST['credname']
     topicname = request.POST['topicname']
-    groupname = topicname.split('.')[0]
-    permissions = request.POST.getlist('permissions')
-    status_code, cred_perms = engine.get_permissions_on_credential(credname, topicname)
-    print('------------------------------------------------------------------------------------')
-    print(credname)
-    print(topicname)
-    print(groupname)
-    print(permissions)
-    print(cred_perms)
-    print('------------------------------------------------------------------------------------')
-    if 'All' in cred_perms:
-        if permissions == all_perms:
-            return JsonResponse(data={}, status=200)
-        cred_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
-        status_code, _ = engine.remove_permission(request.user.username, credname, groupname, topicname, 'All')
-        if status_code is not None:
-            return JsonResponse(data={'error': status_code}, status=404)
-        for perm in cred_perms:
-            status_code, _ = engine.add_permission(request.user.username, credname, groupname, topicname, perm)
-    for perm in cred_perms:
-        if perm not in permissions:
-            status_code, _ = engine.remove_permission(request.user.username, credname, groupname, topicname, perm)
-            if status_code is not None:
-                print(status_code)
-                print('Removing {} not found'.format(perm))
-                return JsonResponse(data={'error': status_code}, status=404)
-    for perm in permissions:
-        if perm not in cred_perms:
-            status_code, _ = engine.add_permission(request.user.username, credname, groupname, topicname, perm)
-            if status_code is not None:
-                print(status_code)
-                print('Adding {} not found'.format(perm))
-                return JsonResponse(data={'error': status_code}, status=404)
+    existing_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    if not existing_result:
+        return json_with_error(request, "add_all_credential_permission", existing_result.err(), 400)
+    existing = existing_result.ok()
+    if any(p.operation == KafkaOperation.All for p in existing):
+        # Nothing to do
+        return JsonResponse(data={}, status=200)
+    # Remove all individual permissions
+    for existing_perm in existing:
+        remove_result = engine.remove_credential_permission(request.user, credname, topicname, existing_perm.operation)
+        if not remove_result:
+            return json_with_error(request, "add_all_credential_permission", remove_result.err(), 400)
+    # add the All permission
+    add_result = engine.add_credential_permission(request.user, credname, topicname, KafkaOperation.All)
+    if not add_result:
+        return json_with_error(request, "add_all_credential_permission", add_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
-@login_required
-def delete_all_credential_permissions(request):
-    credname = request.POST['credname']
-    topicname = request.POST['topicname']
-    groupname = topicname.split('.')[0]
-    status_code, cred_perms = engine.get_permissions_on_credential(credname, topicname)
-    if status_code is not None:
-        return JsonResponse(data={'error': status_code}, status=404)
-    for perm in cred_perms:
-        status_code, _ = engine.remove_permission(request.user.username, credname, groupname, topicname, perm)
-        if status_code is not None:
-            print('Error removing permission {}'.format(perm))
-            return JsonResponse(data={'error': status_code}, status=404)
-    return JsonResponse(data={}, status=200)
-
-@login_required
-def add_all_credential_permission(request):
-    credname = request.POST['credname']
-    topicname = request.POST['topicname']
-    groupname = topicname.split('.')[0]
-    print('----------------------------------------------------------------------')
-    print(credname)
-    print(topicname)
-    print(groupname)
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
-    status_code, cred_perms = engine.get_permissions_on_credential(credname, topicname)
-    if status_code is not None:
-        print('Issues with getting permissions')
-        return JsonResponse(data={'error': status_code}, status=404)
-    print(cred_perms)
-    if 'All' in cred_perms:
-        status_code, _ = engine.remove_permission(request.user.username, credname, groupname, topicname, 'All')
-        if status_code is not None:
-            print('Found "All" but could not remove it')
-            return JsonResponse(data={'error': status_code}, status=404)
-    print('----------------------------------------------------------------------')
-
-    #status_code, _ = engine.add_permission(request.user.username, credname, groupname, topicname, 'All')
-    for perm in all_perms:
-        status_code, _ = engine.add_permission(request.user.username, credname, groupname, topicname, perm)
-        if status_code is not None:
-            print('Could not add {} permission'.format(perm))
-            return JsonResponse(data={'error': status_code}, status=404)
-    return JsonResponse(data={}, status=200)
-
+'''
 def get_user_available_permissions(user):
     possible_permissions = {}
     for membership in user.groupmembership_set.all():
@@ -788,12 +716,12 @@ def get_user_available_permissions(user):
     # sort on operation
     #possible_permissions.sort(key=lambda p: p[1])
     possible_permissions.sort(key=lambda p: p['operation'])
-    # sort on topic names, because that looks nice for users, but since there is a bijection 
-    # between topic names and IDs this will place all matching topic IDs together in blocks 
+    # sort on topic names, because that looks nice for users, but since there is a bijection
+    # between topic names and IDs this will place all matching topic IDs together in blocks
     # in some order
     #possible_permissions.sort(key=lambda p: p[0])
     possible_permissions.sort(key=lambda p: p['topic'])
-    
+
     def equivalent(p1, p2):
         return p1['topic'] == p2['topic']
         #return p1['topic_id'] == p2['topic_id'] and p1['operation'] == p2['operation']
@@ -806,5 +734,6 @@ def get_user_available_permissions(user):
         if last is None or not equivalent(last,p):
             dedup.append(p)
             last=p
-    
+
     return dedup
+'''

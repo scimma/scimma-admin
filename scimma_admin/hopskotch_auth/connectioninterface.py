@@ -1,78 +1,94 @@
 from abc import ABC, abstractmethod, abstractclassmethod, abstractproperty
+from typing import Any, Dict, List, Set, Tuple
+from .result import Result
+
+from .models import *
 
 class ConnectionInterface(ABC):
     @abstractmethod
-    def new_credential(self, username, description):
+    def new_credential(self, username: str, description: str) -> Result[Dict[str, str], str]:
         pass
     
     @abstractmethod
-    def delete_credential(self, username, cred_name):
+    def delete_credential(self, username: str, cred_name: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def get_credential_permissions(self, username, cred_name):
+    def get_credential_permissions(self, username: str, cred_name: str) -> Result[List[CredentialKafkaPermission], str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def add_permission(self, username, cred_name, group, topic, permission):
+    def add_credential_permission(self, username: str, cred_name: str, group_name: str, topic_name: str, permission: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def remove_permission(self, username, cred_name, group, topic, permission):
+    def remove_credential_permission(self, username: str, cred_name: str, group_name: str, topic_name: str, permission: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def suspend_credential(self, username, cred_name):
+    def suspend_credential(self, username: str, cred_name: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def create_group(self, username, group_name, description):
+    def unsuspend_credential(self, username: str, cred_name: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def delete_group(self, username, group_name):
+    def create_group(self, username: str, group_name: str, description: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def add_topic_to_group(self, username, group_name, topic_name, permission):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def remove_topic_from_group(self, username, group_name, topic_name, permission):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def create_topic(self, username, group_name, topic_name):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def delete_topic(self, username, group_name, topic_name):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def add_topic_permission(self, username, topic_name, permission):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def remove_topic_permission(self, username, topic_name, permission):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def get_all_user_permissions(self, username):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def get_credential_info(self, username):
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def get_user_credentials(self, username):
+    def delete_group(self, username: str, group_name: str) -> Result[None, str]:
         raise NotImplementedError()
 
     @abstractmethod
-    def get_user_topics(self, username):
+    def add_member_to_group(self, group_name: str, username: str, status_name: str) -> Result[None, str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_member_from_group(self, group_name: str, username: str) -> Result[None, str]:
         raise NotImplementedError()
     
     @abstractmethod
-    def get_user_groups(self, username):
+    def create_topic(self, username: str, group_name: str, topic_name: str, description: str, publicly_readable: bool) -> Result[None, str]:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def delete_topic(self, username: str, group_name: str, topic_name: str) -> Result[None, str]:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def add_group_topic_permission(self, username: str, group_name: str, topic_name: str, permission: str) -> Result[None, str]:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def remove_group_topic_permission(self, username: str, group_name: str, topic_name: str, permission: str) -> Result[None, str]:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def get_credential(self, username: str, cred_name: str) -> Result[SCRAMCredentials, str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_user_credentials(self, username: str) -> Result[List[SCRAMCredentials], str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_user_accessible_topics(self, username: str) -> Result[List[Tuple[KafkaTopic, str]], str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_user_group_memberships(self, username: str) -> Result[List[GroupMembership], str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_users(self) -> Result[List[User], str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_credentials(self) -> Result[List[SCRAMCredentials], str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_groups(self) -> Result[List[Group], str]:
         raise NotImplementedError()

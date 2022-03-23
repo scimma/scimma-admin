@@ -1,116 +1,134 @@
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ObjectDoesNotExist
-from django.db import transaction
 
 from .models import *
+from .directinterface import DirectInterface
+from .views import json_with_error, AuthenticatedHttpRequest
 
+engine = DirectInterface()
+
+# TODO: this appears misnamed as it does not modify data, only fetches it
 @login_required
-def add_all_credential_permission(request):
+def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
     credname = request.POST['credname']
     topicname = request.POST['topicname']
-    groupname = topicname.split('.')[0]
 
-    try:
-        topic = KafkaTopic.objects.get(name=topicname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Cannot find topic "{topicname}"'})
-    memberships = GroupMembership.objects.filter(user=request.user)
+    topic_result = engine.get_topic(topicname)
+    if not topic_result:
+        return json_with_error(request, "add_all_credential_permission", topic_result.err(), 400)
+    topic = topic_result.ok()
+
+    perms_result = engine.get_available_credential_permissions(request.user, topic)
+    if not perms_result:
+        return json_with_error(request, "add_all_credential_permission", perms_result.err(), 400)
+    perms = perms_result.ok()
+
     possible_permissions = []
-    for membership in memberships:
-        perms = GroupKafkaPermission.objects.filter(principal=membership.group, topic=topic, operation=KafkaOperation.All)
-        if perms.exists():
-            possible_permissions = [p.value for _, p in KafkaOperation.__members__.items()]
-            break
-        perms = GroupKafkaPermission.objects.filter(principal=membership.group, topic=topic)
-        for perm in perms:
-            if perm.operation not in possible_permissions:
-                possible_permissions.append(perm.operation)
+    for perm in perms:
+        if perm[0].operation not in possible_permissions:
+            possible_permissions.append(perm[0].operation)
+    # TODO: Probably some result should be returned?
     return JsonResponse(data={}, status=200)
 
 @login_required
-def get_available_credential_topics(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonResponse:
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     possible_perms = []
     cred_perms = []
-    for membership in GroupMembership.objects.filter(user=request.user):
-        group = membership.group
-        group_permission = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
-        for permission in group_permission:
-            if permission.operation == KafkaOperation.All:
-                for subpermissions in KafkaOperation.__members__.items():
-                    possible_perms.append({
-                        'topic_id': permission.topic.id,
-                        'topic': permission.topic.name,
-                        'description': permission.topic.description,
-                        'access_via': permission.principal.name,
-                        'operation': subpermissions[1].name,
-                    })
-            else:
-                possible_perms.append({
-                    'topic_id': permission.topic.id,
-                    'topic': permission.topic.name,
-                    'description': permission.topic.description,
-                    'access_via': permission.principal.name,
-                    'operation': permission.operation.name,
-                })
-    
-    possible_perms.sort(key=lambda p: p['operation'])
-    possible_perms.sort(key=lambda p: p['topic'])
-    def equivalent(p1, p2):
-        return p1['topic_id'] == p2['topic_id'] and p1['operation'] == p2['operation']
-    
-    cleaned_perms = []
-    last = None
-    for p in possible_perms:
-        if last is None or not equivalent(last, p):
-            cleaned_perms.append(p)
-            last = p
-    
-    try:
-        cred = SCRAMCredentials.objects.get(username=credname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
-    try:
-        topic = KafkaTopic.objects.get(name=topicname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
-    added_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
-    cred_perms = []
-    if added_perms.exists():
-        cred_perms = [x.operation.name for x in added_perms]
 
-    return JsonResponse(data={'data': cleaned_perms, 'cred_data': cred_perms}, status=200)
+    topic_result = engine.get_topic(topicname)
+    if not topic_result:
+        return json_with_error(request, "get_available_credential_topics", topic_result.err(), 400)
+    topic = topic_result.ok()
+
+    perms_result = engine.get_available_credential_permissions(request.user, topic)
+    if not perms_result:
+        return json_with_error(request, "get_available_credential_topics", perms_result.err(), 400)
+    perms = perms_result.ok()
+    for permission in perms:
+        possible_perms.append({
+            'topic_id': permission[0].topic.id,
+            'topic': permission[0].topic.name,
+            'description': permission[0].topic.description,
+            'access_via': permission[0].principal.name,
+            'operation': permission[1],
+        })
+
+    cred_perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    if not cred_perms_result:
+        return json_with_error(request, "get_available_credential_topics", cred_perms_result.err(), 400)
+    cred_perms = cred_perms_result.ok()
+
+    return JsonResponse(data={'data': possible_perms,
+                              'cred_data': [x.operation.name for x in cred_perms]},
+                        status=200)
 
 @login_required
-def get_group_permissions(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+def get_group_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     topicname = request.POST['topicname']
     groupname = request.POST['groupname']
-    try:
-        group = Group.objects.get(name=groupname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Group "{groupname}" does not exist'}, status=404)
-    try:
-        topic = KafkaTopic.objects.get(name=topicname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
-    group_perms = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
-    perms = []
-    if group_perms.exists():
-        perms = [x.operation.name for x in group_perms]
+
+    group_perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
+    if not group_perms_result:
+        return json_with_error(request, "get_group_permissions", group_perms_result.err(), 400)
+    group_perms = group_perms_result.ok()
+
+    perms = [x.operation.name for x in group_perms]
     return JsonResponse(data={'permissions': perms}, status=200)
 
+# TODO: This scheme is very inefficient.
+# It would be much better to separately specify permissions to add and to remove.
 @login_required
-def bulk_set_group_permissions(request):
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
+def bulk_set_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    groupname = request.POST['groupname']
+    topicname = request.POST['topicname']
+    permissions = set(request.POST.getlist('permissions'))
+
+    perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
+    if not perms_result:
+        return json_with_error(request, "bulk_set_topic_permissions", perms_result.err(), 400)
+    existing = perms_result.ok()
+
+    # If the group already has All permission, either it matches the set of new permissions or needs to be removed
+    if any(p.operation == KafkaOperation.All for p in existing):
+        if "All" in permissions:
+            if len(permissions) > 1:
+                # it is a logical error to combine any other permission with All
+                return json_with_error(request, "bulk_set_topic_permissions", "Logically inconsistent request: "
+                                       "It does not make sense to combine specific permissions with All", 400)
+            # otherwise, there's nothing to do
+            return JsonResponse(data={}, status=200)
+        else:
+            # if a subset of permissions are specified, All must first be removed
+            remove_result = engine.remove_group_topic_permission(request.user, groupname, topicname, KafkaOperation.All)
+            if not remove_result:
+                return json_with_error(request, "bulk_set_topic_permissions", remove_result.err(), 400)
+    # Add all specified permissions which aren't already present
+    for perm_name in permissions:
+        expected_perm = KafkaOperation[perm_name]
+        if not any(p.operation == expected_perm for p in existing):
+            # Need to add
+            add_result = engine.add_group_topic_permission(request.user, groupname, topicname, expected_perm)
+            if not remove_result:
+                return json_with_error(request, "bulk_set_topic_permissions", add_result.err(), 400)
+    # Remove all existing permissions which are not specified
+    for existing_perm in existing:
+        if str(existing_perm.operation) not in permissions:
+            # Need to remove
+            remove_result = engine.remove_group_topic_permission(request.user, groupname, topicname, existing_perm.operation)
+            if not remove_result:
+                return json_with_error(request, "bulk_set_topic_permissions", remove_result.err(), 400)
+
+    return JsonResponse(data={}, status=200)
+
+# TODO: duplicate of bulk_set_topic_permissions?
+'''
+@login_required
+def bulk_set_group_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     topicname = request.POST['topicname']
     groupname = request.POST['groupname']
     new_perms = request.POST.getlist('permissions')
-    if new_perms == ['All']:
-        new_perms = all_perms
     try:
         group = Group.objects.get(name=groupname)
     except ObjectDoesNotExist as dne:
@@ -145,60 +163,100 @@ def bulk_set_group_permissions(request):
         new_obj = GroupKafkaPermission.objects.create(principal=group, topic=topic, operation=perm)
         new_obj.save()
     return JsonResponse(data={}, status=200)
+'''
 
-def toggle_suspend_credential(request):
+@login_required
+def toggle_suspend_credential(request: AuthenticatedHttpRequest) -> JsonResponse:
     credname = request.POST['credname']
-    try:
-        cred = SCRAMCredentials.objects.get(username=credname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
-    if request.user == cred.owner or request.user.is_staff:
-        is_suspended = not cred.suspended
-        cred.suspended = not cred.suspended
-        cred.save()
-        return JsonResponse(data={'suspended': is_suspended}, status=200)
-    return JsonResponse(data={'error': 'You must either be the owner or a staff member'}, status=403)
 
-def delete_credential(request):
-    credname = request.POST['credname']
-    try:
-        cred = SCRAMCredentials.objects.get(username=credname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
-    if request.user == cred.owner or request.user.is_staff:
-        cred.delete()
-        return JsonResponse(data={}, status=200)
-    else:
-        return JsonResponse(data={'error': 'You must either be the owner or a staff member'}, status=403)
+    cred_result = engine.get_credential(request.user, credname)
+    if not cred_result:
+        return json_with_error(request, "toggle_suspend_credential", cred_result.err(), 400)
+    cred = cred_result.ok()
 
-def delete_topic(request):
-    topicname = request.POST['topicname']
-    try:
-        topic = KafkaTopic.objects.get(name=topicname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
-    owning_group = topic.owning_group
-    user_membership = GroupMembership.objects.filter(user=request.user, group=owning_group, status=MembershipStatus.Owner)
-    if user_membership.exists() or request.user.is_staff:
-        topic.delete()
-        with transaction.atomic():
-            topic.delete()
-        return JsonResponse(data={}, status=200)
-    else:
-        return JsonResponse(data={'error': f'You must either be an owner of the group "{topicname}" is a part of or be staff to delete this topic'}, status=403)
+    if request.user != cred.owner and not request.user.is_staff:
+        return json_with_error(request, "toggle_suspend_credential", 'You must either be the owner or a staff member', 403)
 
-def delete_group(request):
-    groupname = request.POST['groupname']
-    try:
-        group = Group.objects.get(name=groupname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Group "{groupname}" does not exist'}, status=404)
-    if not request.user.is_staff:
-        return JsonResponse(data={'error': f'You cannot delete "{groupname}" unless you are staff'}, status=403)
-    group.delete()
+    result = engine.toggle_credential_suspension(request.user, cred)
+    if not result:
+        return json_with_error(request, "toggle_suspend_credential", result.err(), 400)
+    return JsonResponse(data={'suspended': result.ok()}, status=200)
+
+@login_required
+def delete_credential(request: AuthenticatedHttpRequest) -> JsonResponse:
+    delete_result = engine.delete_credential(request.user.username, request.POST['credname'])
+    if not delete_result:
+        return json_with_error(request, "delete_credential", delete_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
-def bulk_set_credential_permissions(request):
+@login_required
+def delete_topic(request: AuthenticatedHttpRequest) -> JsonResponse:
+    delete_result = engine.delete_topic(request.user.username, request.POST['topicname'])
+    if not delete_result:
+        return json_with_error(request, "delete_topic", delete_result.err(), 400)
+    return JsonResponse(data={}, status=200)
+
+@login_required
+def delete_group(request: AuthenticatedHttpRequest) -> JsonResponse:
+    delete_result = engine.delete_group(request.user.username, request.POST['groupname'])
+    if not delete_result:
+        return json_with_error(request, "delete_group", delete_result.err(), 400)
+    return JsonResponse(data={}, status=200)
+
+# TODO: This has the same issues as bulk_set_topic_permissions
+# This is additionally problematic, because, unlike the old design, it does not track a likely viable
+# group permission from which each credential permission can be derived, forcing an expensive computation
+# to try to find a satisfactory one.
+@login_required
+def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    groupname = topicname.split('.')[0]
+    permissions = set(request.POST.getlist('permissions'))
+
+    if "All" in permissions:
+        if len(permissions) > 1:
+            # it is a logical error to combine any other permission with All
+            return json_with_error(request, "bulk_set_credential_permissions", "Logically inconsistent request: "
+                                   "It does not make sense to combine specific permissions with All", 400)
+
+    perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    if not perms_result:
+        return json_with_error(request, "bulk_set_credential_permissions", perms_result.err(), 400)
+    existing = perms_result.ok()
+
+    # If the credential already has All permission, either it matches the set of new permissions or needs to be removed
+    if any(p.operation == KafkaOperation.All for p in existing):
+        if "All" in permissions:
+            # otherwise, there's nothing to do
+            return JsonResponse(data={}, status=200)
+        else:
+            # if a subset of permissions are specified, All must first be removed
+            remove_result = engine.remove_credential_permission(request.user, credname, topicname, KafkaOperation.All)
+            if not remove_result:
+                return json_with_error(request, "bulk_set_credential_permissions", remove_result.err(), 400)
+    # Add all specified permissions which aren't already present
+    for perm_name in permissions:
+        expected_perm = KafkaOperation[perm_name]
+        if not any(p.operation == expected_perm for p in existing):
+            # Need to add
+            add_result = engine.add_credential_permission(request.user, credname, topicname, expected_perm)
+            if not add_result:
+                return json_with_error(request, "bulk_set_credential_permissions", add_result.err(), 400)
+    # Remove all existing permissions which are not specified
+    for existing_perm in existing:
+        if str(existing_perm.operation) not in permissions:
+            # Need to remove
+            remove_result = engine.remove_credential_permission(request.user, credname, topicname, existing_perm.operation)
+            if not remove_result:
+                return json_with_error(request, "bulk_set_credential_permissions", remove_result.err(), 400)
+
+    return JsonResponse(data={}, status=200)
+
+# TODO: duplicate ?
+'''
+@login_required
+def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
     credname = request.POST['credname']
     topicname = request.POST['topicname']
@@ -241,30 +299,39 @@ def bulk_set_credential_permissions(request):
                 print('Adding {} not found'.format(perm))
                 return JsonResponse(data={'error': status_code}, status=404)
     return JsonResponse(data={}, status=200)
+'''
 
-def delete_all_credential_permissions(request):
+# TODO: Why is this specific to a topic? When is this operation useful?
+@login_required
+def delete_all_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     credname = request.POST['credname']
     topicname = request.POST['topicname']
-    groupname = topicname.split('.')[0]
-    try:
-        cred = SCRAMCredentials.objects.get(username=credname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Credential "{credname}" does not exist'}, status=404)
-    try:
-        topic = KafkaTopic.objects.get(name=topicname)
-    except ObjectDoesNotExist as dne:
-        return JsonResponse(data={'error': f'Topic "{topicname}" does not exist'}, status=404)
-    cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
-    if cred_perms.exists():
-        cred_perms = [x.operation.name for x in cred_perms]
-    else:
-        cred_perms = []
-    for perm in cred_perms:
-        status_code, _ = remove_permission(request.user.username, credname, groupname, topicname, perm)
-        if status_code is not None:
-            return JsonResponse(data={'error': status_code}, status=404)
+    perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    if not perms_result:
+        return json_with_error(request, "delete_all_credential_permissions", perms_result.err(), 400)
+    for perm in perms_result.ok():
+        remove_result = engine.remove_credential_permission(request.user, credname, topicname, perm.operation)
+        if not remove_result:
+            return json_with_error(request, "delete_all_credential_permissions", remove_result.err(), 400)
     return JsonResponse(data={}, status=200)
 
+# TODO: duplicate ?
+'''
+@login_required
+def delete_all_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    if not perms_result:
+        return json_with_error(request, "delete_all_credential_permissions", perms_result.err(), 400)
+    for perm in perms_result.ok():
+        remove_result = engine.remove_credential_permission(request.user, credname, topicname, perm.operation)
+        if not remove_result:
+            return json_with_error(request, "delete_all_credential_permissions", remove_result.err(), 400)
+    return JsonResponse(data={}, status=200)
+'''
+
+'''
 def get_user_available_permissions(user):
     possible_permissions = {}
     for membership in user.groupmembership_set.all():
@@ -283,12 +350,12 @@ def get_user_available_permissions(user):
     # sort on operation
     #possible_permissions.sort(key=lambda p: p[1])
     possible_permissions.sort(key=lambda p: p['operation'])
-    # sort on topic names, because that looks nice for users, but since there is a bijection 
-    # between topic names and IDs this will place all matching topic IDs together in blocks 
+    # sort on topic names, because that looks nice for users, but since there is a bijection
+    # between topic names and IDs this will place all matching topic IDs together in blocks
     # in some order
     #possible_permissions.sort(key=lambda p: p[0])
     possible_permissions.sort(key=lambda p: p['topic'])
-    
+
     def equivalent(p1, p2):
         return p1['topic'] == p2['topic']
         #return p1['topic_id'] == p2['topic_id'] and p1['operation'] == p2['operation']
@@ -301,8 +368,9 @@ def get_user_available_permissions(user):
         if last is None or not equivalent(last,p):
             dedup.append(p)
             last=p
-    
+
     return dedup
+'''
 
 def add_permission(username, credname, groupname, topicname, permission):
     operation = KafkaOperation[permission]

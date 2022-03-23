@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 from dataclasses import dataclass
 
 import secrets
@@ -23,7 +23,7 @@ class SCRAMAlgorithm(enum.Enum):
     SHA256 = 1
     SHA512 = 2
 
-    def hash_function(self):
+    def hash_function(self) -> Callable[..., hashlib._Hash]:
         """Return a hashlib hasher for the hash algorithm. """
         if self == SCRAMAlgorithm.SHA256:
             return hashlib.sha256
@@ -31,7 +31,7 @@ class SCRAMAlgorithm(enum.Enum):
             return hashlib.sha512
         raise NotImplementedError("unimplemented hash")
 
-    def iana_name(self):
+    def iana_name(self) -> str:
         """Return the IANA text name of the hash, as per RFC8122.
         (http://www.iana.org/assignments/hash-function-text-names/hash-function-text-names.xhtml)
         """
@@ -39,55 +39,55 @@ class SCRAMAlgorithm(enum.Enum):
             return "sha-256"
         if self == SCRAMAlgorithm.SHA512:
             return "sha-512"
-        NotImplementedError("unimplemented hash")
+        raise NotImplementedError("unimplemented hash")
 
 
 class SCRAMCredentials(models.Model):
-    owner = models.ForeignKey(
+    owner: models.ForeignKey = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
     )
-    username = models.CharField(
+    username: models.CharField = models.CharField(
         max_length=256,
         unique=True,
     )  # Limit chosen pretty arbitrarily.
 
     # The SCRAM hashing algorithm used, as defined in RFC5802.
-    algorithm = enum.EnumField(
+    algorithm: enum.EnumField = enum.EnumField(
         SCRAMAlgorithm,
         editable=False,
     )
     # The SCRAM 'Salt' as defined in RFFC5802.
-    salt = models.BinaryField(
+    salt: models.BinaryField = models.BinaryField(
         max_length=128,
         editable=False,
     )
     # The SCRAM 'ServerKey' as defined in RFC5802.
-    server_key = models.BinaryField(
+    server_key: models.BinaryField = models.BinaryField(
         max_length=256,
         editable=False,
     )
     # The SCRAM 'StoredKey' as defined in RFC5802.
-    stored_key = models.BinaryField(
+    stored_key: models.BinaryField = models.BinaryField(
         max_length=256,
         editable=False,
     )
     # The text representation of credentials used by Kafka.
-    string_encoding = models.TextField(
+    string_encoding: models.TextField = models.TextField(
         editable=False,
     )
     # The number of hash iterations used as defined in RFC5802.
-    iterations = models.IntegerField(
+    iterations: models.IntegerField = models.IntegerField(
         editable=False,
     )
 
-    created_at = models.DateTimeField(auto_now_add=True, editable=False)
+    created_at: models.DateTimeField = models.DateTimeField(auto_now_add=True, editable=False)
 	
-    suspended = models.BooleanField(
+    suspended: models.BooleanField = models.BooleanField(
         default = False,
     )
 
-    description = models.TextField(
+    description: models.TextField = models.TextField(
         max_length=1024,
         editable=True,
         default="",
@@ -95,7 +95,7 @@ class SCRAMCredentials(models.Model):
 
     @classmethod
     def generate(cls, owner: User, username: str, password: str, alg: SCRAMAlgorithm,
-                 salt: Optional[bytes] = None, iterations: int = 4096):
+                 salt: Optional[bytes] = None, iterations: int = 4096) -> SCRAMCredentials:
 
         """ Generate SCRAM credentials, hashing the given password using the given algorithm.
 
@@ -113,6 +113,9 @@ class SCRAMCredentials(models.Model):
         # Run the hash, taking care to normalize the password
         scram_hash = scram_hasher.hash(saslprep(password))
         salt, _, hashed_pw = scram.extract_digest_info(scram_hash, alg.iana_name())
+
+        if salt is None:
+            raise ValueError("SCRAM salt should not be missing")
 
         hash_func = alg.hash_function()
         server_key = hmac.new(hashed_pw, b"Server Key", hash_func).digest()
@@ -132,7 +135,7 @@ class SCRAMCredentials(models.Model):
         return val
 
     @staticmethod
-    def string_encode(salt, stored_key, server_key, iterations) -> bytes:
+    def string_encode(salt: bytes, stored_key: bytes, server_key: bytes, iterations: int) -> bytes:
         """Emits the SCRAMCredentials as a Kafka-style base64-encoded sequence of ASCII
         keyval pairs.
 
@@ -166,7 +169,7 @@ class SCRAMCredentials(models.Model):
         return base64.b64encode(val).decode("ascii")
 
 
-def delete_credentials(user, cred_username):
+def delete_credentials(user: User, cred_username: str) -> None:
     creds = SCRAMCredentials.objects.get(
         username=cred_username,
         owner_id=user.id,
@@ -174,7 +177,7 @@ def delete_credentials(user, cred_username):
     creds.delete()
 
 
-def new_credentials(owner):
+def new_credentials(owner: User) -> CredentialGenerationBundle:
     username = rand_username(owner)
 
     alphabet = string.ascii_letters + string.digits
@@ -221,15 +224,15 @@ class MembershipStatus(enum.Enum):
 
 
 class Group(models.Model):
-    name = models.CharField(
+    name: models.CharField = models.CharField(
         max_length=256,
         unique=True,
     )
-    members = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, 
+    members: models.ManyToManyField = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
         through='GroupMembership'
     )
-    description = models.TextField(
+    description: models.TextField = models.TextField(
         max_length=1024,
         editable=True,
         default="",
@@ -251,21 +254,21 @@ def validate_group_name(name: str) -> bool:
 
 
 class GroupMembership(models.Model):
-    user = models.ForeignKey(
+    user: models.ForeignKey = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
     )
-    group = models.ForeignKey(
+    group: models.ForeignKey = models.ForeignKey(
         Group,
         on_delete=models.CASCADE,
     )
-    status = enum.EnumField(
+    status: enum.EnumField = enum.EnumField(
         MembershipStatus,
         editable=True,
     )
 
 
-def is_group_member(user_id, group_id) -> bool:
+def is_group_member(user_id: int, group_id: int) -> bool:
     return GroupMembership.objects.filter(
         models.Q(status=MembershipStatus.Member) | models.Q(status=MembershipStatus.Owner),
         user_id=user_id,
@@ -273,7 +276,7 @@ def is_group_member(user_id, group_id) -> bool:
     ).exists()
 
 
-def is_group_owner(user_id, group_id) -> bool:
+def is_group_owner(user_id: int, group_id: int) -> bool:
     return GroupMembership.objects.filter(
         models.Q(status=MembershipStatus.Owner),
         user_id=user_id,
@@ -282,18 +285,18 @@ def is_group_owner(user_id, group_id) -> bool:
 
 
 class KafkaTopic(models.Model):
-    owning_group = models.ForeignKey(
+    owning_group: models.ForeignKey = models.ForeignKey(
         Group,
         on_delete=models.CASCADE,
     )
-    name = models.CharField(
+    name: models.CharField = models.CharField(
         max_length=249, # see https://github.com/apache/kafka/commit/ad3dfc6ab25c3f80d2425e24e72ae732b850dc60
         editable=False,
     )
-    publicly_readable = models.BooleanField(
+    publicly_readable: models.BooleanField = models.BooleanField(
         default = False,
     )
-    description = models.TextField(
+    description: models.TextField = models.TextField(
         max_length=1024,
         editable=True,
         default="",
@@ -321,15 +324,15 @@ class KafkaOperation(enum.Enum):
 
 
 class GroupKafkaPermission(models.Model):
-    principal = models.ForeignKey(
+    principal: models.ForeignKey = models.ForeignKey(
         Group,
         on_delete=models.CASCADE,
     )
-    topic = models.ForeignKey(
+    topic: models.ForeignKey = models.ForeignKey(
         KafkaTopic,
         on_delete=models.CASCADE,
     )
-    operation = enum.EnumField(
+    operation: enum.EnumField = enum.EnumField(
         KafkaOperation,
         editable=False,
     )
@@ -341,24 +344,23 @@ def same_permission(p1: GroupKafkaPermission,
            and p1.operation==p2.operation
 
 
-def add_kafka_permission_for_group(group_id: str, topic: KafkaTopic, operation: KafkaOperation):
-    group = Group.objects.get(id=group_id)
+def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: KafkaOperation) -> None:
     new_record = GroupKafkaPermission(principal=group, topic=topic, operation=operation)
-    
-    # look up all permissions for this group/topic combination to figure out if the new record is 
+
+    # look up all permissions for this group/topic combination to figure out if the new record is
     # redundant or some old ones need to be replaced
     existing = GroupKafkaPermission.objects.filter(principal=group_id, topic=topic.id)
-    
+
     if existing.exists():
         if any(same_permission(p, new_record) for p in existing):
-            # the exact permission we're trying to create already exists, 
+            # the exact permission we're trying to create already exists,
             # so we can do nothing and declare success
             return
         if len(existing)==1 and existing[0].operation==KafkaOperation.All:
-            # the existing permission is broader than the one being added,  
+            # the existing permission is broader than the one being added,
             # so we do not need to actually add it
             return
-    
+
     # we do need to create a record
     with transaction.atomic():
         # If adding an "All" permission, clean up any other permissions, since
@@ -368,7 +370,7 @@ def add_kafka_permission_for_group(group_id: str, topic: KafkaTopic, operation: 
         new_record.save()
 
 
-def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_group_id: str=None) -> bool:
+def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_group_id: int=None) -> bool:
     if owning_group_id is None:
         topic = permission.topic
         owning_group_id = topic.owning_group
@@ -380,7 +382,7 @@ def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_g
         for membership in GroupMembership.objects.filter(group_id=permission.principal):
             user_creds = SCRAMCredentials.objects.filter(owner=membership.user)
             user_memberships = GroupMembership.objects.filter(user=membership.user)
-            user_group_perms = {}
+            user_group_perms: Dict[int, Iterable[GroupKafkaPermission]] = {}
             for cred in user_creds:
                 permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
                 # for each credential we must see if it has a permission which
@@ -388,31 +390,31 @@ def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_g
                 for cred_perm in permissions_to_check:
                     if cred_perm.parent!=permission:
                         continue # great, this one is not affected by this change
-                    # if affected, we need to check whether there is any other valid derivation for this 
+                    # if affected, we need to check whether there is any other valid derivation for this
                     # permission which could replace the one being removed
-                    repair_or_delete_permission(cred_perm, 
+                    repair_or_delete_permission(cred_perm,
                                                 lambda other_group_perm: other_group_perm==permission,
                                                 user_memberships, user_group_perms)
 
     return True
-    
+
 
 class CredentialKafkaPermission(models.Model):
-    principal = models.ForeignKey(
+    principal: models.ForeignKey = models.ForeignKey(
         SCRAMCredentials,
         on_delete=models.CASCADE,
     )
     # individual credentials derive their permissions from group permissions,
     # so we track that relationship in order to coordinate changes
-    parent = models.ForeignKey(
+    parent: models.ForeignKey = models.ForeignKey(
         GroupKafkaPermission,
         on_delete=models.CASCADE
     )
-    topic = models.ForeignKey(
+    topic: models.ForeignKey = models.ForeignKey(
         KafkaTopic,
         on_delete=models.CASCADE,
     )
-    operation = enum.EnumField(
+    operation: enum.EnumField = enum.EnumField(
         KafkaOperation,
         editable=False,
     )
@@ -422,12 +424,12 @@ class CredentialKafkaPermission(models.Model):
 cred_perm_encoding_separator=':'
 
 
-def encode_cred_permission(parent_id, topic_id, operation) -> str:
+def encode_cred_permission(parent_id: int, topic_id: int, operation: KafkaOperation) -> str:
     return cred_perm_encoding_separator.join(map(str, [parent_id, topic_id, operation]))
 
 
 # returns tuples of (parent ID, topic ID, operation type)
-def decode_cred_permission(encoded: str):
+def decode_cred_permission(encoded: str) -> Tuple[str, str, KafkaOperation]:
     parts = encoded.split(cred_perm_encoding_separator, 3)
     if len(parts) != 3:
         raise ValueError("Invalid encoded credential permission")
@@ -447,7 +449,7 @@ def supporting_permission(group_perm: GroupKafkaPermission, cred_perm: Credentia
 
 
 # returns tuples of (parent ID, topic ID, topic name, perm type)
-def all_permissions_for_user(user):
+def all_permissions_for_user(user: User) -> List[Tuple[int, int, str, KafkaOperation]]:
     possible_permissions = []
     for membership in user.groupmembership_set.all():
         group = membership.group
@@ -461,12 +463,12 @@ def all_permissions_for_user(user):
     # sort and eliminate duplicates
     # sort on operation
     possible_permissions.sort(key=lambda p: p[3])
-    # sort on topic names, because that looks nice for users, but since there is a bijection 
-    # between topic names and IDs this will place all matching topic IDs together in blocks 
+    # sort on topic names, because that looks nice for users, but since there is a bijection
+    # between topic names and IDs this will place all matching topic IDs together in blocks
     # in some order
     possible_permissions.sort(key=lambda p: p[2])
-    
-    def equivalent(p1, p2):
+
+    def equivalent(p1: Tuple[int, int, str, KafkaOperation], p2: Tuple[int, int, str, KafkaOperation]) -> bool:
         return p1[1] == p2[1] and p1[3]==p2[3];
 
     # remove adjacent (practical) duplicates which have different permission IDs
@@ -476,19 +478,22 @@ def all_permissions_for_user(user):
         if last is None or not equivalent(last,p):
             dedup.append(p)
             last=p
-    
+
     return dedup
 
 
-# Find a new, non-excluded group permission which can support the given 
-# credential permission (permission), or delete it if none can be found.  
-# exclude is a callable which will be called with each relevant group permission 
+# Find a new, non-excluded group permission which can support the given
+# credential permission (permission), or delete it if none can be found.
+# exclude is a callable which will be called with each relevant group permission
 # whose return value should indicate whether it is to be ignored or not.
 # user_memberships should be the set of group memberships for the user who owns
 # permission
 # group_permissions is a cache of the permissions belonging to groups of which
-# the user is a member. It will be automatically updated. 
-def repair_or_delete_permission(permission, exclude, user_memberships, group_permissions):
+# the user is a member. It will be automatically updated.
+def repair_or_delete_permission(permission: CredentialKafkaPermission,
+                                exclude: Callable[[GroupKafkaPermission], bool],
+                                user_memberships: Iterable[GroupMembership],
+                                group_permissions: Dict[int, Iterable[GroupKafkaPermission]]) -> bool:
     for membership in user_memberships:
         # fetch permissions for this group if not already cached
         if not membership.group_id in group_permissions:
@@ -497,7 +502,7 @@ def repair_or_delete_permission(permission, exclude, user_memberships, group_per
             if exclude(group_perm):
                 continue # this is one of the permissions we cannot use
             if supporting_permission(group_perm, permission):
-                # this other group permission is a valid substitute for the one which is 
+                # this other group permission is a valid substitute for the one which is
                 #going away, so we can correct the credential permission instead of removing it
                 permission.parent = group_perm
                 permission.save()
@@ -507,32 +512,32 @@ def repair_or_delete_permission(permission, exclude, user_memberships, group_per
     return False
 
 
-# remove all permissions the given user recieved via the given group, either 
+# remove all permissions the given user recieved via the given group, either
 # because the user is being removed from that group or the group is being
-# deleted entirely, retaining credential permissions if they can be equivalently 
+# deleted entirely, retaining credential permissions if they can be equivalently
 # constructed via another group permission
-def remove_user_group_permissions(user_id, group_id):
+def remove_user_group_permissions(user_id: int, group_id: int) -> None:
     # must check all credentials owned by this user
     user_creds = SCRAMCredentials.objects.filter(owner=user_id)
     # we will potentially need to know all other groups to which this user belongs
     user_memberships = GroupMembership.objects.filter(user=user_id).exclude(group=group_id)
-    group_permissions = {} # a cache for permissions of groups to which the user belongs
+    group_permissions: Dict[int, Iterable[GroupKafkaPermission]] = {} # a cache for permissions of groups to which the user belongs
     for cred in user_creds:
         permissions_to_check = CredentialKafkaPermission.objects.filter(principal=cred).select_related('parent')
         # for each credential we must see if it has a permission which derives from
         # a group permission affected by this change
         for permission in permissions_to_check:
             if permission.parent.principal.id!=int(group_id):
-                continue # great, this one is not affected by this change 
-            # if affected, we need to check whether there is any other valid derivation for this 
+                continue # great, this one is not affected by this change
+            # if affected, we need to check whether there is any other valid derivation for this
             # permission which could replace the one being removed
-            repair_or_delete_permission(permission, 
+            repair_or_delete_permission(permission,
                                         lambda group_perm: group_perm.principal==group_id,
                                         user_memberships, group_permissions)
 
 
 # delete all permissions which refer to a given topic
-def delete_topic_permissions(topic_id):
+def delete_topic_permissions(topic_id: int) -> None:
     CredentialKafkaPermission.objects.filter(topic=topic_id).delete()
     GroupKafkaPermission.objects.filter(topic=topic_id).delete()
 
@@ -541,8 +546,8 @@ def delete_topic_permissions(topic_id):
 # 2. the user belongs to a group which has some permission providing access
 # The user may not currently have any credential configured to use the allowed access in the latter
 # case, however.
-# Returns a dictionary mapping topic names to a strings describing the nature of the access. 
-def topics_accessible_to_user(user_id):
+# Returns a dictionary mapping topic names to a strings describing the nature of the access.
+def topics_accessible_to_user(user_id: int) -> Dict[str, str]:
     accessible = {}
 
     # first, handle access via group permissions
