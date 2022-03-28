@@ -75,6 +75,10 @@ def download(request: AuthenticatedHttpRequest) -> HttpResponse:
                 f"{request.user.username} ({request.user.email}) at {client_ip(request)}")
     return response
 
+def log_request(request: AuthenticatedHttpRequest, description: str):
+    logger.info(f"User {request.user.username} ({request.user.email}) requested "
+                f"to {description} from {client_ip(request)}")
+
 def redirect_with_error(request: AuthenticatedHttpRequest, operation: str, reason: str,
                         redirect_to: str, *redir_args, **redir_kwargs) -> HttpResponse:
     logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
@@ -153,6 +157,7 @@ def login_failure(request: AuthenticatedHttpRequest) -> HttpResponse:
 @login_required
 def create_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
     if request.method == 'POST':
+        log_request(request, "create a new credential")
         form = CreateCredentialForm(request.POST)
         description = request.POST['desc_field']
         cred_result = engine.new_credential(request.user, description)
@@ -173,7 +178,7 @@ def create_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
 
 @login_required
 def suspend_credential(request: AuthenticatedHttpRequest, credname: str='', redirect_to: str='index') -> HttpResponse:
-    # TODO: passing request.user.username is wrong; we need to pass the (expected) owning user
+    log_request(request, f"suspend credential {credname}")
     cred_result = engine.get_credential(request.user, credname)
     if not cred_result:
         messages.error(request, cred_result.err())
@@ -192,15 +197,17 @@ def suspend_credential(request: AuthenticatedHttpRequest, credname: str='', redi
     return redirect('index')
 
 @login_required
-def manage_credential(request: AuthenticatedHttpRequest, username: str) -> HttpResponse:
+def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpResponse:
     if request.method == 'POST':
+        log_request(request, f"update credential {credname} description")
         # TODO: data pulled from request.POST must be sanitized
-        result = engine.update_credential(request.user, username, request.POST['desc_field'])
+        result = engine.update_credential(request.user, credname, request.POST['desc_field'])
         if not result:
             return redirect_with_error(request, "manage_credential", result.err(), 'index')
         return HttpResponseRedirect(request.path_info)
 
-    cred_result = engine.get_credential(request.user, username)
+    log_request(request, f"manage credential {credname}")
+    cred_result = engine.get_credential(request.user, credname)
     if not cred_result:
         return redirect_with_error(request, "manage_credential", cred_result.err(), 'index')
     cred = cred_result.ok()
@@ -240,6 +247,7 @@ def manage_credential(request: AuthenticatedHttpRequest, username: str) -> HttpR
 @login_required
 def create_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     if request.method == 'POST':
+        log_request(request, f"create a group with name {request.POST.get('name_field','<unset>')}")
         groupname = request.POST['name_field']
         descfield = request.POST['desc_field']
         create_result = engine.create_group(request.user, groupname, descfield)
@@ -252,6 +260,7 @@ def create_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     form = CreateGroupForm()
     return render(request, 'hopskotch_auth/create_group.html', {'form': form, 'accessible_members': users_result.ok()})
 
+# TODO: does this serve any purpose?
 @login_required
 def finished_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     # Capture all objects in post, then submit to database
@@ -278,6 +287,8 @@ def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
             return render(request, 'hopskotch_auth/create_topic.html',
                           {'form': form, 'all_groups': available_groups, 'owning_group': owner})
         elif request.POST['submit'].lower() == 'create':
+            log_request(request, f"create a topic with name {request.POST.get('name_field','<unset>')}"
+                        f" owned by group {request.POST.get('owning_group_field','<unset>')}")
             owning_group_name = request.POST['owning_group_field']
             topic_name = request.POST['name_field']
             create_result = engine.create_topic(
@@ -321,6 +332,10 @@ def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
 @login_required
 def manage_topic(request, topicname) -> HttpResponse:
     if request.method == 'POST':
+        log_request(request, "modify the topic with name "
+                    f"{request.POST.get('owning_group_field','<unset>')}."
+                    f"{request.POST.get('name_field','<unset>')}")
+        # TODO: splitting the topic name up and putting it back together like this is not necessary and will probably confuse users
         full_topic_name = '{}.{}'.format(
                 request.POST['owning_group_field'],
                 request.POST['name_field']
@@ -329,6 +344,7 @@ def manage_topic(request, topicname) -> HttpResponse:
         if not topic_result:
             redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
         topic = topic_result.ok()
+        # TODO: multiplexing different types of requests through the same function makes precise logging of requests difficult; this needs to be cleaned up
         if 'desc_field' in request.POST:
             update_result = engine.update_topic_description(request.user, topic, request.POST['desc_field'])
             if not update_result:
@@ -378,6 +394,7 @@ def manage_topic(request, topicname) -> HttpResponse:
 @login_required
 def manage_group_members(request, groupname) -> HttpResponse:
     if request.method == 'POST':
+        log_request(request, f"modify the description of the group with name {groupname}")
         description = request.POST['desc_field']
         modify_result = engine.modify_group_description(groupname, description)
         if not modify_result:
@@ -418,6 +435,7 @@ def manage_group_members(request, groupname) -> HttpResponse:
 @login_required
 def manage_group_topics(request, groupname) -> HttpResponse:
     if request.method == 'POST':
+        log_request(request, f"modify the description of the group with name {groupname}")
         description = request.POST['desc_field']
         modify_result = engine.modify_group_description(groupname, description)
         if not modify_result:
@@ -451,6 +469,7 @@ def manage_group_topics(request, groupname) -> HttpResponse:
 @admin_required
 @login_required
 def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
+    log_request(request, "manage all credentials")
     creds_result = engine.get_all_credentials()
     if not creds_result:
         redirect_with_error(request, "admin_credential", creds_result.err(), 'index')
@@ -466,6 +485,7 @@ def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
 @admin_required
 @login_required
 def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
+    log_request(request, "manage all topics")
     topics_result = engine.get_all_topics()
     if not topics_result:
         redirect_with_error(request, "admin_topic", topics_result.err(), 'index')
@@ -480,6 +500,7 @@ def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
 @admin_required
 @login_required
 def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
+    log_request(request, "manage all groups")
     groups_result = engine.get_all_groups()
     if not groups_result:
         redirect_with_error(request, "admin_group", groups_result.err(), 'index')
@@ -494,6 +515,9 @@ def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     return render(request, 'hopskotch_auth/admin_group.html', {'all_groups': clean_groups})
 
 def add_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"add a/an {request.POST.get('perm_perm','<unset>')} permission "
+                f"for topic {request.POST.get('perm_name','<unset>')} to credential "
+                f"{request.POST.get('credname','<unset>')}")
     if request.method != 'POST' or \
         'credname' not in request.POST or \
         'perm_name' not in request.POST or \
@@ -511,6 +535,9 @@ def add_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse
     return JsonResponse(data={}, status=200)
 
 def remove_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"remove a/an {request.POST.get('perm_perm','<unset>')} permission "
+                f"for topic {request.POST.get('perm_name','<unset>')} to credential "
+                f"{request.POST.get('credname','<unset>')}")
     if request.method != 'POST' or \
         'credname' not in request.POST or \
         'perm_name' not in request.POST or \
@@ -576,6 +603,8 @@ def remove_group_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
 
 @login_required
 def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"add a user ({request.POST.get('username','<unset>')})"
+                f" to group {request.POST.get('groupname','<unset>')}")
     groupname = request.POST['groupname']
     username = request.POST['username']
     add_result = engine.add_member_to_group(groupname, username, MembershipStatus.Member)
@@ -585,6 +614,8 @@ def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
 
 @login_required
 def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"remove a user {request.POST.get('username','<unset>')}"
+                f" from group {request.POST.get('groupname','<unset>')}")
     groupname = request.POST['groupname']
     username = request.POST['username']
     remove_result = engine.remove_member_from_group(groupname, username)
@@ -594,6 +625,9 @@ def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
 
 @login_required
 def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"change the status of user {request.POST.get('username','<unset>')}"
+                f" in group {request.POST.get('groupname','<unset>')} to "
+                f"{request.POST.get('status','<unset>')}")
     groupname = request.POST['groupname']
     username = request.POST['username']
     membership = request.POST['status'].lower()
@@ -605,6 +639,8 @@ def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
 
 @login_required
 def get_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"fetch group {request.POST.get('groupname','<unset>')}'s"
+                f" permissions for topic {request.POST.get('topicname','<unset>')}")
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
     perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
@@ -616,6 +652,8 @@ def get_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
 # TODO: Why is this called '_in_group'?
 @login_required
 def create_topic_in_group(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"create a topic named {request.POST.get('topicname','<unset>')},"
+                f" owned by group {request.POST.get('groupname','<unset>')}")
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
 
@@ -677,6 +715,8 @@ def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonRe
 # TODO: When is this operation useful?
 @login_required
 def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"add all permission to topic {request.POST.get('topicname','<unset>')}"
+                f" to credential {request.POST.get('credname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     existing_result = engine.get_credential_permissions_for_topic(credname, topicname)

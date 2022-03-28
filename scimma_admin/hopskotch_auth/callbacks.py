@@ -3,13 +3,15 @@ from django.contrib.auth.decorators import login_required
 
 from .models import *
 from .directinterface import DirectInterface
-from .views import json_with_error, AuthenticatedHttpRequest
+from .views import log_request, json_with_error, AuthenticatedHttpRequest
 
 engine = DirectInterface()
 
 # TODO: this appears misnamed as it does not modify data, only fetches it
 @login_required
 def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, "fetch all possible permissions for credential "
+                f"{request.POST.get('credname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
 
@@ -30,8 +32,12 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
     # TODO: Probably some result should be returned?
     return JsonResponse(data={}, status=200)
 
+# TODO: the name and implementation of this function are inconsistent: does it get (accessible)
+# topics for the credential (really the user), or possible permissions relating to one topic?
 @login_required
 def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, "fetch accessible topics for credential "
+                f"{request.POST.get('credname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     possible_perms = []
@@ -66,6 +72,10 @@ def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonRe
 
 @login_required
 def get_group_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, "fetch all permissions held by group {request.POST.get('groupname','<unset>')}"
+                f" for topic {request.POST.get('topicname','<unset>')}")
+    log_request(request, "fetch accessible topics for credential "
+                f"{request.POST.get('credname','<unset>')}")
     topicname = request.POST['topicname']
     groupname = request.POST['groupname']
 
@@ -77,10 +87,12 @@ def get_group_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     perms = [x.operation.name for x in group_perms]
     return JsonResponse(data={'permissions': perms}, status=200)
 
-# TODO: This scheme is very inefficient.
+# TODO: This scheme is very inefficient, and makes precise logging difficult.
 # It would be much better to separately specify permissions to add and to remove.
 @login_required
 def bulk_set_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"change permissions held by group {request.POST.get('groupname','<unset>')}"
+                f" for topic {request.POST.get('topicname','<unset>')}")
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
     permissions = set(request.POST.getlist('permissions'))
@@ -167,6 +179,7 @@ def bulk_set_group_permissions(request: AuthenticatedHttpRequest) -> JsonRespons
 
 @login_required
 def toggle_suspend_credential(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"change credential {request.POST.get('credname','<unset>')} suspension")
     credname = request.POST['credname']
 
     cred_result = engine.get_credential(request.user, credname)
@@ -184,6 +197,7 @@ def toggle_suspend_credential(request: AuthenticatedHttpRequest) -> JsonResponse
 
 @login_required
 def delete_credential(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"delete credential {request.POST.get('credname','<unset>')}")
     delete_result = engine.delete_credential(request.user.username, request.POST['credname'])
     if not delete_result:
         return json_with_error(request, "delete_credential", delete_result.err(), 400)
@@ -191,6 +205,7 @@ def delete_credential(request: AuthenticatedHttpRequest) -> JsonResponse:
 
 @login_required
 def delete_topic(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"delete topic {request.POST.get('topicname','<unset>')}")
     delete_result = engine.delete_topic(request.user.username, request.POST['topicname'])
     if not delete_result:
         return json_with_error(request, "delete_topic", delete_result.err(), 400)
@@ -198,6 +213,7 @@ def delete_topic(request: AuthenticatedHttpRequest) -> JsonResponse:
 
 @login_required
 def delete_group(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"delete group {request.POST.get('groupname','<unset>')}")
     delete_result = engine.delete_group(request.user.username, request.POST['groupname'])
     if not delete_result:
         return json_with_error(request, "delete_group", delete_result.err(), 400)
@@ -209,6 +225,8 @@ def delete_group(request: AuthenticatedHttpRequest) -> JsonResponse:
 # to try to find a satisfactory one.
 @login_required
 def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"change permissions held by credential {request.POST.get('credname','<unset>')}"
+                f" for topic {request.POST.get('topicname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     groupname = topicname.split('.')[0]
@@ -304,6 +322,8 @@ def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonRe
 # TODO: Why is this specific to a topic? When is this operation useful?
 @login_required
 def delete_all_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"delete all permissions held by credential {request.POST.get('credname','<unset>')}"
+                f" for topic {request.POST.get('topicname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
@@ -372,6 +392,8 @@ def get_user_available_permissions(user):
     return dedup
 '''
 
+# Unused?
+'''
 def add_permission(username, credname, groupname, topicname, permission):
     operation = KafkaOperation[permission]
     try:
@@ -445,3 +467,4 @@ def remove_permission(username, credname, groupname, topicname, permission):
     )
     to_delete.delete()
     return None, {}
+'''
