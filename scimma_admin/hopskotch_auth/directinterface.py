@@ -1,13 +1,19 @@
+from dataclasses import dataclass
 from typing import Dict, List, Set
 
 from .models import *
 from .result import Result, Ok, Err
 
+@dataclass
+class Error:
+    desc: str
+    status: int
+
 class DirectInterface:
     def __init__(self) -> None:
         pass
 
-    def new_credential(self, owner: User, description: str) -> Result[Dict[str, str], str]:
+    def new_credential(self, owner: User, description: str) -> Result[Dict[str, str], Error]:
         """
         Generate a new Kafka (SCRAM) cedential for a user.
 
@@ -40,35 +46,38 @@ class DirectInterface:
 
         return Ok(data)
 
-    def delete_credential(self, username: str, cred_name: str) -> Result[None, str]:
-        try:
-            user = User.objects.get(username=username)
-        except ObjectDoesNotExist as dne:
-            return Err(f'User "{username}" does not exist')
+    def delete_credential(self, user: User, cred_name: str) -> Result[None, Error]:
+        """
+        Delete a SCRAM (Kafka) credential
+
+        Args:
+            user: The user requesting the deletion. Must be either the credential owner or a staff member
+            cred_name: The name of the credential to delete
+        """
         try:
             credential = SCRAMCredentials.objects.get(username=cred_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Credential "{cred_name}" does not exist')
-        if credential.owner.username != username and not user.is_staff:
-            return Err(f'Credential can only be deleted by the owning user or a staff member')
+            return Err(Error(f'Credential "{cred_name}" does not exist', 404))
+        if credential.owner != user and not user.is_staff:
+            return Err(Error(f'Credential can only be deleted by the owning user or a staff member',403))
         credential.delete()
         return Ok(None)
 
-    def update_credential(self, user: User, cred_name: str, description: str) -> Result[None, str]:
+    def update_credential(self, user: User, cred_name: str, description: str) -> Result[None, Error]:
         try:
             credential = SCRAMCredentials.objects.get(owner=user, username=cred_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Credentials "{cred_name}" does not exist')
+            return Err(Error(f'Credential "{cred_name}" does not exist', 404))
         credential.description = description
         credential.save()
         return Ok(None)
 
-    def get_credential(self, requesting_user: User, cred_name: str) -> Result[SCRAMCredentials, str]:
+    def get_credential(self, requesting_user: User, cred_name: str) -> Result[SCRAMCredentials, Error]:
         # TODO: check that requesting_user has authority to manipulate owning_user's credentials
         try:
             credential = SCRAMCredentials.objects.get(username=cred_name)
         except ObjectDoesNotExist as dne:
-            return Err('Could not find user or credential')
+            return Err(Error(f'Credential "{cred_name}" does not exist', 404))
         return Ok(credential)
 
     def get_user_credentials(self, user: User) -> Result[List[SCRAMCredentials], str]:
@@ -83,25 +92,27 @@ class DirectInterface:
         credentials = list(user.scramcredentials_set.all())
         return Ok(credentials)
 
-    def get_credential_permissions(self, user: User, cred_name: str) -> Result[List[CredentialKafkaPermission], str]:
+    def get_credential_permissions(self, user: User, cred_name: str) -> Result[List[CredentialKafkaPermission], Error]:
         try:
             cred = SCRAMCredentials.objects.get(owner=user, username=cred_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'User or credential not found')
+            return Err(Error(f'Credential {cred_name} not found',404))
         perms = list(CredentialKafkaPermission.objects.filter(principal=cred))
         return Ok(perms)
 
-    def add_credential_permission(self, user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, str]:
+    def add_credential_permission(self, user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
         try:
             cred = SCRAMCredentials.objects.get(username=cred_name)
             if cred.owner.username != user.username and not user.is_staff:
-                return Err(f'User "{user.username}" does not have permissions for credential {cred_name} and is not staff')
-        except:
-            return Err(f'Credential with owner "{user.username}" and credential name "{cred_name}"')
+                return Err(Error(f'User "{user.username}" does not have permissions for '
+                                 f'credential {cred_name} and is not staff', 403))
+        except ObjectDoesNotExist as dne:
+            return Err(Error(f'Credential with owner "{user.username}" and credential '
+                             f'name "{cred_name}" not found', 404))
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic with name "{topic_name}"" does not exist')
+            return Err(Error(f'Topic with name "{topic_name}"" does not exist', 404))
 
         existing_perm = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic, operation=KafkaOperation.All)
         if existing_perm.exists():
@@ -129,22 +140,22 @@ class DirectInterface:
                 break
 
         if base_perm is None:
-            return Err(f"User {user.username} does not have permission via any group to use "
-                       f"{permission} access to topic {topic_name}")
+            return Err(Error(f"User {user.username} does not have permission via any group to use "
+                             f"{permission} access to topic {topic_name}", 403))
 
         notional_perm.parent = base_perm
         notional_perm.create()
         return Ok(None)
 
-    def remove_credential_permission(self, user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, str]:
+    def remove_credential_permission(self, user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
         try:
             cred = SCRAMCredentials.objects.get(owner=user, username=cred_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Credential {cred_name} does not exist')
+            return Err(Error(f'Credential {cred_name} does not exist', 404))
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic {topic_name} does not exist')
+            return Err(Error(f'Topic {topic_name} does not exist', 404))
         to_delete = CredentialKafkaPermission.objects.filter(
             principal=cred,
             topic=topic,
@@ -153,87 +164,87 @@ class DirectInterface:
         to_delete.delete()
         return Ok(None)
 
-    def suspend_credential(self, requesting_user: User, credential: SCRAMCredentials) -> Result[None, str]:
+    def suspend_credential(self, requesting_user: User, credential: SCRAMCredentials) -> Result[None, Error]:
         # TODO: check that requesting_user has valid authority
         credential.suspended = True
         credential.save()
         return Ok(None)
 
-    def unsuspend_credential(self, requesting_user: User, credential: SCRAMCredentials) -> Result[None, str]:
+    def unsuspend_credential(self, requesting_user: User, credential: SCRAMCredentials) -> Result[None, Error]:
         # TODO: check that requesting_user has valid authority
         credential.suspended = False
         credential.save()
         return Ok(None)
 
-    def toggle_credential_suspension(self, requesting_user: User, credential: SCRAMCredentials) -> Result[bool, str]:
+    def toggle_credential_suspension(self, requesting_user: User, credential: SCRAMCredentials) -> Result[bool, Error]:
         # TODO: check that requesting_user has valid authority
         credential.suspended = not credential.suspended
         credential.save()
         return Ok(credential.suspended)
 
-    def create_group(self, user: User, group_name: str, description: str) -> Result[None, str]:
+    def create_group(self, user: User, group_name: str, description: str) -> Result[None, Error]:
         if not user.is_staff:
-            return Err(f'User "{user.username}" is not staff. Only staff is able to create groups')
+            return Err(Error(f'User "{user.username}" is not staff. Only staff is able to create groups', 403))
         if not validate_group_name(group_name):
-            return Err('Invalid group name')
+            return Err(Error('Invalid group name', 400))
         if Group.objects.filter(name=group_name).exists():
-            return Err('Group already exists')
+            return Err(Error('Group already exists', 400))
         group = Group.objects.create(name=group_name, description=description)
         group.save()
 
         return Ok(None)
 
-    def delete_group(self, username: str, group_name: str) -> Result[None, str]:
+    def delete_group(self, username: str, group_name: str) -> Result[None, Error]:
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
-            return Err(f'User "{username}" does not exist')
+            return Err(Error(f'User "{username}" does not exist', 404))
         if not user.is_staff:
-            return Err(f'User "{username}" is not staff and cannot delete groups')
+            return Err(Error(f'User "{username}" is not staff and cannot delete groups', 403))
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         # TODO: is this needed, or is it covered by cascading delete rules? Otherwise, is a transaction needed?
         for member in group.members.all():
             remove_user_group_permissions(member.id, group.id)
         group.delete()
         return Ok(None)
 
-    def add_member_to_group(self, group_name: str, username: str, status: MembershipStatus) -> Result[None, str]:
+    def add_member_to_group(self, group_name: str, username: str, status: MembershipStatus) -> Result[None, Error]:
         try:
             group = Group.objects.get(name=group_name)
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
-            return Err('User or group does not exist')
+            return Err(Error('User or group does not exist', 404))
         cur_membership = GroupMembership.objects.filter(user=user, group=group)
         if cur_membership.exists():
-            return Err(f'User "{username}" is already a member of group "{group_name}"')
+            return Err(Error(f'User "{username}" is already a member of group "{group_name}"', 400))
         cur_membership = GroupMembership.objects.create(user=user, group=group, status=status)
         return Ok(None)
 
-    def remove_member_from_group(self, group_name: str, username: str) -> Result[None, str]:
+    def remove_member_from_group(self, group_name: str, username: str) -> Result[None, Error]:
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
-            return Err(f'User "{username}" does not exist')
+            return Err(Error(f'User "{username}" does not exist', 404))
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         membership = GroupMembership.objects.filter(user=user, group=group)
         if not membership.exists():
-            return Err(f'Group "{group_name}" does not include member "{username}"')
+            return Err(Error(f'Group "{group_name}" does not include member "{username}"', 400))
         membership.delete()
         return Ok(None)
 
-    def create_topic(self, user: User, group_name: str, topic_name: str, description: str, publicly_readable: bool) -> Result[None, str]:
+    def create_topic(self, user: User, group_name: str, topic_name: str, description: str, publicly_readable: bool) -> Result[None, Error]:
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err('Group not found')
+            return Err(Error('Group not found', 404))
         if not validate_topic_name(topic_name):
-            return Err("Invalid topic name")
+            return Err(Error("Invalid topic name", 400))
         # TODO: Check that topic does not already exist
         topic = KafkaTopic.objects.create(
             owning_group = group,
@@ -248,73 +259,69 @@ class DirectInterface:
         )
         return Ok(None)
 
-    def delete_topic(self, username: str, topic_name: str) -> Result[None, str]:
-        try:
-            user = User.objects.get(username=username)
-        except ObjectDoesNotExist as dne:
-            return Err(f'User "{username}" does not exist')
+    def delete_topic(self, user: User, topic_name: str) -> Result[None, Error]:
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic "{topic_name}" does not exist')
+            return Err(Error(f'Topic "{topic_name}" does not exist', 404))
         if not GroupMembership.objects.filter(user=user, group=topic.owning_group, status=MembershipStatus.Owner).exists() or not user.is_staff:
-            return Err('User cannot delete topic because they are not an owner or a staff member')
+            return Err(Error('User cannot delete topic because they are not an owner or a staff member', 403))
         with transaction.atomic():
             CredentialKafkaPermission.objects.filter(topic=topic).delete()
             GroupKafkaPermission.objects.filter(topic=topic).delete()
             topic.delete()
         return Ok(None)
 
-    def get_topic(self, topic_name: str) -> Result[KafkaTopic, str]:
+    def get_topic(self, topic_name: str) -> Result[KafkaTopic, Error]:
         try:
             return Ok(KafkaTopic.objects.get(name=topic_name))
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic "{topic_name}" does not exist')
+            return Err(Error(f'Topic "{topic_name}" does not exist', 404))
 
-    def update_topic_description(self, user: User, topic: KafkaTopic, description: str) -> Result[None, str]:
+    def update_topic_description(self, user: User, topic: KafkaTopic, description: str) -> Result[None, Error]:
         #TODO: check that user has authority to do this
         topic.description = description
         topic.save()
         return Ok(None)
 
-    def update_topic_visibility(self, user: User, topic: KafkaTopic, public: bool) -> Result[None, str]:
+    def update_topic_visibility(self, user: User, topic: KafkaTopic, public: bool) -> Result[None, Error]:
         #TODO: check that user has authority to do this
         topic.publicly_readable = public
         topic.save()
         return Ok(None)
 
-    def add_group_topic_permission(self, user: User, group_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, str]:
+    def add_group_topic_permission(self, user: User, group_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
         #TODO: check that user has authority to do this
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic "{topic_name}" does not exist')
+            return Err(Error(f'Topic "{topic_name}" does not exist', 404))
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         add_kafka_permission_for_group(group, topic, permission)
         return Ok(None)
 
 
-    def remove_group_topic_permission(self, user: User, group_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, str]:
+    def remove_group_topic_permission(self, user: User, group_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
         #TODO: check that the user has authority to do this
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic "{topic_name}" does not exist')
+            return Err(Error(f'Topic "{topic_name}" does not exist', 404))
         try:
             group = Group.objects.get(name=group_name)
         except:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         try:
             perm = GroupKafkaPermission.objects.get(principal=group, topic=topic, operation=permission)
         except ObjectDoesNotExist as dne:
-            return Err(f'Permission "{permission}" for topic "{topic_name}" does not exist')
+            return Err(Error(f'Permission "{permission}" for topic "{topic_name}" does not exist', 404))
         remove_kafka_permission_for_group(perm, group.id)
         return Ok(None)
 
-    def get_user_accessible_topics(self, user: User) -> Result[List[Tuple[KafkaTopic, str]], str]:
+    def get_user_accessible_topics(self, user: User) -> Result[List[Tuple[KafkaTopic, str]], Error]:
         data: List[Tuple[KafkaTopic, str]] = []
         memberships = GroupMembership.objects.filter(user=user)
         added_topics: Set[str] = set()
@@ -332,33 +339,33 @@ class DirectInterface:
                 added_topics.add(topic.name)
         return Ok(data)
 
-    def get_user_group_memberships(self, user: User) -> Result[List[GroupMembership], str]:
+    def get_user_group_memberships(self, user: User) -> Result[List[GroupMembership], Error]:
         memberships = user.groupmembership_set.all().select_related('group')
         return Ok(list(memberships))
 
-    def get_all_users(self) -> Result[List[User], str]:
+    def get_all_users(self) -> Result[List[User], Error]:
         users = User.objects.all()
         return Ok(list(users))
 
-    def get_all_credentials(self) -> Result[List[SCRAMCredentials], str]:
+    def get_all_credentials(self) -> Result[List[SCRAMCredentials], Error]:
         credentials = SCRAMCredentials.objects.all()
         return Ok(list(credentials))
 
-    def get_all_topics(self) -> Result[List[KafkaTopic], str]:
+    def get_all_topics(self) -> Result[List[KafkaTopic], Error]:
         topics = KafkaTopic.objects.all()
         return Ok(list(topics))
 
-    def get_all_groups(self) -> Result[List[Group], str]:
+    def get_all_groups(self) -> Result[List[Group], Error]:
         groups = Group.objects.all()
         return Ok(list(groups))
 
-    def get_group(self, group_name: str) -> Result[Group, str]:
+    def get_group(self, group_name: str) -> Result[Group, Error]:
         try:
             return Ok(Group.objects.get(name=group_name))
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
 
-    def get_group_members(self, group: Group) -> Result[List[GroupMembership], str]:
+    def get_group_members(self, group: Group) -> Result[List[GroupMembership], Error]:
         data: List[GroupMembership] = []
         for member in group.members.all():
             user = User.objects.get(username=member.username)
@@ -366,22 +373,22 @@ class DirectInterface:
             data.append(membership)
         return Ok(data)
 
-    def get_group_topics(self, group_name: str) -> Result[List[KafkaTopic], str]:
+    def get_group_topics(self, group_name: str) -> Result[List[KafkaTopic], Error]:
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         topics = KafkaTopic.objects.filter(owning_group=group)
         return Ok(list(topics))
 
-    def is_user_admin(self, username: str) -> Result[bool, str]:
+    def is_user_admin(self, username: str) -> Result[bool, Error]:
         try:
             user = User.objects.get(username=username)
             return Ok(user.is_staff)
         except ObjectDoesNotExist as dne:
-            return Err(f'User "{username}" does not exist')
+            return Err(Error(f'User "{username}" does not exist', 404))
 
-    def get_groups_with_access_to_topic(self, topic: KafkaTopic) -> Result[List[GroupKafkaPermission], str]:
+    def get_groups_with_access_to_topic(self, topic: KafkaTopic) -> Result[List[GroupKafkaPermission], Error]:
         """
         Fetches all group permissions attached to the specified topic
 
@@ -393,7 +400,7 @@ class DirectInterface:
         permissions = GroupKafkaPermission.objects.filter(topic=topic)
         return Ok(list(permissions))
 
-    def get_group_accessible_topics(self, group: Group) -> Result[List[GroupKafkaPermission], str]:
+    def get_group_accessible_topics(self, group: Group) -> Result[List[GroupKafkaPermission], Error]:
         """
         Fetches all topic permissions granted to the specified group
 
@@ -405,24 +412,24 @@ class DirectInterface:
         permissions = GroupKafkaPermission.objects.filter(principal=group)
         return Ok(list(permissions))
 
-    def change_user_group_status(self, username: str, group_name: str, status: MembershipStatus) -> Result[None, str]:
+    def change_user_group_status(self, username: str, group_name: str, status: MembershipStatus) -> Result[None, Error]:
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist as dne:
-            return Err(f'User "{username}" does not exist')
+            return Err(Error(f'User "{username}" does not exist', 404))
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         try:
             membership = GroupMembership.objects.get(user=user, group=group)
         except ObjectDoesNotExist as dne:
-            return Err(f'User does not have a membership to the specified group')
+            return Err(Error(f'User does not have a membership to the specified group', 404))
         membership.status = status
         membership.save()
         return Ok(None)
 
-    def get_group_permissions_for_topic(self, group_name: str, topic_name: str) -> Result[List[GroupKafkaPermission], str]:
+    def get_group_permissions_for_topic(self, group_name: str, topic_name: str) -> Result[List[GroupKafkaPermission], Error]:
         """
         Fetch all permissions the given group has for the given topic
 
@@ -435,24 +442,24 @@ class DirectInterface:
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic "{topic_name}" does not exist')
+            return Err(Error(f'Topic "{topic_name}" does not exist', 404))
         all_perms = GroupKafkaPermission.objects.filter(principal=group, topic=topic)
         return Ok(list(all_perms))
 
-    def modify_group_description(self, group_name: str, description: str) -> Result[None, str]:
+    def modify_group_description(self, group_name: str, description: str) -> Result[None, Error]:
         try:
             group = Group.objects.get(name=group_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Group "{group_name}" does not exist')
+            return Err(Error(f'Group "{group_name}" does not exist', 404))
         group.description = description
         group.save()
         return Ok(None)
 
-    def get_available_credential_permissions(self, user: User, topic: Optional[KafkaTopic]=None) -> Result[List[Tuple[GroupKafkaPermission, str]], str]:
+    def get_available_credential_permissions(self, user: User, topic: Optional[KafkaTopic]=None) -> Result[List[Tuple[GroupKafkaPermission, str]], Error]:
         PermissionPair = Tuple[GroupKafkaPermission, str]
         possible_permissions: List[PermissionPair] = []
         for membership in user.groupmembership_set.all():
@@ -511,14 +518,14 @@ class DirectInterface:
 
         return Ok(dedup)
 
-    def get_credential_permissions_for_topic(self, cred_name: str, topic_name: str) -> Result[List[CredentialKafkaPermission], str]:
+    def get_credential_permissions_for_topic(self, cred_name: str, topic_name: str) -> Result[List[CredentialKafkaPermission], Error]:
         try:
             cred = SCRAMCredentials.objects.get(username=cred_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Credential "{cred_name}" does not exist')
+            return Err(Error(f'Credential "{cred_name}" does not exist', 404))
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:
-            return Err(f'Topic "{topic_name}" does not exist')
+            return Err(Error(f'Topic "{topic_name}" does not exist', 404))
         cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
         return Ok(list(cred_perms))

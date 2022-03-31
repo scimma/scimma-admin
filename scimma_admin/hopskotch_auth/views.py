@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from mozilla_django_oidc.auth import get_user_model
 
 from .forms import *
-from .directinterface import DirectInterface
+from .directinterface import DirectInterface, Error
 from .models import *
 
 import logging
@@ -79,18 +79,17 @@ def log_request(request: AuthenticatedHttpRequest, description: str):
     logger.info(f"User {request.user.username} ({request.user.email}) requested "
                 f"to {description} from {client_ip(request)}")
 
-def redirect_with_error(request: AuthenticatedHttpRequest, operation: str, reason: str,
+def redirect_with_error(request: AuthenticatedHttpRequest, operation: str, err: Error,
                         redirect_to: str, *redir_args, **redir_kwargs) -> HttpResponse:
     logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
-                f"Operation={operation}, Reason={reason}")
-    messages.error(request, reason)
+                f"Operation={operation}, Reason={err.desc}")
+    messages.error(request, err.desc)
     return redirect(redirect_to,  permanent=False, *redir_args, **redir_kwargs)
 
-def json_with_error(request: AuthenticatedHttpRequest, operation: str, reason: str,
-                    status: int) -> JsonResponse:
+def json_with_error(request: AuthenticatedHttpRequest, operation: str, err: Error) -> JsonResponse:
     logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
-                f"Operation={operation}, Reason={reason}")
-    return JsonResponse(status=status, data={'error': reason})
+                f"Operation={operation}, Reason={err.desc}")
+    return JsonResponse(status=err.status, data={'error': err.desc})
 
 
 @login_required
@@ -114,7 +113,7 @@ def index(request: AuthenticatedHttpRequest) -> HttpResponse:
 
     memberships_result = engine.get_user_group_memberships(request.user)
     if not memberships_result:
-        messages.error(request, memberships_result.err())
+        messages.error(request, memberships_result.err().desc)
     else:
         for membership in memberships_result.ok():
             clean_memberships.append({
@@ -126,7 +125,7 @@ def index(request: AuthenticatedHttpRequest) -> HttpResponse:
 
     topics_result = engine.get_user_accessible_topics(request.user)
     if not topics_result:
-        messages.error(request, topics_result.err())
+        messages.error(request, topics_result.err().desc)
     else:
         for topic, means in topics_result.ok():
             clean_topics.append({
@@ -181,7 +180,7 @@ def suspend_credential(request: AuthenticatedHttpRequest, credname: str='', redi
     log_request(request, f"suspend credential {credname}")
     cred_result = engine.get_credential(request.user, credname)
     if not cred_result:
-        messages.error(request, cred_result.err())
+        messages.error(request, cred_result.err().desc)
     else:
         cred = cred_result.ok()
         if cred.suspended:
@@ -189,7 +188,7 @@ def suspend_credential(request: AuthenticatedHttpRequest, credname: str='', redi
         else:
             result = engine.suspend_credential(request.user, cred)
         if not result:
-            messages.error(request, result.err())
+            messages.error(request, result.err().desc)
     if redirect_to == 'index':
         return redirect('index')
     elif redirect_to == 'admin':
@@ -299,8 +298,8 @@ def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
                 True if 'visibility_field' in request.POST else False
             )
             if not create_result:
-                redirect_with_error(request, "create_topic", 'Topic creation failed, please try again. '
-                                    'Reason: '+groups_result.err(), 'index')
+                redirect_with_error(request, "create_topic", Error('Topic creation failed, please try again. '
+                                    'Reason: '+groups_result.err().desc, 400), 'index')
             topic_name = owning_group_name+'.'+topic_name
             for x in request.POST:
                 # TODO: among other issues, this encoding does not cover the full range of possible permissions
@@ -531,7 +530,7 @@ def add_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse
     operation = KafkaOperation[perm_perm]
     add_result = engine.add_credential_permission(request.user, credname, topic_name, operation)
     if not add_result:
-        return json_with_error(request, "add_credential_permission", add_result.err(), 400)
+        return json_with_error(request, "add_credential_permission", add_result.err())
     return JsonResponse(data={}, status=200)
 
 def remove_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
@@ -542,14 +541,14 @@ def remove_credential_permission(request: AuthenticatedHttpRequest) -> JsonRespo
         'credname' not in request.POST or \
         'perm_name' not in request.POST or \
         'perm_perm' not in request.POST:
-        return json_with_error(request, "remove_credential_permission", "Invalid request", 400)
+        return json_with_error(request, "remove_credential_permission", Error("Invalid request", 400))
     credname = request.POST['credname']
     topic_name = request.POST['perm_name']
     perm_perm = request.POST['perm_perm']
     operation = KafkaOperation[perm_perm]
     remove_result = engine.remove_credential_permission(request.user, credname, topic_name, operation)
     if not remove_result:
-        return json_with_error(request, "remove_credential_permission", remove_result.err(), 400)
+        return json_with_error(request, "remove_credential_permission", remove_result.err())
     return JsonResponse(data={}, status=200)
 
 # TODO: Purpose of these functions completely impossible to determine from names.
@@ -609,7 +608,7 @@ def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
     username = request.POST['username']
     add_result = engine.add_member_to_group(groupname, username, MembershipStatus.Member)
     if not add_result:
-        return json_with_error(request, "group_add_member", add_result.err(), 400)
+        return json_with_error(request, "group_add_member", add_result.err())
     return JsonResponse(data={}, status=200)
 
 @login_required
@@ -620,7 +619,7 @@ def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
     username = request.POST['username']
     remove_result = engine.remove_member_from_group(groupname, username)
     if not remove_result:
-        return json_with_error(request, "group_remove_member", remove_result.err(), 400)
+        return json_with_error(request, "group_remove_member", remove_result.err())
     return JsonResponse(data={}, status=200)
 
 @login_required
@@ -634,7 +633,7 @@ def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
     member_status = MembershipStatus[membership]
     status_result = engine.change_user_group_status(username, groupname, member_status)
     if not status_result:
-        return json_with_error(request, "user_change_status", status_result.err(), 400)
+        return json_with_error(request, "user_change_status", status_result.err())
     return JsonResponse(data={}, status=200)
 
 @login_required
@@ -645,7 +644,7 @@ def get_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     topicname = request.POST['topicname']
     perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
     if not perms_result:
-        return json_with_error(request, "get_topic_permissions", perms_result.err(), 400)
+        return json_with_error(request, "get_topic_permissions", perms_result.err())
     data = [str(p.operation) for p in perms_result.ok()]
     return JsonResponse(data={'data': data}, status=200)
 
@@ -659,7 +658,7 @@ def create_topic_in_group(request: AuthenticatedHttpRequest) -> JsonResponse:
 
     create_result = engine.create_topic(request.user, groupname, topicname, '', False)
     if not create_result:
-        return json_with_error(request, "create_topic", create_result.err(), 400)
+        return json_with_error(request, "create_topic", create_result.err())
     full_topic_name = '{}.{}'.format(groupname, topicname)
     editpath = reverse('manage_topic', args=(full_topic_name,))
     return JsonResponse(data={'editpath': editpath}, status=200)
@@ -721,7 +720,7 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
     topicname = request.POST['topicname']
     existing_result = engine.get_credential_permissions_for_topic(credname, topicname)
     if not existing_result:
-        return json_with_error(request, "add_all_credential_permission", existing_result.err(), 400)
+        return json_with_error(request, "add_all_credential_permission", existing_result.err())
     existing = existing_result.ok()
     if any(p.operation == KafkaOperation.All for p in existing):
         # Nothing to do
@@ -730,11 +729,11 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
     for existing_perm in existing:
         remove_result = engine.remove_credential_permission(request.user, credname, topicname, existing_perm.operation)
         if not remove_result:
-            return json_with_error(request, "add_all_credential_permission", remove_result.err(), 400)
+            return json_with_error(request, "add_all_credential_permission", remove_result.err())
     # add the All permission
     add_result = engine.add_credential_permission(request.user, credname, topicname, KafkaOperation.All)
     if not add_result:
-        return json_with_error(request, "add_all_credential_permission", add_result.err(), 400)
+        return json_with_error(request, "add_all_credential_permission", add_result.err())
     return JsonResponse(data={}, status=200)
 
 '''
