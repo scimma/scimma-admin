@@ -20,7 +20,7 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
         return json_with_error(request, "add_all_credential_permission", topic_result.err())
     topic = topic_result.ok()
 
-    perms_result = engine.get_available_credential_permissions(request.user, topic)
+    perms_result = engine.get_available_credential_permissions(request.user, request.user, topic)
     if not perms_result:
         return json_with_error(request, "add_all_credential_permission", perms_result.err())
     perms = perms_result.ok()
@@ -48,7 +48,7 @@ def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonRe
         return json_with_error(request, "get_available_credential_topics", topic_result.err())
     topic = topic_result.ok()
 
-    perms_result = engine.get_available_credential_permissions(request.user, topic)
+    perms_result = engine.get_available_credential_permissions(request.user, request.user, topic)
     if not perms_result:
         return json_with_error(request, "get_available_credential_topics", perms_result.err())
     perms = perms_result.ok()
@@ -61,7 +61,7 @@ def get_available_credential_topics(request: AuthenticatedHttpRequest) -> JsonRe
             'operation': permission[1],
         })
 
-    cred_perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    cred_perms_result = engine.get_credential_permissions_for_topic(request.user, credname, topicname)
     if not cred_perms_result:
         return json_with_error(request, "get_available_credential_topics", cred_perms_result.err())
     cred_perms = cred_perms_result.ok()
@@ -79,7 +79,7 @@ def get_group_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
     topicname = request.POST['topicname']
     groupname = request.POST['groupname']
 
-    group_perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
+    group_perms_result = engine.get_group_permissions_for_topic(request.user, groupname, topicname)
     if not group_perms_result:
         return json_with_error(request, "get_group_permissions", group_perms_result.err())
     group_perms = group_perms_result.ok()
@@ -97,7 +97,7 @@ def bulk_set_topic_permissions(request: AuthenticatedHttpRequest) -> JsonRespons
     topicname = request.POST['topicname']
     permissions = set(request.POST.getlist('permissions'))
 
-    perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
+    perms_result = engine.get_group_permissions_for_topic(request.user, groupname, topicname)
     if not perms_result:
         return json_with_error(request, "bulk_set_topic_permissions", perms_result.err())
     existing = perms_result.ok()
@@ -214,7 +214,7 @@ def delete_topic(request: AuthenticatedHttpRequest) -> JsonResponse:
 @login_required
 def delete_group(request: AuthenticatedHttpRequest) -> JsonResponse:
     log_request(request, f"delete group {request.POST.get('groupname','<unset>')}")
-    delete_result = engine.delete_group(request.user.username, request.POST['groupname'])
+    delete_result = engine.delete_group(request.user, request.POST['groupname'])
     if not delete_result:
         return json_with_error(request, "delete_group", delete_result.err())
     return JsonResponse(data={}, status=200)
@@ -238,7 +238,7 @@ def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonRe
             return json_with_error(request, "bulk_set_credential_permissions", Error("Logically inconsistent request: "
                                    "It does not make sense to combine specific permissions with All", 400))
 
-    perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    perms_result = engine.get_credential_permissions_for_topic(request.user, credname, topicname)
     if not perms_result:
         return json_with_error(request, "bulk_set_credential_permissions", perms_result.err())
     existing = perms_result.ok()
@@ -326,7 +326,7 @@ def delete_all_credential_permissions(request: AuthenticatedHttpRequest) -> Json
                 f" for topic {request.POST.get('topicname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
-    perms_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    perms_result = engine.get_credential_permissions_for_topic(request.user, credname, topicname)
     if not perms_result:
         return json_with_error(request, "delete_all_credential_permissions", perms_result.err())
     for perm in perms_result.ok():

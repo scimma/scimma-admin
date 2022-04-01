@@ -98,11 +98,11 @@ def index(request: AuthenticatedHttpRequest) -> HttpResponse:
     clean_memberships = []
     clean_topics = []
 
-    creds_result = engine.get_user_credentials(request.user)
+    creds_result = engine.get_user_credentials(request.user, request.user)
     if not creds_result:
         # we don't use redirect_with_error for these, because the place we would usually redirect would be
         # the index, and we don't want an infinite redirect loop if something goes wrong.
-        messages.error(request, creds_result.err())
+        messages.error(request, creds_result.err().desc)
     else:
         for cred in creds_result.ok():
             clean_credentials.append({
@@ -111,7 +111,7 @@ def index(request: AuthenticatedHttpRequest) -> HttpResponse:
                 'description': cred.description
             })
 
-    memberships_result = engine.get_user_group_memberships(request.user)
+    memberships_result = engine.get_user_group_memberships(request.user, request.user)
     if not memberships_result:
         messages.error(request, memberships_result.err().desc)
     else:
@@ -123,7 +123,7 @@ def index(request: AuthenticatedHttpRequest) -> HttpResponse:
                 'member_count': membership.group.members.count(),
             })
 
-    topics_result = engine.get_user_accessible_topics(request.user)
+    topics_result = engine.get_user_accessible_topics(request.user, request.user)
     if not topics_result:
         messages.error(request, topics_result.err().desc)
     else:
@@ -212,7 +212,7 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
     cred = cred_result.ok()
 
     # Get all currently added permissions
-    perms_result = engine.get_credential_permissions(request.user, cred.username)
+    perms_result = engine.get_credential_permissions(request.user, cred.owner, cred.username)
     if not perms_result:
         return redirect_with_error(request, "manage_credential", perms_result.err(), 'index')
     # TODO: this code makes no sense; a credential has permissions to topics, and may have several for a
@@ -227,7 +227,7 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
                 'description': perm.topic.description,
                 'access_via': perm.parent.principal.name,
             })
-    avail_perms = engine.get_available_credential_permissions(request.user)
+    avail_perms = engine.get_available_credential_permissions(request.user, cred.owner)
     if not avail_perms:
         return redirect_with_error(request, "manage_credential", avail_perms.err(), 'index')
     avail_topics = [{"topic": x[0].topic.name,
@@ -267,7 +267,7 @@ def finished_group(request: AuthenticatedHttpRequest) -> HttpResponse:
 
 @login_required
 def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
-    groups_result = engine.get_user_group_memberships(request.user)
+    groups_result = engine.get_user_group_memberships(request.user, request.user)
     if not groups_result:
         redirect_with_error(request, "create_topic", groups_result.err(), 'index')
     all_groups = groups_result.ok()
@@ -349,7 +349,7 @@ def manage_topic(request, topicname) -> HttpResponse:
             if not update_result:
                 redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         if 'visibility_field' in request.POST:
-            update_result = engine.update_topic_visibility(request.user, topic, request.POST['visibility_field'])
+            update_result = engine.update_topic_public_readability(request.user, topic, request.POST['visibility_field'])
             if not update_result:
                 redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         return HttpResponseRedirect(request.path_info)
@@ -358,7 +358,7 @@ def manage_topic(request, topicname) -> HttpResponse:
         redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
     topic = topic_result.ok()
 
-    access_result = engine.get_groups_with_access_to_topic(topic)
+    access_result = engine.get_groups_with_access_to_topic(request.user, topic)
     if not access_result:
         redirect_with_error(request, "manage_topic", access_result.err(), 'index')
     groups_added = access_result.ok()
@@ -395,7 +395,7 @@ def manage_group_members(request, groupname) -> HttpResponse:
     if request.method == 'POST':
         log_request(request, f"modify the description of the group with name {groupname}")
         description = request.POST['desc_field']
-        modify_result = engine.modify_group_description(groupname, description)
+        modify_result = engine.modify_group_description(request.user, groupname, description)
         if not modify_result:
             redirect_with_error(request, "modify_group_description", modify_result.err(),
                                 'manage_group_members', groupname=groupname)
@@ -410,7 +410,7 @@ def manage_group_members(request, groupname) -> HttpResponse:
     if not group_result:
         redirect_with_error(request, "modify_group_description", group_result.err(), 'index')
     group = group_result.ok()
-    members_result = engine.get_group_members(group)
+    members_result = engine.get_group_members(request.user, group)
     if not members_result:
         redirect_with_error(request, "modify_group_description", members_result.err(), 'index')
     members = members_result.ok()
@@ -436,7 +436,7 @@ def manage_group_topics(request, groupname) -> HttpResponse:
     if request.method == 'POST':
         log_request(request, f"modify the description of the group with name {groupname}")
         description = request.POST['desc_field']
-        modify_result = engine.modify_group_description(groupname, description)
+        modify_result = engine.modify_group_description(request.user, groupname, description)
         if not modify_result:
             redirect_with_error(request, "manage_group_topics", modify_result.err(),
                                 'manage_group_topics', groupname=groupname)
@@ -447,7 +447,7 @@ def manage_group_topics(request, groupname) -> HttpResponse:
     if not group_result:
         redirect_with_error(request, "manage_group_topics", group_result.err(), 'index')
     group = group_result.ok()
-    topics_result = engine.get_group_topics(groupname)
+    topics_result = engine.get_group_topics(request.user, groupname)
     if not topics_result:
         redirect_with_error(request, "manage_group_topics", topics_result.err(), 'index')
     topics = topics_result.ok()
@@ -469,7 +469,7 @@ def manage_group_topics(request, groupname) -> HttpResponse:
 @login_required
 def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
     log_request(request, "manage all credentials")
-    creds_result = engine.get_all_credentials()
+    creds_result = engine.get_all_credentials(request.user)
     if not creds_result:
         redirect_with_error(request, "admin_credential", creds_result.err(), 'index')
     clean_creds = [{
@@ -485,7 +485,7 @@ def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
 @login_required
 def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
     log_request(request, "manage all topics")
-    topics_result = engine.get_all_topics()
+    topics_result = engine.get_all_topics(request.user)
     if not topics_result:
         redirect_with_error(request, "admin_topic", topics_result.err(), 'index')
     clean_topics = [{
@@ -507,7 +507,7 @@ def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
         'name': group.name,
         'description': group.description,
         'members': [member.user.username
-                    for member in engine.get_group_members(group).ok()]
+                    for member in engine.get_group_members(request.user, group).ok()]
     } for group in groups_result.ok()]
     for group in clean_groups:
         group['mem_count'] = len(group['members'])
@@ -606,7 +606,7 @@ def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
                 f" to group {request.POST.get('groupname','<unset>')}")
     groupname = request.POST['groupname']
     username = request.POST['username']
-    add_result = engine.add_member_to_group(groupname, username, MembershipStatus.Member)
+    add_result = engine.add_member_to_group(request.user, groupname, username, MembershipStatus.Member)
     if not add_result:
         return json_with_error(request, "group_add_member", add_result.err())
     return JsonResponse(data={}, status=200)
@@ -617,7 +617,7 @@ def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
                 f" from group {request.POST.get('groupname','<unset>')}")
     groupname = request.POST['groupname']
     username = request.POST['username']
-    remove_result = engine.remove_member_from_group(groupname, username)
+    remove_result = engine.remove_member_from_group(request.user, groupname, username)
     if not remove_result:
         return json_with_error(request, "group_remove_member", remove_result.err())
     return JsonResponse(data={}, status=200)
@@ -631,7 +631,7 @@ def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
     username = request.POST['username']
     membership = request.POST['status'].lower()
     member_status = MembershipStatus[membership]
-    status_result = engine.change_user_group_status(username, groupname, member_status)
+    status_result = engine.change_user_group_status(request.user, username, groupname, member_status)
     if not status_result:
         return json_with_error(request, "user_change_status", status_result.err())
     return JsonResponse(data={}, status=200)
@@ -642,7 +642,7 @@ def get_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
                 f" permissions for topic {request.POST.get('topicname','<unset>')}")
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
-    perms_result = engine.get_group_permissions_for_topic(groupname, topicname)
+    perms_result = engine.get_group_permissions_for_topic(request.user, groupname, topicname)
     if not perms_result:
         return json_with_error(request, "get_topic_permissions", perms_result.err())
     data = [str(p.operation) for p in perms_result.ok()]
@@ -718,7 +718,7 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
                 f" to credential {request.POST.get('credname','<unset>')}")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
-    existing_result = engine.get_credential_permissions_for_topic(credname, topicname)
+    existing_result = engine.get_credential_permissions_for_topic(request.user, credname, topicname)
     if not existing_result:
         return json_with_error(request, "add_all_credential_permission", existing_result.err())
     existing = existing_result.ok()
