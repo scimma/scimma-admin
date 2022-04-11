@@ -269,7 +269,7 @@ def finished_group(request: AuthenticatedHttpRequest) -> HttpResponse:
 def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
     groups_result = engine.get_user_group_memberships(request.user, request.user)
     if not groups_result:
-        redirect_with_error(request, "create_topic", groups_result.err(), 'index')
+        return redirect_with_error(request, "create_topic", groups_result.err(), 'index')
     all_groups = groups_result.ok()
     owned_groups = []
     available_groups = []
@@ -298,8 +298,8 @@ def create_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
                 True if 'visibility_field' in request.POST else False
             )
             if not create_result:
-                redirect_with_error(request, "create_topic", Error('Topic creation failed, please try again. '
-                                    'Reason: '+groups_result.err().desc, 400), 'index')
+                return redirect_with_error(request, "create_topic", Error('Topic creation failed, please try again. '
+                                           'Reason: '+groups_result.err().desc, 400), 'index')
             topic_name = owning_group_name+'.'+topic_name
             for x in request.POST:
                 # TODO: among other issues, this encoding does not cover the full range of possible permissions
@@ -341,31 +341,31 @@ def manage_topic(request, topicname) -> HttpResponse:
             )
         topic_result = engine.get_topic(full_topic_name)
         if not topic_result:
-            redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
+            return redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
         topic = topic_result.ok()
         # TODO: multiplexing different types of requests through the same function makes precise logging of requests difficult; this needs to be cleaned up
         if 'desc_field' in request.POST:
             update_result = engine.update_topic_description(request.user, topic, request.POST['desc_field'])
             if not update_result:
-                redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
+                return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         if 'visibility_field' in request.POST:
             update_result = engine.update_topic_public_readability(request.user, topic, request.POST['visibility_field'])
             if not update_result:
-                redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
+                return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         return HttpResponseRedirect(request.path_info)
     topic_result = engine.get_topic(topicname)
     if not topic_result:
-        redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
+        return redirect_with_error(request, "manage_topic", topic_result.err(), 'index')
     topic = topic_result.ok()
 
     access_result = engine.get_groups_with_access_to_topic(request.user, topic)
     if not access_result:
-        redirect_with_error(request, "manage_topic", access_result.err(), 'index')
+        return redirect_with_error(request, "manage_topic", access_result.err(), 'index')
     groups_added = access_result.ok()
 
     groups_result = engine.get_all_groups()
     if not groups_result:
-        redirect_with_error(request, "manage_topic", groups_result.err(), 'index')
+        return redirect_with_error(request, "manage_topic", groups_result.err(), 'index')
     groups_available = groups_result.ok()
 
     cleaned_added = []
@@ -397,22 +397,22 @@ def manage_group_members(request, groupname) -> HttpResponse:
         description = request.POST['desc_field']
         modify_result = engine.modify_group_description(request.user, groupname, description)
         if not modify_result:
-            redirect_with_error(request, "modify_group_description", modify_result.err(),
+            return redirect_with_error(request, "modify_group_description", modify_result.err(),
                                 'manage_group_members', groupname=groupname)
         else:
             messages.success(request, 'Successfully modified description')
         return redirect('manage_group_members', groupname=groupname)
     users_result = engine.get_all_users()
     if not users_result:
-        redirect_with_error(request, "modify_group_description", users_result.err(), 'index')
+        return redirect_with_error(request, "modify_group_description", users_result.err(), 'index')
     users = users_result.ok()
     group_result = engine.get_group(groupname)
     if not group_result:
-        redirect_with_error(request, "modify_group_description", group_result.err(), 'index')
+        return redirect_with_error(request, "modify_group_description", group_result.err(), 'index')
     group = group_result.ok()
     members_result = engine.get_group_members(request.user, group)
     if not members_result:
-        redirect_with_error(request, "modify_group_description", members_result.err(), 'index')
+        return redirect_with_error(request, "modify_group_description", members_result.err(), 'index')
     members = members_result.ok()
     # TODO: Quadratic-ish complexity needs fixing
     cleaned_users = []
@@ -438,18 +438,18 @@ def manage_group_topics(request, groupname) -> HttpResponse:
         description = request.POST['desc_field']
         modify_result = engine.modify_group_description(request.user, groupname, description)
         if not modify_result:
-            redirect_with_error(request, "manage_group_topics", modify_result.err(),
+            return redirect_with_error(request, "manage_group_topics", modify_result.err(),
                                 'manage_group_topics', groupname=groupname)
         else:
             messages.success(request, 'Successfully modified description')
         return redirect('manage_group_topics', groupname=groupname)
     group_result = engine.get_group(groupname)
     if not group_result:
-        redirect_with_error(request, "manage_group_topics", group_result.err(), 'index')
+        return redirect_with_error(request, "manage_group_topics", group_result.err(), 'index')
     group = group_result.ok()
     topics_result = engine.get_group_topics(request.user, groupname)
     if not topics_result:
-        redirect_with_error(request, "manage_group_topics", topics_result.err(), 'index')
+        return redirect_with_error(request, "manage_group_topics", topics_result.err(), 'index')
     topics = topics_result.ok()
     # TODO: Is this supposed to be the topics the group owns (from get_group_topics) or the topics
     # to which the group has some access (from get_group_accessible_topics)
@@ -471,7 +471,7 @@ def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
     log_request(request, "manage all credentials")
     creds_result = engine.get_all_credentials(request.user)
     if not creds_result:
-        redirect_with_error(request, "admin_credential", creds_result.err(), 'index')
+        return redirect_with_error(request, "admin_credential", creds_result.err(), 'index')
     clean_creds = [{
         'username': credential.owner.username,
         'credname': credential.username,
@@ -487,7 +487,7 @@ def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
     log_request(request, "manage all topics")
     topics_result = engine.get_all_topics(request.user)
     if not topics_result:
-        redirect_with_error(request, "admin_topic", topics_result.err(), 'index')
+        return redirect_with_error(request, "admin_topic", topics_result.err(), 'index')
     clean_topics = [{
         'owning_group': topic.owning_group.name,
         'name': topic.name,
@@ -502,7 +502,7 @@ def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     log_request(request, "manage all groups")
     groups_result = engine.get_all_groups()
     if not groups_result:
-        redirect_with_error(request, "admin_group", groups_result.err(), 'index')
+        return redirect_with_error(request, "admin_group", groups_result.err(), 'index')
     clean_groups = [{
         'name': group.name,
         'description': group.description,
