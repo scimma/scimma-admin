@@ -80,7 +80,7 @@ class DirectInterface:
             credential = SCRAMCredentials.objects.get(username=cred_name)
         except ObjectDoesNotExist as dne:
             return Err(Error(f'Credential "{cred_name}" does not exist', 404))
-        if credential.owner != user and not user.is_staff:
+        if credential.owner != requesting_user and not requesting_user.is_staff:
             return Err(Error(f'Credentials can only be inspected by the owning user or a staff member', 403))
         return Ok(credential)
 
