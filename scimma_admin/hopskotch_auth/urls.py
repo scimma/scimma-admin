@@ -26,6 +26,7 @@ urlpatterns = [
     path("group_remove_member", views.group_remove_member, name="group_remove_member"),
     path("user_change_status", views.user_change_status, name="user_change_status"),
     path("get_topic_permissions", views.get_topic_permissions, name="get_topic_permissions"),
+    path("create_topic_in_group", views.create_topic_in_group, name="create_topic_in_group"),
     path("bulk_set_topic_permissions", callbacks.bulk_set_topic_permissions, name="bulk_set_topic_permissions"),
 
     path("get_available_credential_topics", callbacks.get_available_credential_topics, name="get_available_credential_topics"),
