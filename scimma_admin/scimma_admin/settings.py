@@ -14,6 +14,7 @@ import os
 import boto3
 import requests
 import configparser
+import datetime
 
 
 def get_secret(name):
@@ -108,7 +109,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mozilla_django_oidc',
-    'bootstrap4'  # TODO: staticfile configuration must be fixed for uwsgi/deployment
+    'bootstrap4',  # TODO: staticfile configuration must be fixed for uwsgi/deployment
+    'rest_framework',
+    'rest_authtoken',
 ]
 
 MIDDLEWARE = [
@@ -248,6 +251,20 @@ LOGGING = {
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+
+SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
+
+REST_TOKEN_TTL = datetime.timedelta(minutes=15)
+
+REST_FRAMEWORK = {
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_authtoken.auth.AuthTokenAuthentication',
+    ),
+}
+
 
 try:
     from local_settings import *

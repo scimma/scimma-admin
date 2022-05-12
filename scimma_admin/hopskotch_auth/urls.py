@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, api_views
 
 
 urlpatterns = [
@@ -33,4 +33,35 @@ urlpatterns = [
     path("remove_credential_permission", views.remove_credential_permission, name="remove_credential_permission"),
     path("suspend_credential", views.suspend_credential, name="suspend_credential"),
     path("unsuspend_credential", views.unsuspend_credential, name="unsuspend_credential"),
+
+    #----
+
+    path("api/scram/first", api_views.scram_first.as_view(), name="scram_first"),
+	path("api/scram/final", api_views.scram_final.as_view(), name="scram_final"),
+
+	path("api/oidc/token_for_user", api_views.token_for_oidc_user.as_view(), name="token_for_user"),
+
+	path("api/users", api_views.UserViewSet.as_view({"get": "list"}), name="users"),
+	path("api/users/<int:pk>", api_views.UserViewSet.as_view({"get": "retrieve"}), name="user_detail"),
+	path("api/users/<int:user>/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list"}), name="user_credentials"),
+	path("api/users/<int:user>/credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="user_credential_detail"),
+	path("api/users/<int:user>/credentials/<int:cred>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
+	path("api/users/<int:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="user_groups"),
+
+	path("api/scram_credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="scram_credentials"),
+	path("api/scram_credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="scram_credentials_detail"),
+
+	path("api/topics", api_views.KafkaTopicViewSet.as_view({"get": "list"}), name="topics"),
+	path("api/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve"}), name="topic_detail"),
+	path("api/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="topic_permissions"),
+
+	path("api/groups", api_views.GroupViewSet.as_view({"get": "list"}), name="groups"),
+	path("api/groups/<int:pk>", api_views.GroupViewSet.as_view({"get": "retrieve"}), name="group_detail"),
+	path("api/groups/<int:group>/members", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="group_members"),
+	path("api/groups/<int:owning_group>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list", "post": "create"}), name="group_topics"),
+	path("api/groups/<int:owning_group>/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "put": "partial_update", "patch": "partial_update"}), name="group_topic_detail"),
+	path("api/groups/<int:granting_group>/topics/<int:topic>/permissions", api_views.KafkaTopicViewSet.as_view({"get": "list", "post": "create"}), name="group_topic_permissions"),
+	path("api/groups/<int:granting_group>/topics/<int:topic>/permissions/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "post": "destroy"}), name="group_topic_permission_detail"),
+	path("api/groups/<int:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_given"),
+	path("api/groups/<int:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_received"),
 ] 
