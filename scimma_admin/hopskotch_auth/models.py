@@ -18,6 +18,7 @@ from passlib.hash import scram
 from passlib.utils import saslprep
 import hmac
 import re
+import rest_authtoken.models
 
 
 class SCRAMAlgorithm(enum.Enum):
@@ -636,3 +637,14 @@ def scram_user_lookup(username):
     if cred.suspended:
         raise ObjectDoesNotExist
     return (bytes(cred.salt), bytes(cred.stored_key), bytes(cred.server_key), cred.iterations)
+
+class RESTAuthToken(rest_authtoken.models.AuthToken):
+    held_by = models.ForeignKey(
+              settings.AUTH_USER_MODEL,
+              #related_name='%(class)ss',
+              on_delete=models.CASCADE)
+
+    def __str__(self) -> str:
+        if self.held_by != self.user:
+            return 'for user {}, held by user {}'.format(self.user, self.held_by)
+        return '{}: {}'.format(self.user, self.hashed_token)

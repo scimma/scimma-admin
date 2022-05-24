@@ -47,6 +47,12 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         read_only_fields = ["pk", "user", "group"]
     status = ReadableEnumField(MembershipStatus)
 
+class GroupMembershipCreationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroupMembership
+        fields = ["user", "group", "status"]
+    status = ReadableEnumField(MembershipStatus)
+
 class KafkaTopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
@@ -79,15 +85,25 @@ class KafkaTopicCreationSerializer(serializers.ModelSerializer):
 class GroupKafkaPermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = GroupKafkaPermission
-        # TODO: operations are serialized as integers, string names would be preferred
         fields = ["pk", "principal", "topic", "operation"]
         read_only_fields = ["pk", "principal", "topic", "operation"]
+    operation = ReadableEnumField(KafkaOperation)
+
+class GroupKafkaPermissionCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroupKafkaPermission
+        fields = ["principal", "topic", "operation"]
     operation = ReadableEnumField(KafkaOperation)
 		
 class CredentialKafkaPermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = CredentialKafkaPermission
-        # TODO: operations are serialized as integers, string names would be preferred
         fields = ["pk", "principal", "topic", "operation"]
         read_only_fields = ["pk", "principal", "topic", "operation"]
+    operation = ReadableEnumField(KafkaOperation)
+    
+class CredentialKafkaPermissionCreationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CredentialKafkaPermission
+        fields = ["principal", "topic", "operation"]
     operation = ReadableEnumField(KafkaOperation)
