@@ -43,7 +43,7 @@ urlpatterns = [
 
 	path("api/v<int:version>/oidc/token_for_user", api_views.TokenForOidcUser.as_view(), name="token_for_user"),
 
-	path("api/v<int:version>/users", api_views.UserViewSet.as_view({"get": "list"}), name="users"),
+	path("api/v<int:version>/users", api_views.UserViewSet.as_view({"get": "list", "post": "create"}), name="users"),
 	path("api/v<int:version>/users/<int:pk>", api_views.UserViewSet.as_view({"get": "retrieve"}), name="user_detail"),
 	path("api/v<int:version>/users/<int:user>/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="user_credentials"),
 	path("api/v<int:version>/users/<int:user>/credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="user_credential_detail"),
