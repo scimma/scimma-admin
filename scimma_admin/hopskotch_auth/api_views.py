@@ -523,12 +523,9 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
             # this includes topics which are public, 
             # and topics for which access has been granted to a group to which the user belongs.
             public_topics = KafkaTopic.objects.filter(publicly_readable=True)
-            #TODO: figure out how to implement selection of topics for which access is granted to a 
-            #group to which the requesting user belongs
-            #accessible_topics = 
+            accessible_topics = KafkaTopic.objects.filter(id__in=GroupKafkaPermission.objects.filter(principal__in=GroupMembership.objects.filter(user=self.request.user).values("group")).values("topic"))
             
-            
-            queryset = public_topics
+            queryset = public_topics | accessible_topics
             
         return queryset
 
