@@ -495,7 +495,7 @@ def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
         'owning_group': topic.owning_group.name,
         'name': topic.name,
         'description': topic.description,
-        'publicly_readable': topic.publicly_readable,
+        'public': "public" if topic.publicly_readable else "",
     } for topic in topics_result.ok()]
     return render(request, 'hopskotch_auth/admin_topic.html', {'all_topics': clean_topics})
 
