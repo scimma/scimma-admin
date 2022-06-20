@@ -482,6 +482,7 @@ def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
         'suspended': credential.suspended,
         'description': credential.description,
     } for credential in creds_result.ok()]
+    clean_creds.sort(key=lambda item: item["credname"])
     return render(request, 'hopskotch_auth/admin_credential.html', {'all_credentials': clean_creds})
 
 @admin_required
@@ -497,6 +498,7 @@ def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
         'description': topic.description,
         'public': "public" if topic.publicly_readable else "",
     } for topic in topics_result.ok()]
+    clean_topics.sort(key=lambda item: item["name"])
     return render(request, 'hopskotch_auth/admin_topic.html', {'all_topics': clean_topics})
 
 @admin_required
@@ -514,6 +516,7 @@ def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     } for group in groups_result.ok()]
     for group in clean_groups:
         group['mem_count'] = len(group['members'])
+    clean_groups.sort(key=lambda item: item["name"])
     return render(request, 'hopskotch_auth/admin_group.html', {'all_groups': clean_groups})
 
 def add_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
