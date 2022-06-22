@@ -113,7 +113,8 @@ $(document).ready(function() {
                 "X-CSRFToken": getCookie('csrftoken')
             },
             data: {
-                credname: objectName
+                credname: objectName,
+                
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);

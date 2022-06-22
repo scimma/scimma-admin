@@ -24,9 +24,11 @@
     <body>
         <nav class="navbar navbar-dark bg-dark fixed-top">
             <div class="container-fluid">
+                {% if user.is_staff %}
                 <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNav" aria-controls="offcanvasNav">
                     <span class="navbar-toggler-icon"></span>
                 </button>
+                {% endif %}
                 <h2 class="text-light col ms-3">
                     <a class="navbar-brand" href="/hopauth"><img src="{% static 'hopskotch_auth/img/logo_transparent.png' %}" class="img-fluid"> SCiMMA Auth</a>
                 </h2>
@@ -49,6 +51,7 @@
                 </div>
             </div>
         </nav>
+        {% if user.is_staff %}
         <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasNav" aria-labelledby="offcanvasNavLabel">
             <div class="offcanvas-header">
                 <h5 class="offcanvas-title" id="offcanvasNavLabel">Quick Navigation</h5>
@@ -104,6 +107,7 @@
                 </ul>
             </div>
         </div>
+        {% endif %}
         <main class="container">
             {% bootstrap_messages %}
             {% block page-body %}
