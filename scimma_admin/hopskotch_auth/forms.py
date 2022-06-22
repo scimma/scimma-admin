@@ -87,11 +87,7 @@ class CreateTopicForm(forms.Form):
     owning_group_field = forms.CharField(label='Owning Group')
     name_field = forms.CharField(label='Name')
     desc_field = forms.CharField(label='Description', widget=forms.Textarea, required=False)
-    visibility_field = forms.ChoiceField(
-        choices=[
-            ('public', 'Public'),
-        ], widget=forms.CheckboxSelectMultiple
-    )
+    visibility_field = forms.BooleanField(required=False)
 
     def __init__(self, owning_group=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -107,7 +103,7 @@ class CreateTopicForm(forms.Form):
             Field('owning_group_field', css_class='row', readonly=True),
             Field('name_field', css_class='row'),
             Field('desc_field', css_class='row'),
-            Field('visibility_field', css_class='row form-check form-switch'),
+            Field('visibility_field', css_class='row form-check'),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
                 Submit('submit', 'Create', css_class='btn-primary'),
@@ -152,11 +148,7 @@ class ManageTopicForm(forms.Form):
     owning_group_field = forms.CharField(label='Owning Group')
     name_field = forms.CharField(label='Name')
     desc_field = forms.CharField(label='Description', widget=forms.Textarea, required=False)
-    visibility_field = forms.ChoiceField(
-        choices=[
-            ('public', 'Public'),
-        ], widget=forms.CheckboxSelectMultiple
-    )
+    visibility_field = forms.BooleanField(required=False)
 
     def __init__(self, owning_group, name, description, public, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -169,12 +161,12 @@ class ManageTopicForm(forms.Form):
         self.fields['owning_group_field'].initial = owning_group
         self.fields['name_field'].initial = name
         self.fields['desc_field'].initial = description
-        self.fields['visibility_field'].initial = ['public']
+        self.fields['visibility_field'].initial = public
         self.helper.layout = Layout(
             Field('owning_group_field', css_class='row', readonly=True),
             Field('name_field', css_class='row', readonly=True),
             Field('desc_field', css_class='row'),
-            Field('visibility_field', css_class='row form-check form-switch'),
+            Field('visibility_field', css_class='row form-check'),
             HTML('''
                 <h2>Added Groups</h2>
                 <div class="border row mb-3">

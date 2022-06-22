@@ -348,8 +348,11 @@ def manage_topic(request, topicname) -> HttpResponse:
             update_result = engine.update_topic_description(request.user, topic, request.POST['desc_field'])
             if not update_result:
                 return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
-        if 'visibility_field' in request.POST:
-            update_result = engine.update_topic_public_readability(request.user, topic, request.POST['visibility_field'])
+        # The state of the visibility_field checkbox is signalled by whether it is included in the
+        # POST data at all. If this signal differs from the current state of the topic's public
+        # visibility, then we must invert it
+        if topic.publicly_readable != ('visibility_field' in request.POST):
+            update_result = engine.update_topic_public_readability(request.user, topic, ('visibility_field' in request.POST))
             if not update_result:
                 return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         return HttpResponseRedirect(request.path_info)
@@ -479,6 +482,7 @@ def admin_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
         'suspended': credential.suspended,
         'description': credential.description,
     } for credential in creds_result.ok()]
+    clean_creds.sort(key=lambda item: item["credname"])
     return render(request, 'hopskotch_auth/admin_credential.html', {'all_credentials': clean_creds})
 
 @admin_required
@@ -492,8 +496,9 @@ def admin_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
         'owning_group': topic.owning_group.name,
         'name': topic.name,
         'description': topic.description,
-        'publicly_readable': topic.publicly_readable,
+        'public': "public" if topic.publicly_readable else "",
     } for topic in topics_result.ok()]
+    clean_topics.sort(key=lambda item: item["name"])
     return render(request, 'hopskotch_auth/admin_topic.html', {'all_topics': clean_topics})
 
 @admin_required
@@ -511,6 +516,7 @@ def admin_group(request: AuthenticatedHttpRequest) -> HttpResponse:
     } for group in groups_result.ok()]
     for group in clean_groups:
         group['mem_count'] = len(group['members'])
+    clean_groups.sort(key=lambda item: item["name"])
     return render(request, 'hopskotch_auth/admin_group.html', {'all_groups': clean_groups})
 
 def add_credential_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
