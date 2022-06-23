@@ -22,9 +22,8 @@ String.prototype.format = function () {
    }
 
 $(document).ready(function() {
-    admin_cred_table = $('#admin-cred-table').DataTable({
+    admin_group_table = $('#admin-group-table').DataTable({
         'columns': [
-            null,
             null,
             {'searchable': false},
             null,
@@ -43,22 +42,22 @@ $(document).ready(function() {
         })
     }
 
-    function onDeleteCredCallback() {
+    function onDeleteGroupCallback() {
         var trElem = $(this).closest('tr');
-        var credname = $(trElem).find('td.credname').text();
-        $('#deleteType').text('credential');
-        $('#deleteName').text(credname);
+        var groupname = $(trElem).find('td.groupname').text();
+        $('#deleteType').text('group');
+        $('#deleteName').text(groupname);
         confirm_modal.toggle();
     }
 
     function onConfirmDeleteCallback() {
         var objectName = $('#deleteName').text();
         trElem = $('tr').find(`[data-name='${objectName}']`);
-        deleteCredential(trElem, objectName);
+        deleteGroup(trElem, objectName);
     }
 
-    function deleteCredential(trElem, objectName) {
-        dc_link = $('#dc_url').data().link;
+    function deleteGroup(trElem, objectName) {
+        dc_link = $('#dg_url').data().link;
         $.ajax({
             url: dc_link,
             method: "POST",
@@ -67,12 +66,12 @@ $(document).ready(function() {
                 "X-CSRFToken": getCookie('csrftoken')
             },
             data: {
-                credname: objectName,
+                groupname: objectName,
                 
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
-                var row = admin_cred_table.row(trElem);
+                var row = admin_group_table.row(trElem);
                 row.remove().draw();
                 confirm_modal.toggle();
             },
@@ -88,6 +87,6 @@ $(document).ready(function() {
 
     initializeModal();
 
-    $('body').on('click', '.deleteCredential', onDeleteCredCallback);
+    $('body').on('click', '.deleteGroup', onDeleteGroupCallback);
     $('#confirmDelete').on('click', onConfirmDeleteCallback);
 });
