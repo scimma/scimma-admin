@@ -40,22 +40,16 @@
                 <tbody>
                     {% for member in members %}
                     <tr scope="row">
-                        <td scope="col" class="mem_id">
-                            {{ member.username }}
-                        </td>
-                        <td scope="col" class="mem_name">
-                            {{ member.name }}
-                        </td>
-                        <td scope="col" class="mem_email">
-                            {{ member.email }}
-                        </td>
-                        <td scope="col">
+                        <td class="mem_id">{{ member.username }}</td>
+                        <td class="mem_name">{{ member.name }}</td>
+                        <td class="mem_email">{{ member.email }}</td>
+                        <td>
                             <select class="mem_perm">
                                 <option {% if member.status == "Member" %}selected{% endif %}>Member</option>
                                 <option {% if member.status == "Owner" %}selected{% endif %}>Owner</option>
                             </select>
                         </td>
-                        <td scope="col" class="remove_button">
+                        <td class="remove_button">
                             <button type="submit" class="btn btn-danger removeFrom">Remove</button>
                         </td>
                     </tr>

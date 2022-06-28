@@ -271,6 +271,33 @@ def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonRe
 
     return JsonResponse(data={}, status=200)
 
+@login_required
+def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"add a user ({request.POST.get('username','<unset>')})"
+                f" to group {request.POST.get('groupname','<unset>')}")
+    print('--------------------------------------------------------------')
+    print(request.POST)
+    print('--------------------------------------------------------------')
+    groupname = request.POST['groupname']
+    username = request.POST['username']
+    add_result = engine.add_member_to_group(request.user, groupname, username, MembershipStatus.Member)
+    if not add_result:
+        return json_with_error(request, "group_add_member", add_result.err())
+    return JsonResponse(data={}, status=200)
+
+@login_required
+def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"remove a user {request.POST.get('username','<unset>')}"
+                f" from group {request.POST.get('groupname','<unset>')}")
+    print('--------------------------------------------------------------')
+    print(request.POST)
+    print('--------------------------------------------------------------')
+    groupname = request.POST['groupname']
+    username = request.POST['username']
+    remove_result = engine.remove_member_from_group(request.user, groupname, username)
+    if not remove_result:
+        return json_with_error(request, "group_remove_member", remove_result.err())
+    return JsonResponse(data={}, status=200)
 # TODO: duplicate ?
 '''
 @login_required

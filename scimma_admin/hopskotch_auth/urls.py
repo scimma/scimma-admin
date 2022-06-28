@@ -22,8 +22,6 @@ urlpatterns = [
     path("admin_credential", views.admin_credential, name="admin_credential"),
     path("admin_topic", views.admin_topic, name="admin_topic"),
     path("admin_group", views.admin_group, name="admin_group"),
-    path("group_add_member", views.group_add_member, name="group_add_member"),
-    path("group_remove_member", views.group_remove_member, name="group_remove_member"),
     path("user_change_status", views.user_change_status, name="user_change_status"),
     path("get_topic_permissions", views.get_topic_permissions, name="get_topic_permissions"),
     path("create_topic_in_group", views.create_topic_in_group, name="create_topic_in_group"),
@@ -38,6 +36,8 @@ urlpatterns = [
     path("delete_topic", callbacks.delete_topic, name="delete_topic"),
     path("delete_group", callbacks.delete_group, name="delete_group"),
     path("toggle_suspend_credential", callbacks.toggle_suspend_credential, name="toggle_suspend_credential"),
+    path("group_add_member", callbacks.group_add_member, name="group_add_member"),
+    path("group_remove_member", callbacks.group_remove_member, name="group_remove_member"),
     path("download", views.download, name="download"),
 
 ]
