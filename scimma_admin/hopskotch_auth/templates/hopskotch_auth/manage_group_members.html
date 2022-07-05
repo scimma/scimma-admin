@@ -28,7 +28,7 @@
             </div>
         </form>
         <h2>Added Members</h2>
-        <div class="border row mb-3">
+        <div class="row mb-3">
             <table class="table" id="added_members">
                 <thead>
                     <th scope="col">Username</th>
@@ -76,7 +76,6 @@
                             <td class="add_email">{{ member.email }}</td>
                             <td><button type="button" class="btn btn-primary addToCur">Add</button></td>
                         </tr>
-                        {% empty %}
                         {% endfor %}
                     </tbody>
                 </table>
