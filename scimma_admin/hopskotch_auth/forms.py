@@ -244,48 +244,6 @@ class ManageGroupMemberForm(forms.Form):
         self.helper.layout = Layout(
             Field('name_field', css_class='row', readonly=True),
             Field('desc_field', css_class='row'),
-            HTML('''
-                <h2>Added Members</h2>
-                <div class="border row mb-3">
-                    <table class="table" id="added_members">
-                        <thead>
-                            <th scope="col">ID</th>
-                            <th scope="col">Name</th>
-                            <th scope="col">Email</th>
-                            <th scope="col">Permission</th>
-                            <th scope="col">Remove</th>
-                        </thead>
-                        <tbody>
-                            {% for member in members %}
-                            <tr scope="row">
-                                <td scope="col" class="mem_id">
-                                    <input type="text" class="form-control-plaintext" name="mem_id[{{ forloop.counter0 }}]" value="{{ member.id }}" readonly>
-                                </td>
-                                <td scope="col" class="mem_name">
-                                    <input type="text" class="form-control-plaintext" name="mem_name[{{ forloop.counter0 }}]" value="{{ member.name }}" readonly>
-                                </td>
-                                <td scope="col" class="mem_email">
-                                    <input type="text" class="form-control-plaintext" name="mem_email[{{ forloop.counter0 }}]" value="{{ member.email }}" readonly>
-                                </td>
-                                <td scope="col" class="mem_type">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" id="perm_mem[{{ forloop.counter0 }}]" name="member_radio[{{ forloop.counter0 }}]" value="member" {% if member.status == 1 %}checked{% endif %}>
-                                        <label class="form-check-label" for="perm_mem[{{ forloop.counter0 }}]">Member</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" id="perm_own[{{ forloop.counter0 }}]" name="member_radio[{{ forloop.counter0 }}]" value="owner" {% if member.status == 2 %}checked{% endif %}>
-                                        <label class="form-check-label" for="perm_own[{{ forloop.counter0 }}]">Owner</label>
-                                    </div>
-                                </td>
-                                <td scope="col" class="remove_button">
-                                    <button type="button" class="btn btn-danger removeFrom">Remove</button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            '''),
             Div(
                 Button('cancel', 'Cancel', css_class='btn-secondary'),
                 Submit('save', 'Create', css_class='btn-primary'),

@@ -23,8 +23,7 @@
                 <textarea id="desc_field" name="desc_field" class="form-field">{{ cur_description }}</textarea>
             </div>
             <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
-                <a class="btn btn-secondary" href="{% url 'index' %}">Cancel</a>
-                <button class="btn btn-primary" role="submit">Submit</button>
+                <button class="btn btn-primary" role="submit">Update Description</button>
             </div>
         </form>
         <h2>Added Members</h2>
@@ -43,8 +42,8 @@
                         <td class="mem_id">{{ member.username }}</td>
                         <td class="mem_name">{{ member.name }}</td>
                         <td class="mem_email">{{ member.email }}</td>
-                        <td>
-                            <select class="mem_perm">
+                        <td class="mem_perm">
+                            <select class="perm_select">
                                 <option {% if member.status == "Member" %}selected{% endif %}>Member</option>
                                 <option {% if member.status == "Owner" %}selected{% endif %}>Owner</option>
                             </select>

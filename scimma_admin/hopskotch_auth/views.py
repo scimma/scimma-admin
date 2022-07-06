@@ -418,20 +418,15 @@ def manage_group_members(request, groupname) -> HttpResponse:
         return redirect_with_error(request, "modify_group_description", members_result.err(), 'index')
     members = members_result.ok()
     # TODO: Quadratic-ish complexity needs fixing
+    # NOTE: Still quadratic (O(n*m)) but it looks better :)
     cleaned_users = []
-    for user in users:
-        is_member = False
-        for membership in members:
-            if user == membership.user:
-                is_member = True
-                break
-        if not is_member:
-            cleaned_users.append(user)
-    clean_members = [m.user for m in members]
+    for member in members:
+        if member.user in users:
+            users.remove(member.user)
+    clean_members = [{'username': m.user.username, 'name': (m.user.last_name + ', ' + m.user.first_name), 'email': m.user.email, 'status': m.status.name} for m in members]
 
-    form = ManageGroupMemberForm(group.name, group.description)
     return render(request, 'hopskotch_auth/manage_group_members.html',
-                  {'form': form, 'members': clean_members, 'accessible_members': cleaned_users,
+                  {'members': clean_members, 'accessible_members': users,
                   'groupname': groupname, 'cur_name': group.name, 'cur_description': group.description})
 
 @login_required
@@ -605,20 +600,6 @@ def remove_group_topic(request: AuthenticatedHttpRequest) -> HttpResponse:
         return redirect('index')
     return redirect('manage_group_topics', groupname)
 '''
-
-@login_required
-def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
-    log_request(request, f"change the status of user {request.POST.get('username','<unset>')}"
-                f" in group {request.POST.get('groupname','<unset>')} to "
-                f"{request.POST.get('status','<unset>')}")
-    groupname = request.POST['groupname']
-    username = request.POST['username']
-    membership = request.POST['status'].lower()
-    member_status = MembershipStatus[membership]
-    status_result = engine.change_user_group_status(request.user, username, groupname, member_status)
-    if not status_result:
-        return json_with_error(request, "user_change_status", status_result.err())
-    return JsonResponse(data={}, status=200)
 
 @login_required
 def get_topic_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:

@@ -275,9 +275,6 @@ def bulk_set_credential_permissions(request: AuthenticatedHttpRequest) -> JsonRe
 def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
     log_request(request, f"add a user ({request.POST.get('username','<unset>')})"
                 f" to group {request.POST.get('groupname','<unset>')}")
-    print('--------------------------------------------------------------')
-    print(request.POST)
-    print('--------------------------------------------------------------')
     groupname = request.POST['groupname']
     username = request.POST['username']
     add_result = engine.add_member_to_group(request.user, groupname, username, MembershipStatus.Member)
@@ -289,14 +286,25 @@ def group_add_member(request: AuthenticatedHttpRequest) -> JsonResponse:
 def group_remove_member(request: AuthenticatedHttpRequest) -> JsonResponse:
     log_request(request, f"remove a user {request.POST.get('username','<unset>')}"
                 f" from group {request.POST.get('groupname','<unset>')}")
-    print('--------------------------------------------------------------')
-    print(request.POST)
-    print('--------------------------------------------------------------')
     groupname = request.POST['groupname']
     username = request.POST['username']
     remove_result = engine.remove_member_from_group(request.user, groupname, username)
     if not remove_result:
         return json_with_error(request, "group_remove_member", remove_result.err())
+    return JsonResponse(data={}, status=200)
+
+@login_required
+def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"change the status of user {request.POST.get('username','<unset>')}"
+                f" in group {request.POST.get('groupname','<unset>')} to "
+                f"{request.POST.get('status','<unset>')}")
+    groupname = request.POST['groupname']
+    username = request.POST['username']
+    membership = request.POST['status']
+    member_status = MembershipStatus[membership]
+    status_result = engine.change_user_group_status(request.user, username, groupname, member_status)
+    if not status_result:
+        return json_with_error(request, "user_change_status", status_result.err())
     return JsonResponse(data={}, status=200)
 # TODO: duplicate ?
 '''

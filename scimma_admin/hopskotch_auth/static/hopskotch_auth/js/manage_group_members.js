@@ -71,6 +71,13 @@ String.prototype.format = function () {
         removeMember(groupname, username, trElem);
     }
 
+    function onChangeMembershipCallback() {
+        var trElem = $(this).closest('tr');
+        var username = trElem.find('td.mem_id').text();
+        var groupname = $('#name_field').val();
+        changeMembership(groupname, username, trElem);
+    }
+
     function addMember(groupname, username, trElem) {
         var mem_id = $(trElem).find('td.add_id').text();
         var mem_name = $(trElem).find('td.add_name').text();
@@ -137,6 +144,33 @@ String.prototype.format = function () {
         });
     }
 
+    function changeMembership(groupname, username, trElem) {
+        ucs_link = $('#ucs_url').data().link;
+        perm_name = $(trElem).find('td.mem_perm > select').val();
+        $.ajax({
+            url: ucs_link,
+            method: "POST",
+            dataType: "json",
+            headers: {
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            data: {
+                groupname: groupname,
+                username: username,
+                status: perm_name
+            },
+            success: function (data, textStatus, jqXHR){
+                console.log('Successfully changed membership')
+            },
+            error: function(jqXHR, textStatus, errorThrown){
+                console.log('Error: ' + errorThrown);
+            },
+            complete: function(jqXHR, textStatus) {
+            }
+        });
+    }
+
     $('body').on('click', '.addToCur', onAddMemberCallback);
     $('body').on('click', '.removeFrom', onRemoveMemberCallback);
+    $('body').on('change', '.mem_perm', onChangeMembershipCallback);
   });
