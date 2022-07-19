@@ -341,12 +341,9 @@ class DirectInterface:
             group = Group.objects.get(name=group_name)
         except:
             return Err(Error(f'Group "{group_name}" does not exist', 404))
-        try:
-            perm = GroupKafkaPermission.objects.get(principal=group, topic=topic, operation=permission)
-        except ObjectDoesNotExist as dne:
-            return Err(Error(f'Permission "{permission}" for topic "{topic_name}" does not exist', 404))
-        remove_kafka_permission_for_group(perm, group.id)
-        return Ok(None)
+        if(remove_kafka_permission_for_group(group, topic, permission)):
+            return Ok(None)
+        return Err(Error(f'Permission cannot be removed', 400))
 
     def get_user_accessible_topics(self, requesting_user: User, target_user: User) -> Result[List[Tuple[KafkaTopic, str]], Error]:
         if requesting_user != target_user and not requesting_user.is_staff:

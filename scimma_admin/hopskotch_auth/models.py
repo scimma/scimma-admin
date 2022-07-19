@@ -349,7 +349,7 @@ def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: K
 
     # look up all permissions for this group/topic combination to figure out if the new record is
     # redundant or some old ones need to be replaced
-    existing = GroupKafkaPermission.objects.filter(principal=group_id, topic=topic.id)
+    existing = GroupKafkaPermission.objects.filter(principal=group.id, topic=topic.id)
 
     if existing.exists():
         if any(same_permission(p, new_record) for p in existing):
@@ -370,16 +370,45 @@ def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: K
         new_record.save()
 
 
-def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_group_id: int=None) -> bool:
-    if owning_group_id is None:
-        topic = permission.topic
-        owning_group_id = topic.owning_group
-    if permission.principal == owning_group_id: # refuse to take away access from the owning group
+def remove_kafka_permission_for_group(principal: Group, topic: KafkaTopic, operation: KafkaOperation) -> bool:
+    """
+    Revoke the permission previously granted to the principle group to perfrom operation on topic.
+
+    Returns false if the removal was not allowed, and the described permission remains in place,
+    otherwise true.
+
+    If the permission described by the inputs did not exist, this operation will do nothing and
+    return success.
+    If the permission to be removed exists as part of a broader permission, the original permission
+    will be deleted and its other individual parts will be recreated as separate records.
+    """
+    # first, make sure not to take away access from the owning group
+    if principal.id == topic.owning_group:
         return False
+
+    # next determine which permission, if any is actually to be removed
+    try:
+        perm = GroupKafkaPermission.objects.get(principal=principal, topic=topic, operation=operation)
+        decompose_all = False
+    except ObjectDoesNotExist as dne:
+        # The exact permission does not exist, but maybe there is an All permission to be taken apart
+        try:
+            perm = GroupKafkaPermission.objects.get(principal=principal, topic=topic, operation=KafkaOperation.All)
+            decompose_all = True
+        except ObjectDoesNotExist as dne:
+            # There really is no relevant permission to remove, so consider the job 'successfully' done
+            return True
+
     with transaction.atomic():
-        permission.delete()
-        # clean up any uses by users in the group of this permission
-        for membership in GroupMembership.objects.filter(group_id=permission.principal):
+        perm.delete()
+        # if we are deleting one aspect of an All permission, recreate the others
+        if decompose_all:
+            for subpermission in KafkaOperation.__members__.items():
+                if subpermission==operation or subpermission==KafkaOperation.All:
+                    continue
+                GroupKafkaPermission(principal=principal, topic=topic, operation=operation).create()
+        # clean up any cases where the removed permission was being used by group members' credentials
+        for membership in GroupMembership.objects.filter(group_id=perm.principal):
             user_creds = SCRAMCredentials.objects.filter(owner=membership.user)
             user_memberships = GroupMembership.objects.filter(user=membership.user)
             user_group_perms: Dict[int, Iterable[GroupKafkaPermission]] = {}
@@ -388,12 +417,12 @@ def remove_kafka_permission_for_group(permission: GroupKafkaPermission, owning_g
                 # for each credential we must see if it has a permission which
                 # derives from the permission being removed
                 for cred_perm in permissions_to_check:
-                    if cred_perm.parent!=permission:
+                    if cred_perm.parent!=perm:
                         continue # great, this one is not affected by this change
                     # if affected, we need to check whether there is any other valid derivation for this
                     # permission which could replace the one being removed
                     repair_or_delete_permission(cred_perm,
-                                                lambda other_group_perm: other_group_perm==permission,
+                                                lambda other_group_perm: other_group_perm==perm,
                                                 user_memberships, user_group_perms)
 
     return True
