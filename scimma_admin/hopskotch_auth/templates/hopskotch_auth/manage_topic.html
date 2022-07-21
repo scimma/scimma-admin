@@ -56,13 +56,13 @@
             <tbody>
                 {% for group in group_list %}
                 <tr scope="row">
-                    <td scope="col" class="group_name">{{ group }}</td>
-                    <td scope="col" class="perm_fields">{% if group == topic_owner %}{% else %}
+                    <td scope="col" class="group_name">{{ group.name }}</td>
+                    <td scope="col" class="perm_fields">{% if group.name == topic_owner %}{% else %}
                       <div>
-                        Read <input type="checkbox" /> Write <input type="checkbox" />
+                        Read <input type="checkbox" {% if group.read %}checked{% endif %}> Write <input type="checkbox" {% if group.write %}checked{% endif %}>
                       </div>
                       {% endif %}</td>
-                    <td scope="col" class="remove_button">{% if group == topic_owner %}Owner{% else %}<button type="button" class="btn btn-danger removeFrom">Remove</button>{% endif %}</td>
+                    <td scope="col" class="remove_button">{% if group.name == topic_owner %}Owner{% else %}<button type="button" class="btn btn-danger removeFrom">Remove</button>{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>

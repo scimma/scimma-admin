@@ -382,7 +382,13 @@ def manage_topic(request, topicname) -> HttpResponse:
                 is_added = True
                 break
         if is_added:
-            cleaned_added.append(group.name)
+            perms_result = engine.get_group_permissions_for_topic(request.user, group.name, topicname)
+            if not perms_result:
+                return redirect_with_error(request, 'manage_topic', perms_result.err(), 'index')
+            ops = [op.operation for op in perms_result.ok()]
+            cleaned_added.append({'name': group.name,
+                                  'read': KafkaOperation.Read in ops,
+                                  'write': KafkaOperation.Write in ops})
         else:
             cleaned_available.append(group.name)
     return render(request,
