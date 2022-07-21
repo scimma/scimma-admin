@@ -6,6 +6,7 @@
 
 
 {% block page-body %}
+<meta id="agp_url" data-link="{% url 'add_topic_group_permission' %}">
 <meta id="ggp_url" data-link="{% url 'get_group_permissions' %}">
 <meta id="bsgp_url" data-link="{% url 'bulk_set_topic_permissions' %}">
     <div class="container-fluid">
@@ -56,7 +57,11 @@
                 {% for group in group_list %}
                 <tr scope="row">
                     <td scope="col" class="group_name">{{ group }}</td>
-                    <td scope="col" class="perm_fields">{% if group == topic_owner %}{% else %}<button type="button" class="btn btn-primary editPerm">Edit</button>{% endif %}</td>
+                    <td scope="col" class="perm_fields">{% if group == topic_owner %}{% else %}
+                      <div>
+                        Read <input type="checkbox" /> Write <input type="checkbox" />
+                      </div>
+                      {% endif %}</td>
                     <td scope="col" class="remove_button">{% if group == topic_owner %}Owner{% else %}<button type="button" class="btn btn-danger removeFrom">Remove</button>{% endif %}</td>
                 </tr>
                 {% endfor %}

@@ -372,6 +372,8 @@ def manage_topic(request, topicname) -> HttpResponse:
     groups_available = groups_result.ok()
 
     cleaned_added = []
+    # TODO: Convert cleaned_added to a dictionary. The key is the group name and the value is a dictionary with keys
+    #       Read and Write where those values are booleans of whether the read or write permission exists
     cleaned_available = []
     for group in groups_available:
         is_added = False

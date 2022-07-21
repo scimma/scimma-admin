@@ -38,6 +38,8 @@ urlpatterns = [
     path("group_add_member", callbacks.group_add_member, name="group_add_member"),
     path("group_remove_member", callbacks.group_remove_member, name="group_remove_member"),
     path("user_change_status", callbacks.user_change_status, name="user_change_status"),
+    path("add_group_to_topic", callbacks.add_group_to_topic, name="add_group_to_topic"),
+    path("add_topic_group_permission", callbacks.add_topic_group_permission, name="add_topic_group_permission"),
     path("download", views.download, name="download"),
 
 ]

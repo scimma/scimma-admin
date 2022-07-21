@@ -28,7 +28,11 @@ table_1_format = '<tr scope="row">\
 
 table_2_format = '<tr scope="row">\
 <td scope="col" class="group_name">{}</td>\
-<td scope="col" class="perm_fields"><button type="button" class="btn btn-primary editPerm">Edit</button></td>\
+<td scope="col" class="perm_fields">\
+  <div>\
+    Read <input type="checkbox" checked> Write <input type="checkbox" >\
+  </div>\
+  </td>\
 <td scope="col" class="remove_button"><button type="button" class="btn btn-danger removeFrom">Remove</button></td>\
 </tr>'
 
@@ -69,7 +73,7 @@ $(document).ready(function() {
         var groupname = trElem.find('td.group_name').text();
         console.log(groupname);
         var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        bsgp_link = $('#bsgp_url').data().link;
+        bsgp_link = $('#agp_url').data().link;
         $.ajax({
             url: bsgp_link,
             method: "POST",
@@ -80,14 +84,14 @@ $(document).ready(function() {
             data: {
                 topicname: topicname,
                 groupname: groupname,
-                permissions: ['All'],
+                permission: 'Read',
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
                 var d = avail_table.row(trElem).data();
                 var row = avail_table.row(trElem);
                 row.remove().draw();
-                $('#added_groups > tbody:last-child').append(table_1_format.format(d[0]));
+                $('#added_groups > tbody:last-child').append(table_2_format.format(d[0]));
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -118,10 +122,9 @@ $(document).ready(function() {
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
-                var group_name = trElem.children('td.group_name').find('input').val();
                 avail_table.row.add(
                     [
-                        group_name,
+                        groupname,
                         '<button type="button" class="btn btn-primary addToCur">Add</button>'
                     ]
                 ).draw();
