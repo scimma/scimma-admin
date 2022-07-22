@@ -15,6 +15,7 @@ import boto3
 import requests
 import configparser
 import datetime
+from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
 def get_secret(name):
@@ -254,7 +255,7 @@ KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUs
 
 SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
 
-REST_TOKEN_TTL = datetime.timedelta(minutes=15)
+REST_TOKEN_TTL = AUTH_TOKEN_VALIDITY
 
 REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [

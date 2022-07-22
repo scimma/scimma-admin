@@ -18,6 +18,7 @@ from passlib.hash import scram
 from passlib.utils import saslprep
 import hmac
 import re
+import datetime
 import rest_authtoken.models
 
 
@@ -614,14 +615,23 @@ class SCRAMExchange(models.Model):
 
     # Authentication exchenages should not be kept around forever,
     # so store when each started in order to facilitate cleanup.
-    began = models.DateTimeField
+    began = models.DateTimeField(default = datetime.datetime(1970,1,1,tzinfo=datetime.timezone.utc))
 
     def s_nonce(self):
         """Extract the server nonce from the stored joined nonce."""
         return self.j_nonce[-self.s_nonce_len:]
 
     def expired(self):
-        return self.began + settings.REST_TOKEN_TTL < datetime.datetime.now(datetime.timezone.utc)
+        return self.began + settings.SCRAM_EXCHANGE_TTL < datetime.datetime.now(datetime.timezone.utc)
+
+    @classmethod
+    def clear_expired(cls) -> int:
+        """
+        Clear exchanges that are expired.
+        """
+        valid_min_creation = datetime.datetime.now(datetime.timezone.utc) - settings.SCRAM_EXCHANGE_TTL
+        deleted_count, detail = cls.objects.filter(began__lt=valid_min_creation).delete()
+        return deleted_count
 
 
 def scram_user_lookup(username):
@@ -641,7 +651,6 @@ def scram_user_lookup(username):
 class RESTAuthToken(rest_authtoken.models.AuthToken):
     held_by = models.ForeignKey(
               settings.AUTH_USER_MODEL,
-              #related_name='%(class)ss',
               on_delete=models.CASCADE)
 
     def __str__(self) -> str:
