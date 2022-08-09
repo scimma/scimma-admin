@@ -7,8 +7,7 @@
 
 {% block page-body %}
 <meta id="agp_url" data-link="{% url 'add_topic_group_permission' %}">
-<meta id="ggp_url" data-link="{% url 'get_group_permissions' %}">
-<meta id="bsgp_url" data-link="{% url 'bulk_set_topic_permissions' %}">
+<meta id="rgp_url" data-link="{% url 'remove_topic_group_permission' %}">
     <div class="container-fluid">
         <h2>Manage Topic</h2>
             <form class="form-horizontal" id="id-createTopicForm" method="post">
@@ -59,7 +58,7 @@
                     <td scope="col" class="group_name">{{ group.name }}</td>
                     <td scope="col" class="perm_fields">{% if group.name == topic_owner %}{% else %}
                       <div>
-                        Read <input type="checkbox" {% if group.read %}checked{% endif %}> Write <input type="checkbox" {% if group.write %}checked{% endif %}>
+                        Read <input class="readCheck" type="checkbox" {% if group.read %}checked{% endif %}> Write <input class="writeCheck" type="checkbox" {% if group.write %}checked{% endif %}>
                       </div>
                       {% endif %}</td>
                     <td scope="col" class="remove_button">{% if group.name == topic_owner %}Owner{% else %}<button type="button" class="btn btn-danger removeFrom">Remove</button>{% endif %}</td>

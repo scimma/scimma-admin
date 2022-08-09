@@ -177,6 +177,69 @@ $(document).ready(function() {
         });
     }
 
+    function onReadCallback() {
+        var trElem = $(this).closest('tr');
+        var isChecked = $(this).is(':checked');
+        var groupname = $(trElem).find('td.group_name').text();
+        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
+        var gp_link = isChecked ? $('#agp_url').data().link : $('#rgp_url').data().link;
+        $.ajax({
+            url: gp_link,
+            method: "POST",
+            dataType: "json",
+            headers: {
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            data: {
+                topicname: topicname,
+                groupname: groupname,
+                permission: 'Read',
+            },
+            success: function (data, textStatus, jqXHR){
+                console.log('Success: ' + textStatus);
+            },
+            error: function(jqXHR, textStatus, errorThrown){
+                console.log('Error: ' + errorThrown);
+            },
+            complete: function(jqXHR, textStatus) {
+                console.log('Complete: ' + textStatus);
+            },
+            traditional: true,
+        });
+    }
+
+    function onWriteCallback() {
+        var trElem = $(this).closest('tr');
+        var isChecked = $(this).is(':checked');
+        var groupname = $(trElem).find('td.group_name').text();
+        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
+        var gp_link = isChecked ? $('#agp_url').data().link : $('#rgp_url').data().link;
+        $.ajax({
+            url: gp_link,
+            method: "POST",
+            dataType: "json",
+            headers: {
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            data: {
+                topicname: topicname,
+                groupname: groupname,
+                permission: 'Write',
+            },
+            success: function (data, textStatus, jqXHR){
+                console.log('Success: ' + textStatus);
+            },
+            error: function(jqXHR, textStatus, errorThrown){
+                console.log('Error: ' + errorThrown);
+            },
+            complete: function(jqXHR, textStatus) {
+                console.log('Complete: ' + textStatus);
+            },
+            traditional: true,
+        });
+    }
+    
+
     function saveEditCallback() {
         var selected_perms = [];
         var boxes = $('input[name=permCheck]:checked');
@@ -219,6 +282,10 @@ $(document).ready(function() {
     $('body').on('click', '.addToCur', addedGroupCallback);
 
     $('body').on('click', '.removeFrom', removedGroupCallback);
+
+    $('body').on('click', '.readCheck', onReadCallback);
+
+    $('body').on('click', '.writeCheck', onWriteCallback);
 
     $('#save_edit').on('click', saveEditCallback);
 

@@ -333,6 +333,20 @@ def add_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonRespons
     if not status_result:
         return json_with_error(request, 'add_topic_group_permission', status_result.err())
     return JsonResponse(data={}, status=200)
+
+@login_required
+def remove_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"adding topic permission of group {request.POST.get('groupname', '<unset>')}"
+                f" for topic {request.POST.get('topicname', '<unset>')}"
+                f" with permission {request.POST.get('permission', '<unset>')}")
+    groupname = request.POST['groupname']
+    topicname = request.POST['topicname']
+    permission = request.POST['permission']
+    permission = KafkaOperation[permission]
+    status_result = engine.remove_group_topic_permission(request.user, groupname, topicname, permission)
+    if not status_result:
+        return json_with_error(request, 'remove_topic_group_permission', status_result.err())
+    return JsonResponse(data={}, status=200)
 # TODO: duplicate ?
 '''
 @login_required

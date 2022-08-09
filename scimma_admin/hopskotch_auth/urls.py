@@ -40,6 +40,7 @@ urlpatterns = [
     path("user_change_status", callbacks.user_change_status, name="user_change_status"),
     path("add_group_to_topic", callbacks.add_group_to_topic, name="add_group_to_topic"),
     path("add_topic_group_permission", callbacks.add_topic_group_permission, name="add_topic_group_permission"),
+    path("remove_topic_group_permission", callbacks.remove_topic_group_permission, name="remove_topic_group_permission"),
     path("download", views.download, name="download"),
 
 ]
