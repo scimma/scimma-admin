@@ -197,9 +197,21 @@ $(document).ready(function() {
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
+                if (isChecked) {
+                    show_alert('Successfully gave {} Read Permission'.format(groupname), 'success');
+                }
+                else {
+                    show_alert("Successfully revoked {}'s Read Permission".format(groupname), 'success');
+                }
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
+                if (isChecked) {
+                    show_alert('Failed to give {} Read Permission'.format(groupname), 'danger');
+                }
+                else {
+                    show_alert("Failed to revoke {}'s Read Permission".format(groupname), 'danger');
+                }
             },
             complete: function(jqXHR, textStatus) {
                 console.log('Complete: ' + textStatus);
@@ -228,9 +240,21 @@ $(document).ready(function() {
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
+                if (isChecked) {
+                    show_alert('Successfully gave {} Write Permission'.format(groupname), 'success');
+                }
+                else {
+                    show_alert("Successfully revoked {}'s Write Permission".format(groupname), 'success');
+                }
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
+                if (isChecked) {
+                    show_alert('Failed to give {} Write Permission'.format(groupname), 'danger');
+                }
+                else {
+                    show_alert("Failed to revoke {}'s Write Permission".format(groupname), 'danger');
+                }
             },
             complete: function(jqXHR, textStatus) {
                 console.log('Complete: ' + textStatus);

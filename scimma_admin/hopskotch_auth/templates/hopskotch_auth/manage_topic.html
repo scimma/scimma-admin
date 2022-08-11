@@ -44,6 +44,7 @@
                 <input type="submit" name="save" value="Modify" class="btn btn-primary btn-primary" id="submit-id-save">
             </div> 
         </form>
+    {% include "hopskotch_auth/messages.html" %}
     <h2>Added Groups</h2>
     <div class="border row mb-3">
         <table class="table" id="added_groups">
@@ -150,5 +151,6 @@
 
 {% block scripts %}
 {{ block.super }}
+<script src="{% static 'hopskotch_auth/js/messages.js' %}"></script>
 <script src="{% static 'hopskotch_auth/js/manage_topic.js' %}"></script>
 {% endblock %}
