@@ -32,6 +32,56 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
     # TODO: Probably some result should be returned?
     return JsonResponse(data={}, status=200)
 
+@login_required
+def add_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, "adding a credential permission")
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    perms = request.POST.getlist('permission[]')
+
+    if isinstance(perms, str):
+        perms = [perms]
+
+    topic_result = engine.get_topic(topicname)
+    if not topic_result:
+        return json_with_error(request, "add_credential_permission", topic_result.err())
+    cred_result = engine.get_credential(request.user, credname)
+    if not cred_result:
+        return json_with_error(request, "add_credential_permission", cred_result.err())
+    for perm in perms:
+        try:
+            perm_result = KafkaOperation[perm]
+        except Exception:
+            return json_with_error(request, "add_credential_permission", Error('Bad permission name: {}'.format(perm.lower()), 400))
+        add_result = engine.add_credential_permission(request.user, credname, topicname, perm_result)
+        if not add_result:
+            return json_with_error(request, "add_credential_permission", add_result.err())
+
+    return JsonResponse(data={}, status=200)
+
+@login_required
+def remove_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    print(request.POST)
+    credname = request.POST['credname']
+    topicname = request.POST['topicname']
+    perms = request.POST.getlist('permission[]')
+
+    if isinstance(perms, str):
+        perms = ['perms']
+    topic_result = engine.get_topic(topicname)
+    if not topic_result:
+        return json_with_error(request, "remove_credential_permission", topic_result.err())
+    cred_result = engine.get_credential(request.user, credname)
+    if not cred_result:
+        return json_with_error(request, "remove_credential_permission", cred_result.err())
+    for perm in perms:
+        try:
+            perm_result = KafkaOperation[perm]
+        except Exception:
+            return json_with_error(request, "remove_credential_permission", Error('Bad permission name: {}'.format(perm.lower()), 400))
+        rem_result = engine.remove_credential_permission(request.user, credname, topicname, perm_result)
+    return JsonResponse(data={}, status=200)
+
 # TODO: the name and implementation of this function are inconsistent: does it get (accessible)
 # topics for the credential (really the user), or possible permissions relating to one topic?
 @login_required
@@ -328,6 +378,7 @@ def add_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonRespons
     groupname = request.POST['groupname']
     topicname = request.POST['topicname']
     permission = request.POST['permission']
+
     permission = KafkaOperation[permission]
     status_result = engine.add_group_topic_permission(request.user, groupname, topicname, permission)
     if not status_result:

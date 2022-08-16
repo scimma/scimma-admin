@@ -30,7 +30,7 @@ table_2_format = '<tr scope="row">\
 <td scope="col" class="group_name">{}</td>\
 <td scope="col" class="perm_fields">\
   <div>\
-    Read <input type="checkbox" checked> Write <input type="checkbox" >\
+    Read <input class="readCheck" type="checkbox" checked> Write <input class="writeCheck" type="checkbox" >\
   </div>\
   </td>\
 <td scope="col" class="remove_button"><button type="button" class="btn btn-danger removeFrom">Remove</button></td>\

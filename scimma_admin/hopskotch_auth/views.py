@@ -217,6 +217,21 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
         return redirect_with_error(request, "manage_credential", perms_result.err(), 'index')
     # TODO: this code makes no sense; a credential has permissions to topics, and may have several for a
     # given topic, it does not have topics themselves
+    cred_topic_perms = {}
+    for perm in perms_result.ok():
+        if perm.topic.name not in cred_topic_perms:
+            cred_topic_perms[perm.topic.name] = {
+                'topic': perm.topic.name,
+                'description': perm.topic.description,
+                'access_via': perm.parent.principal.name,
+                'read': False,
+                'write': False,
+            }
+        if perm.operation == KafkaOperation.Read:
+            cred_topic_perms[perm.topic.name]['read'] = True
+        if perm.operation == KafkaOperation.Write:
+            cred_topic_perms[perm.topic.name]['write'] = True
+        
     added_topics = []
     easy_lookup = []
     for perm in perms_result.ok():
@@ -239,7 +254,8 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
         'hopskotch_auth/manage_credential.html',
         {
             'accessible_topics': avail_topics,
-            'added_topics': added_topics,
+            'added_topics': list(cred_topic_perms.values()),
+            #'added_topics': added_topics,
             'cur_username': cred.username,
             'cur_desc': cred.description})
 

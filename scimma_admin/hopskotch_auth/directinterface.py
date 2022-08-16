@@ -130,7 +130,7 @@ class DirectInterface:
             # Exact permission already exists; nothing to do
             return Ok(None)
 
-        notional_perm = CredentialKafkaPermission(principal=cred, topic=topic, operation=permission)
+        #notional_perm = CredentialKafkaPermission(principal=cred, topic=topic, operation=permission)
         # Do not 'create' notional_perm into the database yet as we have not set its parent permission,
         # and may or may not find a suitable value for that
 
@@ -150,8 +150,14 @@ class DirectInterface:
             return Err(Error(f"User {requesting_user.username} does not have permission via any group to "
                              f"use {permission} access to topic {topic_name}", 403))
 
-        notional_perm.parent = base_perm
-        notional_perm.create()
+        #notional_perm.parent = base_perm
+        #notional_perm.create()
+        CredentialKafkaPermission.objects.create(
+            principal=cred,
+            topic=topic,
+            operation=permission,
+            parent=base_perm
+        )
         return Ok(None)
 
     def remove_credential_permission(self, user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
@@ -274,10 +280,15 @@ class DirectInterface:
             publicly_readable = publicly_readable,
             description = description
         )
-        group_perm = GroupKafkaPermission.objects.create(
+        _ = GroupKafkaPermission.objects.create(
             principal=group,
             topic=topic,
-            operation=KafkaOperation.All
+            operation=KafkaOperation.Read
+        )
+        _ = GroupKafkaPermission.objects.create(
+            principal=group,
+            topic=topic,
+            operation=KafkaOperation.Write
         )
         return Ok(None)
 

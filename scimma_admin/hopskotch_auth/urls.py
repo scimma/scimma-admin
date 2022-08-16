@@ -28,6 +28,8 @@ urlpatterns = [
 
     path("get_available_credential_topics", callbacks.get_available_credential_topics, name="get_available_credential_topics"),
     path("bulk_set_credential_permissions", callbacks.bulk_set_credential_permissions, name="bulk_set_credential_permissions"),
+    path("add_credential_permissions", callbacks.add_credential_permissions, name="add_credential_permissions"),
+    path("remove_credential_permissions", callbacks.remove_credential_permissions, name="remove_credential_permissions"),
     path("get_group_permissions", callbacks.get_group_permissions, name="get_group_permissions"),
     path("delete_all_credential_permissions", callbacks.delete_all_credential_permissions, name="delete_all_credential_permissions"),
     path("add_all_credential_permission", callbacks.add_all_credential_permission, name="add_all_credential_permission"),
