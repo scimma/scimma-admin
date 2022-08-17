@@ -245,10 +245,21 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
     avail_perms = engine.get_available_credential_permissions(request.user, cred.owner)
     if not avail_perms:
         return redirect_with_error(request, "manage_credential", avail_perms.err(), 'index')
+    avail_topics = []
+    for perm in avail_perms.ok():
+        if perm[0].topic.name not in easy_lookup:
+            avail_topics.append({
+                'topic': perm[0].topic.name,
+                'topic_description': perm[0].topic.description,
+                'accessible_by': perm[0].principal.name
+            })
+            easy_lookup.append(perm[0].topic.name)
+    '''
     avail_topics = [{"topic": x[0].topic.name,
                      "topic_description": x[0].topic.description,
                      "accessible_by": x[0].principal.name
                     } for x in avail_perms.ok() if x[0].topic.name not in easy_lookup]
+    '''
 
     return render(request,
         'hopskotch_auth/manage_credential.html',

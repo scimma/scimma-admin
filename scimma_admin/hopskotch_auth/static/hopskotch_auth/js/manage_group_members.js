@@ -27,7 +27,7 @@ String.prototype.format = function () {
                       <td class="mem_id">{}</td>\
                       <td class="mem_name">{}</td>\
                       <td class="mem_email">{}</td>\
-                      <td><select class="mem_perm"><option selected>Member</option><option>Owner</option></select></td>\
+                      <td class="mem_perm"><select class="perm_select"><option selected>Member</option><option>Owner</option></select></td>\
                       <td class="remove_button"><button type="submit" class="btn btn-danger removeFrom">Remove</button></td>\
                       </tr>'
     avail_template = '<tr>\
