@@ -266,6 +266,8 @@ class DirectInterface:
         if not is_group_owner(user.id, group.id) and not user.is_staff:
             return Err(Error(f'User "{user.username}" is not staff or '
                              f'an owner of the {group.name} group', 403))
+        if len(topic_name)==0:
+            return Err(Error("Invalid topic name", 400))
         topic_name = group_name + '.' + topic_name
         if not validate_topic_name(topic_name):
             return Err(Error("Invalid topic name", 400))
