@@ -462,6 +462,15 @@ def delete_all_credential_permissions(request: AuthenticatedHttpRequest) -> Json
             return json_with_error(request, "delete_all_credential_permissions", remove_result.err())
     return JsonResponse(data={}, status=200)
 
+@login_required
+def remove_topic_from_group(request: AuthenticatedHttpRequest) -> JsonResponse:
+    topicname = request.POST['topicname']
+    groupname = request.POST['groupname']
+    status_code = engine.delete_topic(request.user, topicname)
+    if status_code.ok() is not None:
+        return JsonResponse(data={'error': status_code}, status=404)
+    return JsonResponse(data={}, status=200)
+
 # TODO: duplicate ?
 '''
 @login_required
