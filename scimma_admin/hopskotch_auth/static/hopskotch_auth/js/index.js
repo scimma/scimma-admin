@@ -174,7 +174,7 @@ $(document).ready(function() {
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
-                var row = index_topic_table.row(trElem);
+                var row = index_group_table.row(trElem);
                 row.remove().draw();
                 confirm_modal.toggle();
             },

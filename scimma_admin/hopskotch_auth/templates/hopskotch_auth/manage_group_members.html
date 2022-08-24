@@ -39,9 +39,9 @@
                 <tbody>
                     {% for member in members %}
                     <tr scope="row">
-                        <td class="mem_id">{{ member.username }}</td>
-                        <td class="mem_name">{{ member.name }}</td>
-                        <td class="mem_email">{{ member.email }}</td>
+                        <td>{{ member.username }}</td>
+                        <td>{{ member.name }}</td>
+                        <td>{{ member.email }}</td>
                         <td class="mem_perm">
                             <select class="perm_select">
                                 <option {% if member.status == "Member" %}selected{% endif %}>Member</option>
@@ -70,9 +70,9 @@
                     <tbody>
                         {% for member in accessible_members %}
                         <tr>
-                            <td class="add_id">{{ member.username }}</td>
-                            <td class="add_name">{{ member.name }}</td>
-                            <td class="add_email">{{ member.email }}</td>
+                            <td>{{ member.username }}</td>
+                            <td>{{ member.name }}</td>
+                            <td>{{ member.email }}</td>
                             <td><button type="button" class="btn btn-primary addToCur">Add</button></td>
                         </tr>
                         {% endfor %}

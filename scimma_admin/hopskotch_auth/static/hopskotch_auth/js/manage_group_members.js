@@ -21,7 +21,7 @@ String.prototype.format = function () {
     return "";
   }
   
-  $(document).ready(function() {
+$(document).ready(function() {
 
     added_template = '<tr scope="row">\
                       <td class="mem_id">{}</td>\
@@ -40,9 +40,9 @@ String.prototype.format = function () {
     avail_table = $('#avail_members').DataTable({
         'info': false,
         'columns': [
-            null,
-            null,
-            null,
+            {'className': 'add_id'},
+            {'className': 'add_name'},
+            {'className': 'add_email'},
             {'searchable': false, 'orderable': false}
         ]
     });
@@ -50,10 +50,10 @@ String.prototype.format = function () {
     added_table = $('#added_members').DataTable({
         'info': false,
         'columns': [
-            null,
-            null,
-            null,
-            {'searchable': false},
+            {'className': 'mem_id'},
+            {'className': 'mem_name'},
+            {'className': 'mem_email'},
+            {'searchable': false, 'className': 'mem_perm'},
             {'searchable': false, 'orderable': false}
         ]
     });
@@ -95,13 +95,13 @@ String.prototype.format = function () {
                 username: username
             },
             success: function (data, textStatus, jqXHR){
-                var row = avail_table.row(trElem);
-                row.remove().draw();
-                $('#added_members > tbody:last-child').append(added_template.format(mem_id, mem_name, mem_email));
-                var empty_table = $('#added_members').find('.dataTables_empty');
-                if(empty_table.length > 0) {
-                    empty_table.remove();
-                }
+                avail_table.row(trElem).remove().draw(false);
+                added_table.row.add([mem_id, mem_name, mem_email, '<select class="perm_select"><option selected>Member</option><option>Owner</option></select>', '<button type="submit" class="btn btn-danger removeFrom">Remove</button>']).draw(false);
+                //$('#added_members > tbody:last-child').append(added_template.format(mem_id, mem_name, mem_email));
+                //var empty_table = $('#added_members').find('.dataTables_empty');
+                //if(empty_table.length > 0) {
+                //    empty_table.remove();
+                //}
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -128,13 +128,13 @@ String.prototype.format = function () {
                 username: username
             },
             success: function (data, textStatus, jqXHR){
-                var row = added_table.row(trElem);
-                row.remove().draw();
-                $('#avail_members > tbody:last-child').append(avail_template.format(mem_id, mem_name, mem_email));
-                var empty_table = $('#avail_members').find('.dataTables_empty');
-                if(empty_table.length > 0) {
-                    empty_table.remove();
-                }
+                added_table.row(trElem).remove().draw(false);
+                avail_table.row.add([mem_id, mem_name, mem_email, '<button type="button" class="btn btn-primary addToCur">Add</button>']).draw(false);
+                //$('#avail_members > tbody:last-child').append(avail_template.format(mem_id, mem_name, mem_email));
+                //var empty_table = $('#avail_members').find('.dataTables_empty');
+                //if(empty_table.length > 0) {
+                //    empty_table.remove();
+                //}
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
