@@ -11,6 +11,7 @@
 <meta id="bstp_url" data-link="{% url 'bulk_set_topic_permissions' %}">
 <meta id="ctg_url" data-link="{% url 'create_topic_in_group' %}">
 <meta id="rtg_url" data-link="{% url 'remove_topic_from_group' %}">
+<meta id="mt_url" data-link="{% url 'manage_topic' '{}' %}">
     <div class="container-fluid">
         <h2>Manage Group Topics</h2>
         <form method="POST">
@@ -37,8 +38,7 @@
             <thead>
               <th scope="col">Name</th>
               <th scope="col">Description</th>
-              <th scope="col">Access Via</th>
-              <th scope="col">Permission</th>
+              <th scope="col">Edit</th>
               <th scope="col">Remove</th>
             </thead>
             <tbody>
@@ -46,9 +46,8 @@
               <tr>
                 <td class="topic_name">{{ topic.topicname }}</td>
                 <td class="topic_desc">{{ topic.description}}</td>
-                <td class="topic_accs">{{ topic.accessible_by }}</td>
                 <td class="topic_edit"><a class="btn btn-primary editButton" href="{% url 'manage_topic' topic.topicname %}">Edit</button></td>
-                <td class="topic_remv"><button type="button" class="btn btn-danger removeButton">Remove</button>
+                <td class="topic_remv"><button type="button" class="btn btn-danger removeButton">Remove</button></td>
               </tr>
               {% endfor %}
             </tbody>

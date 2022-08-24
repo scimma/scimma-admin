@@ -37,6 +37,15 @@ $(document).ready(function() {
     all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
 
     function initializeTable() {
+      added_table = $('#added_table').DataTable({
+        'info': false,
+        'columns': [
+          {'className': 'topic_name'},
+          {'className': 'topic_desc'},
+          {'searchable': false, 'orderable': false},
+          {'searchable': false, 'orderable': false},
+        ]
+      });
       avail_table = $('#avail_table').DataTable({
         'info': false,
         'columns': [
@@ -73,7 +82,7 @@ $(document).ready(function() {
             topicname: topicname
         },
         success: function (data, textStatus, jqXHR){
-            trElem.remove();
+          added_table.row(trElem).remove().draw(false);
         },
         error: function(jqXHR, textStatus, errorThrown){
             console.log('Error: ' + errorThrown);
@@ -104,7 +113,15 @@ $(document).ready(function() {
           var topic_name = groupname + '.' + topicname;
           var topic_desc = '';
           var topic_access = groupname;
-          $('#added_table > tbody:last-child').append(table_1_format.format(topic_name, topic_desc, topic_access, editpath));
+          mt_link = $('#mt_url').data().link;
+          added_table.row.add([
+            topic_name,
+            topic_desc,
+            '<a class="btn btn-primary editButton" href="{}">Edit</button></td>'.format(mt_link.format(topic_name)),
+            '<button type="button" class="btn btn-danger removeButton">Remove</button>'
+
+          ]).draw(false);
+          //$('#added_table > tbody:last-child').append(table_1_format.format(topic_name, topic_desc, topic_access, editpath));
         },
         error: function(jqXHR, textStatus, errorThrown){
             console.log('Error: ' + errorThrown);
