@@ -38,7 +38,8 @@
                 <ul class="navbar-nav ml-auto">
                 {% if user.is_authenticated %}
                     <li class="nav-item">
-                        <span class="text-light">Current user: {{ user.email }} ({{ user.username }})</span>
+                        <span class="text-light">Current user: {{ user.first_name }} {{ user.last_name }} ({{ user.email }})</span>
+                        <!-- User ID: {{ user.username }} -->
                         <form class="form-inline my-2 my-lg-0" id="logout" action="{% url 'oidc_logout' %}" method="post">
                             {% csrf_token %}
                             <input class="btn btn-primary" type="submit" value="Log out">
