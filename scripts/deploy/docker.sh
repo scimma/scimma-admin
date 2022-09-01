@@ -1,7 +1,11 @@
 #!/bin/bash
 
 docker_build() {
-    docker build --tag scimma-admin-web .
+    if [ $# -eq 1 ]; then
+        IMAGE_TAG="$1"
+    fi
+    docker build --tag scimma-admin-web:"$IMAGE_TAG" .
+    echo "  Built scimma-admin-web:$IMAGE_TAG" 1>&2
 }
 
 docker_login() {
@@ -14,6 +18,9 @@ docker_login() {
 }
 
 docker_push() {
-    docker tag scimma-admin-web 585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin-web
-    docker push 585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin-web:latest
+    if [ $# -eq 1 ]; then
+        IMAGE_TAG="$1"
+    fi
+    docker tag scimma-admin-web:"$IMAGE_TAG" 585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin-web:"$IMAGE_TAG"
+    docker push 585193511743.dkr.ecr.us-west-2.amazonaws.com/scimma-admin-web:"$IMAGE_TAG"
 }
