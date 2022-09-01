@@ -97,11 +97,6 @@ $(document).ready(function() {
             success: function (data, textStatus, jqXHR){
                 avail_table.row(trElem).remove().draw(false);
                 added_table.row.add([mem_id, mem_name, mem_email, '<select class="perm_select"><option selected>Member</option><option>Owner</option></select>', '<button type="submit" class="btn btn-danger removeFrom">Remove</button>']).draw(false);
-                //$('#added_members > tbody:last-child').append(added_template.format(mem_id, mem_name, mem_email));
-                //var empty_table = $('#added_members').find('.dataTables_empty');
-                //if(empty_table.length > 0) {
-                //    empty_table.remove();
-                //}
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -130,11 +125,6 @@ $(document).ready(function() {
             success: function (data, textStatus, jqXHR){
                 added_table.row(trElem).remove().draw(false);
                 avail_table.row.add([mem_id, mem_name, mem_email, '<button type="button" class="btn btn-primary addToCur">Add</button>']).draw(false);
-                //$('#avail_members > tbody:last-child').append(avail_template.format(mem_id, mem_name, mem_email));
-                //var empty_table = $('#avail_members').find('.dataTables_empty');
-                //if(empty_table.length > 0) {
-                //    empty_table.remove();
-                //}
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);

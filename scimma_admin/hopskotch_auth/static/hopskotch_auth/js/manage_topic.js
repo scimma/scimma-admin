@@ -26,6 +26,10 @@ table_1_format = '<tr scope="row">\
 <td scope="col" class="remove_button"><button type="button" class="btn btn-danger removeFrom">Remove</button></td>\
 </tr>'
 
+added_perm_format = '<div>\
+Read <input class="readCheck" type="checkbox" checked> Write <input class="writeCheck" type="checkbox" >\
+</div>'
+
 table_2_format = '<tr scope="row">\
 <td scope="col" class="group_name">{}</td>\
 <td scope="col" class="perm_fields">\
@@ -63,10 +67,19 @@ $(document).ready(function() {
     avail_table = $('#avail_table').DataTable({
         'info': false,
         'columns': [
-            null,
-            {'searchable': false, 'orderable': false}
+            {'className': 'group_name'},
+            {'className': 'remove_button', 'searchable': false, 'orderable': false}
         ]
     });
+
+    added_table = $('#added_groups').DataTable({
+        'info': false,
+        'columns': [
+            {'className': 'group_name'},
+            {'className': 'perm_fields', 'searchable': false, 'orderable': false},
+            {'className': 'remove_button', 'searchable': false, 'orderable': false},
+        ]
+    })
 
     function addedGroupCallback() {
         var trElem = $(this).closest('tr');
@@ -84,14 +97,12 @@ $(document).ready(function() {
             data: {
                 topicname: topicname,
                 groupname: groupname,
-                permission: 'Read',
+                permissions: 'Read',
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
-                var d = avail_table.row(trElem).data();
-                var row = avail_table.row(trElem);
-                row.remove().draw();
-                $('#added_groups > tbody:last-child').append(table_2_format.format(d[0]));
+                avail_table.row(trElem).remove().draw(false);
+                added_table.row.add([groupname, added_perm_format, '<button type="button" class="btn btn-danger removeFrom">Remove</button>']).draw(false);
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -107,7 +118,7 @@ $(document).ready(function() {
         var trElem = $(this).closest('tr');
         var groupname = trElem.find('td.group_name').text();
         var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        bsgp_link = $('#bsgp_url').data().link;
+        bsgp_link = $('#rgp_url').data().link;
         $.ajax({
             url: bsgp_link,
             method: "POST",
@@ -118,54 +129,17 @@ $(document).ready(function() {
             data: {
                 topicname: topicname,
                 groupname: groupname,
-                permissions: [],
+                permissions: ['Read', 'Write'],
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
+                added_table.row(trElem).remove().draw(false);
                 avail_table.row.add(
                     [
                         groupname,
                         '<button type="button" class="btn btn-primary addToCur">Add</button>'
                     ]
                 ).draw();
-                trElem.remove();
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            },
-            traditional: true,
-        });
-    }
-
-    function onEditGroup() {
-        var trElem = $(this).closest('tr');
-        var groupname = $(trElem).find('td.group_name').text();
-        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        ggp_link = $('#ggp_url').data().link;
-        $.ajax({
-            url: ggp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                topicname: topicname,
-                groupname: groupname
-            },
-            success: function (data, textStatus, jqXHR){
-                console.log('Success: ' + textStatus);
-                $('#currently_editing').val(groupname);
-                for (let i = 0; i < all_perms.length; i++) {
-                    $('#' + all_perms[i] + '_perm').prop('checked', false);
-                }
-                for (let i = 0; i < data.permissions.length; i++) {
-                    $('#' + data.permissions[i] + '_perm').prop('checked', true);
-                }
-                edit_modal.toggle();
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -193,7 +167,7 @@ $(document).ready(function() {
             data: {
                 topicname: topicname,
                 groupname: groupname,
-                permission: 'Read',
+                permissions: 'Read',
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
@@ -236,7 +210,7 @@ $(document).ready(function() {
             data: {
                 topicname: topicname,
                 groupname: groupname,
-                permission: 'Write',
+                permissions: 'Write',
             },
             success: function (data, textStatus, jqXHR){
                 console.log('Success: ' + textStatus);
@@ -262,46 +236,8 @@ $(document).ready(function() {
             traditional: true,
         });
     }
-    
-
-    function saveEditCallback() {
-        var selected_perms = [];
-        var boxes = $('input[name=permCheck]:checked');
-        var groupname = $('#currently_editing').val();
-        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        boxes.each(function() {
-            selected_perms.push($(this).val());
-        });
-        bsgp_link = $('#bsgp_url').data().link;
-        $.ajax({
-            url: bsgp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                topicname: topicname,
-                groupname: groupname,
-                permissions: selected_perms,
-            },
-            success: function (data, textStatus, jqXHR){
-                console.log('Success: ' + textStatus);
-                edit_modal.toggle();
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            },
-            traditional: true,
-        });
-    }
 
     initializeModal();
-
-    $('body').on('click', '.editPerm', onEditGroup);
 
     $('body').on('click', '.addToCur', addedGroupCallback);
 
@@ -310,7 +246,4 @@ $(document).ready(function() {
     $('body').on('click', '.readCheck', onReadCallback);
 
     $('body').on('click', '.writeCheck', onWriteCallback);
-
-    $('#save_edit').on('click', saveEditCallback);
-
 });
