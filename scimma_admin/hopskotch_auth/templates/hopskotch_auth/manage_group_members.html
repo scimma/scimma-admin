@@ -1,0 +1,87 @@
+{% extends "hopskotch_auth/base.html" %}
+{% load static %}
+
+{% load crispy_forms_tags %}
+
+{% block title %}Manage Group Members{% endblock %}
+{% block page-header %}Manage Group Members{% endblock %}
+
+{% block page-body %}
+<meta id="ucs_url" data-link="{% url 'user_change_status' %}">
+<meta id="gam_url" data-link="{% url 'group_add_member' %}">
+<meta id="grm_url" data-link="{% url 'group_remove_member' %}">
+    <div class="container">
+        <h2>Manage Group Members</h2>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row">
+                <label for="name_field" class="form-label">Name</label>
+                <input name="name_field" class="form-control" id="name_field" value="{{ cur_name }}" readonly>
+            </div>
+            <div class="row">
+                <label for="desc_field" class="form-label">Description</label>
+                <textarea id="desc_field" name="desc_field" class="form-field">{{ cur_description }}</textarea>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
+                <button class="btn btn-primary" role="submit">Update Description</button>
+            </div>
+        </form>
+        <h2>Added Members</h2>
+        <div class="row mb-3">
+            <table class="table" id="added_members">
+                <thead>
+                    <th scope="col">Username</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Permission</th>
+                    <th scope="col">Remove</th>
+                </thead>
+                <tbody>
+                    {% for member in members %}
+                    <tr scope="row">
+                        <td>{{ member.username }}</td>
+                        <td>{{ member.name }}</td>
+                        <td>{{ member.email }}</td>
+                        <td class="mem_perm">
+                            <select class="perm_select">
+                                <option {% if member.status == "Member" %}selected{% endif %}>Member</option>
+                                <option {% if member.status == "Owner" %}selected{% endif %}>Owner</option>
+                            </select>
+                        </td>
+                        <td class="remove_button">
+                            <button type="submit" class="btn btn-danger removeFrom">Remove</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <h2>Available Members</h2>
+            <div id="available_members">
+                <table class="table table-hover" id="avail_members">
+                    <thead>
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Add</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in accessible_members %}
+                        <tr>
+                            <td>{{ member.username }}</td>
+                            <td>{{ member.name }}</td>
+                            <td>{{ member.email }}</td>
+                            <td><button type="button" class="btn btn-primary addToCur">Add</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script type="text/javascript" src="{% static 'hopskotch_auth/js/manage_group_members.js' %}"></script>
+{% endblock %}

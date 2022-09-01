@@ -1,162 +1,235 @@
 {% extends "hopskotch_auth/base.html" %}
-{% load bootstrap4 tz %}
+{% load django_bootstrap5 tz %}
+{% load static %}
 {% block title %}Home{% endblock %}
 
 {% block page-style %}
 {% endblock %}
 
 {% block page-header %}
-<script>
-    $(function () {
-      $('[data-toggle="popover"]').popover()
-      })
-</script>
 {% endblock %}
 
 {% block page-body %}
-    <section class="creds-list">
-      <h2>Active credentials</h2>
-      <table class="table table-hover table-bordered">
-        <thead>
-          <tr>
-            <th scope="col">Kafka Username</th>
-            <th scope="col">Created On (Pacific Time)</th>
-            <th scope="col">Description</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for cred in credentials %}
-          <tr>
-            <td scope="row">{{ cred.username }}</td>
-            <td>{{ cred.created_at|localtime }}</td>
-            <td>{{ cred.description }}</td>
-            <td>
-              <form action="{% url 'edit_credential' %}" method="get">
-                <input type="hidden" value="{{ cred.username }}" name="cred_username">
-                <input class="btn btn-secondary" type="submit" value="Edit">
-              </form>
-              <form action="{% url 'delete' %}">
-                {% csrf_token %}
-                <input type="hidden" value="{{ cred.username }}" name="cred_username">
-                <input class="btn btn-danger" type="submit" value="Delete">
-              </form>
-            </td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td class="info" colspan="4">No existing credentials found.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-    <hr/>
-    <section class="create">
-      <h2>Create credentials</h2>
-      <p>Click below to create a new set of Kafka credentials.</p>
-      <p>A username and password will be generated for you.</p>
-      <form action="{% url 'create' %}" method="post">
-        {% csrf_token %}
-        <input class="btn btn-outline-primary" type="submit" value="Create new credentials">
-      </form>
-    </section>
-    <hr/>
-    <section class="groups-list">
-      <h2>Group memberships</h2>
-      <table class="table table-hover table-bordered">
-        <thead>
-          <tr>
-            <th scope="col">Group Name</th>
-            <th scope="col">Membership Status</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for membership in memberships %}
-          <tr>
-            <td>{{ membership.group_name }}</td>
-            <td>{{ membership.status }}</td>
-            <td>
-                {% if membership.status|stringformat:"s" == "Owner" %}
-                <form action="{% url 'edit_group' %}" method="get">
-                    <input type="hidden" name="group_id" value="{{ membership.group_id }}">
-                    <input type="submit" value="Edit">
-                </form>
-                {% endif %}
-                {% if request.user.is_staff %}
-                <form action="{% url 'delete_group' %}" method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="group_id" value="{{ membership.group_id }}">
-                    <input type="submit" value="Delete">
-                </form>
-                {% endif %}
-            </td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td class="info" colspan="3">This account does not currently belong to any groups.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
+<meta id="dc_url" data-link="{% url 'delete_credential' %}">
+<meta id="dt_url" data-link="{% url 'delete_topic' %}">
+<meta id="dg_url" data-link="{% url 'delete_group' %}">
+    <div class="container-fluid">
+        <section class="mb-5 creds-list">
+            <h2>
+                Credentials
+                <a href="{% url 'create_credential' %}" class="link-dark" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="Creates a new credential" data-bs-original-title="Help">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
+                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
+                    </svg>
+                </a>
+            </h2>
+            <table class="table table-hover" id="cred-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Username</th>
+                        <th scope="col">Created On</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Manage</th>
+                        <th scope="col">Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cred in credentials %}
+                    <tr>
+                        <td scope="row" class="credname" data-name="{{ cred.username }}">{{ cred.username }}</td>
+                        <td>{{ cred.created_at }}</td>
+                        <td>{{ cred.description }}</td>
+                        <td>
+                            <form action="javascript:void(0);">
+                                <a role="submit" class="btn btn-primary" href="{% url 'manage_credential' cred.username %}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-tools" viewBox="0 0 16 16">
+                                        <path d="M1 0 0 1l2.2 3.081a1 1 0 0 0 .815.419h.07a1 1 0 0 1 .708.293l2.675 2.675-2.617 2.654A3.003 3.003 0 0 0 0 13a3 3 0 1 0 5.878-.851l2.654-2.617.968.968-.305.914a1 1 0 0 0 .242 1.023l3.356 3.356a1 1 0 0 0 1.414 0l1.586-1.586a1 1 0 0 0 0-1.414l-3.356-3.356a1 1 0 0 0-1.023-.242L10.5 9.5l-.96-.96 2.68-2.643A3.005 3.005 0 0 0 16 3c0-.269-.035-.53-.102-.777l-2.14 2.141L12 4l-.364-1.757L13.777.102a3 3 0 0 0-3.675 3.68L7.462 6.46 4.793 3.793a1 1 0 0 1-.293-.707v-.071a1 1 0 0 0-.419-.814L1 0zm9.646 10.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708zM3 11l.471.242.529.026.287.445.445.287.026.529L5 13l-.242.471-.026.529-.445.287-.287.445-.529.026L3 15l-.471-.242L2 14.732l-.287-.445L1.268 14l-.026-.529L1 13l.242-.471.026-.529.445-.287.287-.445.529-.026L3 11z"></path>
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                        <td>
+                            <button role="button" class="btn btn-danger deleteCredential">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
+                                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="accordion" id="credAccordion">
+                <div class="accordion-item mt-3 mb-1">
+                <h2 class="accordion-header" id="credHeading">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCred" aria-expanded="false" aria-controls="collapseCred">
+                    How do I use credentials?
+                  </button>
+                </h2>
+                <div id="collapseCred" class="accordion-collapse collapse" aria-labelledby="credHeading" data-bs-parent="#credAccordion">
+                  <div class="accordion-body">
+                    This is example text with some code probably.
+                  </div>
+                </div>
+              </div>
+            </div>
+        </section>
+        <section class="mb-5 topic-list">
+            <h2>
+                Topics
+            </h2>
+            <table class="table" id="topic-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Topic Name</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Access Via</th>
+                        <th scope="col">Manage</th>
+                        <th scope="col">Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for topic in accessible_topics %}
+                    <tr>
+                        <td class="topicname" data-name="{{ topic.topic }}">{{ topic.topic }}</td>
+                        <td>{{ topic.topic_description }}</td>
+                        <td>{{ topic.accessible_by }}</td>
+                        <td>
+                            <form action="javascript:void(0);">
+                                <a role="submit" class="btn btn-primary" href="{% url 'manage_topic' topic.topic %}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-tools" viewBox="0 0 16 16">
+                                        <path d="M1 0 0 1l2.2 3.081a1 1 0 0 0 .815.419h.07a1 1 0 0 1 .708.293l2.675 2.675-2.617 2.654A3.003 3.003 0 0 0 0 13a3 3 0 1 0 5.878-.851l2.654-2.617.968.968-.305.914a1 1 0 0 0 .242 1.023l3.356 3.356a1 1 0 0 0 1.414 0l1.586-1.586a1 1 0 0 0 0-1.414l-3.356-3.356a1 1 0 0 0-1.023-.242L10.5 9.5l-.96-.96 2.68-2.643A3.005 3.005 0 0 0 16 3c0-.269-.035-.53-.102-.777l-2.14 2.141L12 4l-.364-1.757L13.777.102a3 3 0 0 0-3.675 3.68L7.462 6.46 4.793 3.793a1 1 0 0 1-.293-.707v-.071a1 1 0 0 0-.419-.814L1 0zm9.646 10.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708zM3 11l.471.242.529.026.287.445.445.287.026.529L5 13l-.242.471-.026.529-.445.287-.287.445-.529.026L3 15l-.471-.242L2 14.732l-.287-.445L1.268 14l-.026-.529L1 13l.242-.471.026-.529.445-.287.287-.445.529-.026L3 11z"></path>
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                        <td>
+                            <form>
+                                <button type="button" class="btn btn-danger deleteTopic">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
+                                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="accordion" id="topicAccordion">
+                <div class="accordion-item mt-3 mb-1">
+                <h2 class="accordion-header" id="topicHeading">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTopic" aria-expanded="false" aria-controls="collapseTopic">
+                    How do I use topics?
+                  </button>
+                </h2>
+                <div id="collapseTopic" class="accordion-collapse collapse" aria-labelledby="topicHeading" data-bs-parent="#topicAccordion">
+                  <div class="accordion-body">
+                    This is example text with some code probably.
+                  </div>
+                </div>
+              </div>
+            </div>
+        </section>
+        <section class="py-1 group-list">
+            <h2>
+                Groups
+                <a href="{% url 'create_group' %}" class="link-dark" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="Creates a new group" data-bs-original-title="Help">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
+                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
+                    </svg>
+                </a>
+            </h2>
+            <table class="table" id="group-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Group Name</th>
+                        <th scope="col">Membership Status</th>
+                        <th scope="col">Manage Topics</th>
+                        <th scope="col">Manage Users</th>
+                        <th scope="col">Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for membership in memberships %}
+                    <tr>
+                        <td class="groupname" data-name="{{ membership.group_name }}">{{ membership.group_name }}</td>
+                        <td>{{ membership.status }}</td>
+                        <td>
+                            <form action="javascript:void(0);">
+                                <a role="submit" class="btn btn-primary" href="{% url 'manage_group_topics' membership.group_name %}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-tools" viewBox="0 0 16 16">
+                                        <path d="M1 0 0 1l2.2 3.081a1 1 0 0 0 .815.419h.07a1 1 0 0 1 .708.293l2.675 2.675-2.617 2.654A3.003 3.003 0 0 0 0 13a3 3 0 1 0 5.878-.851l2.654-2.617.968.968-.305.914a1 1 0 0 0 .242 1.023l3.356 3.356a1 1 0 0 0 1.414 0l1.586-1.586a1 1 0 0 0 0-1.414l-3.356-3.356a1 1 0 0 0-1.023-.242L10.5 9.5l-.96-.96 2.68-2.643A3.005 3.005 0 0 0 16 3c0-.269-.035-.53-.102-.777l-2.14 2.141L12 4l-.364-1.757L13.777.102a3 3 0 0 0-3.675 3.68L7.462 6.46 4.793 3.793a1 1 0 0 1-.293-.707v-.071a1 1 0 0 0-.419-.814L1 0zm9.646 10.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708zM3 11l.471.242.529.026.287.445.445.287.026.529L5 13l-.242.471-.026.529-.445.287-.287.445-.529.026L3 15l-.471-.242L2 14.732l-.287-.445L1.268 14l-.026-.529L1 13l.242-.471.026-.529.445-.287.287-.445.529-.026L3 11z"></path>
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                        <td>
+                            <form>
+                                {% csrf_token %}
+                                <a role="submit" class="btn btn-primary" href="{% url 'manage_group_members' membership.group_name %}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person-circle" viewBox="0 0 16 16">
+                                        <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                                        <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                                      </svg>
+                                </button>
+                            </form>
+                        </td>
+                        <td>
+                            <form>
+                                {% csrf_token %}
+                                <button type="button" class="btn btn-danger deleteGroup">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"></path>
+                                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"></path>
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="accordion" id="groupAccordion">
+                <div class="accordion-item mt-3 mb-3">
+                <h2 class="accordion-header" id="groupHeading">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGroup" aria-expanded="false" aria-controls="collapseGroup">
+                    How do I use groups?
+                  </button>
+                </h2>
+                <div id="collapseGroup" class="accordion-collapse collapse" aria-labelledby="groupHeading" data-bs-parent="#groupAccordion">
+                  <div class="accordion-body">
+                    This is example text with some code probably.
+                  </div>
+                </div>
+              </div>
+            </div>
+        </section>
+    </div>
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="confirmModalLabel">Confirm deletion</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="confirm_text">
+                    Are you sure you want to delete the <span id="deleteType"></span>: <span id="deleteName"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" id="confirmDelete">Confirm</button>
+            </div>
+          </div>
+        </div>
+      </div>
+{% endblock %}
 
-    <hr/>
-    <section class="topics-list">
-      <h2>Accessible Topics</h2>
-      <table class="table table-hover table-bordered">
-        <thead>
-          <tr>
-            <th scope="col">Topic Name</th>
-            <th scope="col">Description</th>
-            <th scope="col">Access Type
-                <button type="button" class="btn btn-outline-info btn-sm" data-toggle="popover"
-                    title="Help" data-content="An access type of 'public' indicates a topic which
-                    can be read by any user, with any credential. An access type of 'via group'
-                    means that you have access to the topic because access is granted to
-                    one of the groups in which you are a member. However, to use this access, you
-                    must additionally grant it to oe of your credentials.">?</button>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for topic in accessible_topics %}
-          <tr>
-            <td>{{ topic.name }}</td>
-            <td>{{ topic.description }}</td>
-            <td>{{ topic.access_type }}</td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td class="info" colspan="3">This account does not have access to any topics</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-
-    <hr/>
-    {% if request.user.is_staff %}
-    <section class="group-management">
-      <h2>Manage groups</h2>
-      <form action="{% url 'group_management' %}" method="get">
-          <input class="btn btn-outline-primary" type="submit" value="Manage Groups">
-      </form>
-    </section>
-    <hr/>
-    <section class="topic-management">
-      <h2>Manage topics</h2>
-      <form action="{% url 'topic_management' %}" method="get">
-          <input class="btn btn-outline-primary" type="submit" value="Manage Topics">
-      </form>
-    </section>
-    <hr/>
-    <section class="cred-management">
-      <h2>Manage credentials</h2>
-      <form action="{% url 'credential_management' %}" method="get">
-          <input class="btn btn-outline-primary" type="submit" value="Manage Credentials">
-      </form>
-    </section>
-    {% endif %}
+{% block scripts %}
+{{ block.super }}
+<script src="{% static 'hopskotch_auth/js/index.js' %}"></script>
 {% endblock %}

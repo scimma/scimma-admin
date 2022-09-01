@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, api_views
+from . import views, api_views, callbacks
 
 
 urlpatterns = [
@@ -8,31 +8,42 @@ urlpatterns = [
     path("login", views.login, name="login"),
     path("logout", views.logout, name="logout"),
     path("login_failure", views.login_failure, name="login_failure"),
-    path("delete", views.delete, name="delete"),
-    path("download", views.download, name="download"),
-    path("create", views.create, name="create"),
-    path("group_management", views.group_management, name="group_management"),
+
+    path("create_credential", views.create_credential, name="create_credential"),
+    path("suspend_credential/<str:credname>&<str:redirect_to>", views.suspend_credential, name="suspend_credential"),
     path("create_group", views.create_group, name="create_group"),
-    path("edit_group", views.edit_group, name="edit_group"),
-    path("delete_group", views.delete_group, name="delete_group"),
-    path("change_group_description", views.change_group_description, name="change_group_description"),
-    path("topic_management", views.topic_management, name="topic_management"),
-    path("credential_management", views.credential_management, name="credential_management"),
-    path("change_membership_status", views.change_membership_status, name="change_membership_status"),
-    path("remove_user", views.remove_user, name="remove_user"),
+    path("finished_group", views.finished_group, name="finished_group"),
+    path("manage_credential/<str:credname>", views.manage_credential, name="manage_credential"),
     path("create_topic", views.create_topic, name="create_topic"),
-    path("edit_topic", views.edit_topic, name="edit_topic"),
-    path("change_topic_description", views.change_topic_description, name="change_topic_description"),
-    path("set_topic_public_read_access",views.set_topic_public_read_access, name="set_topic_public_read_access"),
-    path("delete_topic", views.delete_topic, name="delete_topic"),
-    path("remove_group_permission", views.remove_group_permission, name="remove_group_permission"),
-    path("add_group_permission", views.add_group_permission, name="add_group_permission"),
-    path("edit_credential", views.edit_credential, name="edit_credential"),
-    path("change_credential_description", views.change_credential_description, name="change_credential_description"),
-    path("add_credential_permission", views.add_credential_permission, name="add_credential_permission"),
-    path("remove_credential_permission", views.remove_credential_permission, name="remove_credential_permission"),
-    path("suspend_credential", views.suspend_credential, name="suspend_credential"),
-    path("unsuspend_credential", views.unsuspend_credential, name="unsuspend_credential"),
+    path("manage_topic/<str:topicname>", views.manage_topic, name="manage_topic"),
+    path("manage_group_members/<str:groupname>", views.manage_group_members, name="manage_group_members"),
+    path("manage_group_topics/<str:groupname>", views.manage_group_topics, name="manage_group_topics"),
+    path("admin_credential", views.admin_credential, name="admin_credential"),
+    path("admin_topic", views.admin_topic, name="admin_topic"),
+    path("admin_group", views.admin_group, name="admin_group"),
+    path("get_topic_permissions", views.get_topic_permissions, name="get_topic_permissions"),
+    path("create_topic_in_group", views.create_topic_in_group, name="create_topic_in_group"),
+    path("bulk_set_topic_permissions", callbacks.bulk_set_topic_permissions, name="bulk_set_topic_permissions"),
+
+    path("get_available_credential_topics", callbacks.get_available_credential_topics, name="get_available_credential_topics"),
+    path("bulk_set_credential_permissions", callbacks.bulk_set_credential_permissions, name="bulk_set_credential_permissions"),
+    path("add_credential_permissions", callbacks.add_credential_permissions, name="add_credential_permissions"),
+    path("remove_credential_permissions", callbacks.remove_credential_permissions, name="remove_credential_permissions"),
+    path("get_group_permissions", callbacks.get_group_permissions, name="get_group_permissions"),
+    path("delete_all_credential_permissions", callbacks.delete_all_credential_permissions, name="delete_all_credential_permissions"),
+    path("add_all_credential_permission", callbacks.add_all_credential_permission, name="add_all_credential_permission"),
+    path("delete_credential", callbacks.delete_credential, name="delete_credential"),
+    path("delete_topic", callbacks.delete_topic, name="delete_topic"),
+    path("delete_group", callbacks.delete_group, name="delete_group"),
+    path("toggle_suspend_credential", callbacks.toggle_suspend_credential, name="toggle_suspend_credential"),
+    path("group_add_member", callbacks.group_add_member, name="group_add_member"),
+    path("group_remove_member", callbacks.group_remove_member, name="group_remove_member"),
+    path("user_change_status", callbacks.user_change_status, name="user_change_status"),
+    path("add_group_to_topic", callbacks.add_group_to_topic, name="add_group_to_topic"),
+    path("add_topic_group_permission", callbacks.add_topic_group_permission, name="add_topic_group_permission"),
+    path("remove_topic_group_permission", callbacks.remove_topic_group_permission, name="remove_topic_group_permission"),
+    path("remove_topic_from_group", callbacks.remove_topic_from_group, name="remove_topic_from_group"),
+    path("download", views.download, name="download"),
 
     #----
 
@@ -68,4 +79,5 @@ urlpatterns = [
 	path("api/v<int:version>/groups/<int:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_given"),
     path("api/v<int:version>/groups/<int:granting_group>/permissions_given/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_permissions_given_detail"),
 	path("api/v<int:version>/groups/<int:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_received"),
-] 
+
+]

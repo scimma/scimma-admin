@@ -44,17 +44,6 @@ def get_localdev_secret(name):
     print(cp.sections())
     return cp["secrets"][name]
 
-# ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
-# back to the client. This custom middleware tries to keep it happy.
-def set_redirect_headers(get_response):
-    def middleware(request):
-        response = get_response(request)
-        if response.status_code == 301:
-            response['Content-Type'] = '*/*; charset="UTF-8"'
-            response['Content-Length'] = 0
-        return response
-    return middleware
-
 SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 
 _aws_name_prefixes = {
@@ -83,15 +72,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if not LOCAL_TESTING:
-    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
+    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-django-secret")
 else:
     SECRET_KEY = "zzzlocal"
 
-if not LOCAL_TESTING:
-    SECURE_SSL_REDIRECT = True
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = SCIMMA_ENVIRONMENT != "prod"
+DEBUG = SCIMMA_ENVIRONMENT != "production"
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -110,10 +96,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mozilla_django_oidc',
-    'bootstrap4',  # TODO: staticfile configuration must be fixed for uwsgi/deployment
+    'django_bootstrap5',
+    "crispy_forms",
+    "crispy_bootstrap5",
     'rest_framework',
     'rest_authtoken',
 ]
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+
+CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
     'scimma_admin.settings.set_redirect_headers', # must be placed before SecurityMiddleware to modify redirects
@@ -153,12 +144,12 @@ WSGI_APPLICATION = 'scimma_admin.wsgi.application'
 
 DATABASES = {'default': {}}
 if not LOCAL_TESTING:
-    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-postgres")
+    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-keycloak-postgres")
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': rds_db['DBName'],
         'USER': rds_db['MasterUsername'],
-        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-db-password"),
+        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-db-password"),
         'HOST': rds_db['Endpoint']['Address'],
         'PORT': str(rds_db['Endpoint']['Port']),
     }
@@ -175,17 +166,17 @@ else:
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
-OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
-OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
-OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
+OIDC_OP_TOKEN_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
+OIDC_OP_USER_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
 OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
+OIDC_OP_JWKS_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
 AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
 if not LOCAL_TESTING:
-    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX+"scimma-admin-cilogon-client-id")
-    OIDC_RP_CLIENT_SECRET = get_secret(AWS_NAME_PREFIX+"scimma-admin-cilogon-client-secret")
+    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-id")
+    OIDC_RP_CLIENT_SECRET = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-secret")
 else:
     OIDC_RP_CLIENT_ID = 'cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
     OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
@@ -251,7 +242,7 @@ LOGGING = {
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="/Hopskotch Users")
 
 SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
 
