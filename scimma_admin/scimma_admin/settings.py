@@ -83,7 +83,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if not LOCAL_TESTING:
-    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-django-secret")
+    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
 else:
     SECRET_KEY = "zzzlocal"
 
@@ -155,12 +155,12 @@ WSGI_APPLICATION = 'scimma_admin.wsgi.application'
 
 DATABASES = {'default': {}}
 if not LOCAL_TESTING:
-    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-keycloak-postgres")
+    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-postgres")
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': rds_db['DBName'],
         'USER': rds_db['MasterUsername'],
-        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-db-password"),
+        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-db-password"),
         'HOST': rds_db['Endpoint']['Address'],
         'PORT': str(rds_db['Endpoint']['Port']),
     }
@@ -177,11 +177,11 @@ else:
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
-OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
-OIDC_OP_TOKEN_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
-OIDC_OP_USER_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
+OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
+OIDC_OP_USER_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
 OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_OP_JWKS_ENDPOINT = 'https://keycloak-test.dev.hop.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
+OIDC_OP_JWKS_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
 AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
