@@ -69,7 +69,11 @@
                 </h2>
                 <div id="collapseCred" class="accordion-collapse collapse" aria-labelledby="credHeading" data-bs-parent="#credAccordion">
                   <div class="accordion-body">
-                    This is example text with some code probably.
+                    <p>(SCRAM) Credentials are used to authenticate with the programmatic side of the Hopskotch data broker service. 
+                    You should create at least one credential (using the plus button above) to send or receive data. 
+                    
+                    <p>To use your Hopskotch credentials to send or receive alerts, you need to install the <code>hop-client</code> and add your credential. 
+                    See <a href="https://github.com/scimma/hop-client/wiki/Tutorial:-using-hop-client-with-the-SCiMMA-Hopskotch-server">the tutorial</a> for a step-by-step guide on how to do this. 
                   </div>
                 </div>
               </div>
@@ -116,7 +120,14 @@
                 </h2>
                 <div id="collapseTopic" class="accordion-collapse collapse" aria-labelledby="topicHeading" data-bs-parent="#topicAccordion">
                   <div class="accordion-body">
-                    This is example text with some code probably.
+                    <p>A topic is a data stream for messages with some particular purpose or association. 
+                  
+                    <p>To subscribe or publish to a topic, you must grant access to one of your credentials. 
+                    If you have not already created a credential, do that first, and follow the instructions to add it to your installation of the <code>hop-client</code>.
+                    Once you have a credential installed, edit its permissions by locating it in the table at the top of this page, and clicking the corresponding 'Manage' button.
+                    On the management page, look in the 'Available Permissions' table to find the topic you want to work with (the search box may help if you have many options).
+                    Click the add button to grant permission to access that topic, which will cause an entry to appear in the 'Added Permissions' table. 
+                    Optionally, if you will be publishing alerts to this topic, you can add write permission as well, by checking the corresponding check box. 
                   </div>
                 </div>
               </div>
@@ -178,7 +189,14 @@
                 </h2>
                 <div id="collapseGroup" class="accordion-collapse collapse" aria-labelledby="groupHeading" data-bs-parent="#groupAccordion">
                   <div class="accordion-body">
-                    This is example text with some code probably.
+                    <p>Groups are responsible for owning topics, and granting access as appropriate to members of other groups. 
+                    
+                    <p>If you do not belong to any groups, you will only be able to read from topics whose owning groups have marked them public. 
+                    If you are a member of a group, you will automatically have access to all topics owned by that group, and to any topics for which the owners have granted access to yours group. 
+                    
+                    <p>If you are an owner of a group you can create topics, mange granting access to other groups, and manage which users are members of your group. 
+                    
+                    <p>Groups are created by SCiMMA staff. Please contact us if you need to operate a group either to publish alerts or to receive access to non-public topcs from another group. 
                   </div>
                 </div>
               </div>
