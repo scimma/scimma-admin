@@ -26,7 +26,7 @@
                 <button class="btn btn-primary" role="submit">Update Description</button>
             </div>
         </form>
-        <h2>Added Members</h2>
+        <h2>Current Members</h2>
         <div class="row mb-3">
             <table class="table" id="added_members">
                 <thead>
@@ -39,7 +39,7 @@
                 <tbody>
                     {% for member in members %}
                     <tr scope="row">
-                        <td>{{ member.username }}</td>
+                        <td data-name="{{ member.username }}">{{ member.username }}</td>
                         <td>{{ member.name }}</td>
                         <td>{{ member.email }}</td>
                         <td class="mem_perm">
@@ -56,7 +56,7 @@
                 </tbody>
             </table>
         </div>
-        <h2>Available Members</h2>
+        <h2>Available Users</h2>
             <div id="available_members">
                 <table class="table table-hover" id="avail_members">
                     <thead>
@@ -79,6 +79,28 @@
                     </tbody>
                 </table>
             </div>
+
+
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="confirmModalLabel">Confirm Deletion</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="confirm_text">
+                Are you sure you want to remove user <span id="deleteName"></span> from this group?
+                This user will lose all permissions derived from this group.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="confirmDelete">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}

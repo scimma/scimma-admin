@@ -35,12 +35,23 @@ $(document).ready(function() {
   avail_table = $('#avail_table').DataTable({
       'info': false,
       'columns': [
-          null,
-          null,
-          {'searchable': false},
+          {'className': 'topic_name'},
+          {'className': 'topic_desc'},
+          {'className': 'topic_access', 'searchable': false},
           {'searchable': false, 'orderable': false}
       ]
   });
+
+  added_table = $('#added_table').DataTable({
+    'info': false,
+    'columns': [
+        {'className': 'topic_name'},
+        {'className': 'topic_desc'},
+        {'className': 'topic_access'},
+        {'className': 'perm_boxes', 'searchable': false, 'orderable': false},
+        {'className': 'remove_button', 'searchable': false, 'orderable': false},
+    ]
+  })
 
   table_1_format = '\
     <tr>\
@@ -52,6 +63,9 @@ $(document).ready(function() {
     </tr>\
   '
 
+  perm_box_format = 'Read <input type="checkbox" class="form-check-input readCheck" checked> Write <input type="checkbox" class="form-check-input writeCheck">'
+  remove_button_format = '<button type="button" class="btn btn-danger removeFrom objectModifier">Remove</button>'
+
   table_2_format = '\
     <tr>\
     <td class="topic_name">{}</td>\
@@ -60,6 +74,8 @@ $(document).ready(function() {
     <td><button type="button" class="btn btn-primary addToCur">Add</button></td>\
     </tr>\
   '
+
+  add_button_format = '<button type="button" class="btn btn-primary addToCur">Add</button>'
 
   function addToCurCallback() {
       var trElem = $(this).closest('tr');
@@ -83,9 +99,11 @@ $(document).ready(function() {
             'permission': ['Read'],
         },
         success: function (data, textStatus, jqXHR){
-            var row = avail_table.row(trElem);
-            row.remove().draw();
-            $('#added_permissions > tbody:last-child').append(table_1_format.format(topic_name, topic_desc, topic_access));
+            avail_table.row(trElem).remove().draw(false);
+            added_table.row.add([topic_name, topic_desc, topic_access, perm_box_format, remove_button_format]).draw(false);
+            //var row = avail_table.row(trElem);
+            //row.remove().draw();
+            //$('#added_permissions > tbody:last-child').append(table_1_format.format(topic_name, topic_desc, topic_access));
         },
         error: function(jqXHR, textStatus, errorThrown){
             console.log('Error: ' + errorThrown);
@@ -119,8 +137,10 @@ $(document).ready(function() {
 
             },
             success: function (data, textStatus, jqXHR){
-                var rowNode = avail_table.row.add($(table_2_format.format(topic_name, topic_desc, topic_access))).draw(false);
-                trElem.remove();
+                //var rowNode = avail_table.row.add($(table_2_format.format(topic_name, topic_desc, topic_access))).draw(false);
+                //trElem.remove();
+                added_table.row(trElem).remove().draw(false);
+                avail_table.row.add([topic_name, topic_desc, topic_access, add_button_format]).draw(false);
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -190,8 +210,6 @@ $(document).ready(function() {
 
         
     }
-
-  initializeModal();
 
   $('body').on('click', '.addToCur', addToCurCallback);
 

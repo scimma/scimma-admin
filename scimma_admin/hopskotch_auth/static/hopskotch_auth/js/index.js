@@ -40,7 +40,6 @@ $(document).ready(function() {
             null,
             {'searchable': false},
             {'searchable': false, 'orderable': false},
-            {'searchable': false, 'orderable': false},
         ]
     });
     index_group_table = $('#group-table').DataTable({
@@ -48,7 +47,6 @@ $(document).ready(function() {
         'columns': [
             null,
             {'searchable': false},
-            {'searchable': false, 'orderable': false},
             {'searchable': false, 'orderable': false},
             {'searchable': false, 'orderable': false},
         ]

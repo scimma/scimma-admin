@@ -359,7 +359,7 @@ def same_permission(p1: GroupKafkaPermission,
            and p1.operation==p2.operation
 
 
-def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: KafkaOperation) -> None:
+def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: KafkaOperation) -> GroupKafkaPermission:
     new_record = GroupKafkaPermission(principal=group, topic=topic, operation=operation)
 
     # look up all permissions for this group/topic combination to figure out if the new record is
