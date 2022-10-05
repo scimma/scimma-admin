@@ -1,9 +1,9 @@
-django==3.0.12
+django>=3.2.13,<4.0
 psycopg2==2.8.5
 boto3==1.14.2
 uWSGI==2.0.19.1
 requests==2.22.0
-django-enumfield==2.0.1
+django-enumfield==2.0.2
 passlib==1.7.2
 mozilla-django-oidc==1.2.3
 psycopg2-binary==2.8.5
@@ -11,3 +11,6 @@ django-bootstrap5
 whitenoise~=5.2
 django-crispy-forms
 crispy-bootstrap5
+djangorestframework
+django-rest-authtoken
+scramp

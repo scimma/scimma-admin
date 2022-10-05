@@ -14,6 +14,8 @@ import os
 import boto3
 import requests
 import configparser
+import datetime
+from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
 def get_secret(name):
@@ -94,16 +96,18 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mozilla_django_oidc',
-    #'bootstrap4'  # TODO: staticfile configuration must be fixed for uwsgi/deployment
     'django_bootstrap5',
     "crispy_forms",
     "crispy_bootstrap5",
+    'rest_framework',
+    'rest_authtoken',
 ]
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
+    'scimma_admin.settings.set_redirect_headers', # must be placed before SecurityMiddleware to modify redirects
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Placement after SecurityMiddleware needed as per whitenoise docs
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -239,6 +243,20 @@ LOGGING = {
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+
+SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
+
+REST_TOKEN_TTL = AUTH_TOKEN_VALIDITY
+
+REST_FRAMEWORK = {
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_authtoken.auth.AuthTokenAuthentication',
+    ),
+}
+
 
 try:
     from local_settings import *

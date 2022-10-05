@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import secrets
 import string
+from enum import EnumMeta
 from django.db import models, transaction
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -17,6 +18,8 @@ from passlib.hash import scram
 from passlib.utils import saslprep
 import hmac
 import re
+import datetime
+import rest_authtoken.models
 
 
 class SCRAMAlgorithm(enum.Enum):
@@ -218,10 +221,13 @@ def rand_username(owner: User) -> str:
     return f"{owner_emailname}-{rand_username_suffix}"
 
 
-class MembershipStatus(enum.Enum):
+class ValueCheckableEnum(EnumMeta):
+	def __contains__(cls, value):
+		return value in [item.value for item in cls.__members__.values()]
+
+class MembershipStatus(enum.Enum, metaclass=ValueCheckableEnum):
     Member = 1
     Owner = 2
-
 
 class Group(models.Model):
     name: models.CharField = models.CharField(
@@ -291,7 +297,7 @@ class KafkaTopic(models.Model):
     )
     name: models.CharField = models.CharField(
         max_length=249, # see https://github.com/apache/kafka/commit/ad3dfc6ab25c3f80d2425e24e72ae732b850dc60
-        editable=False,
+#        editable=False,
     )
     publicly_readable: models.BooleanField = models.BooleanField(
         default = False,
@@ -302,6 +308,15 @@ class KafkaTopic(models.Model):
         default="",
     )
 
+    # work around a bug in DRF:
+    # treat name as read-only only in contexts where an object already exists,
+    # i.e. for update operations but not create operations
+    def get_readonly_fields(self, request, obj=None):
+        rof = super().get_readonly_fields(request, obj=obj)
+        if obj:  # working with an existing object
+            rof = tuple(rof) + ("name", )
+        return rof
+
 
 def validate_topic_name(name: str) -> bool:
     # https://github.com/apache/kafka/blob/bc55f85237cb46e73c6774298cf308060a4a739c/clients/src/main/java/org/apache/kafka/common/internals/Topic.java#L30
@@ -309,7 +324,7 @@ def validate_topic_name(name: str) -> bool:
     return re.match(valid, name) is not None
 
 
-class KafkaOperation(enum.Enum):
+class KafkaOperation(enum.Enum, metaclass=ValueCheckableEnum):
     All = 1
     Read = 2
     Write = 3
@@ -344,7 +359,7 @@ def same_permission(p1: GroupKafkaPermission,
            and p1.operation==p2.operation
 
 
-def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: KafkaOperation) -> None:
+def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: KafkaOperation) -> GroupKafkaPermission:
     new_record = GroupKafkaPermission(principal=group, topic=topic, operation=operation)
 
     # look up all permissions for this group/topic combination to figure out if the new record is
@@ -355,11 +370,11 @@ def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: K
         if any(same_permission(p, new_record) for p in existing):
             # the exact permission we're trying to create already exists,
             # so we can do nothing and declare success
-            return
+            return GroupKafkaPermission.objects.get(principal=group_id, topic=topic.id, operation=operation)
         if len(existing)==1 and existing[0].operation==KafkaOperation.All:
             # the existing permission is broader than the one being added,
             # so we do not need to actually add it
-            return
+            return existing[0]
 
     # we do need to create a record
     with transaction.atomic():
@@ -368,6 +383,7 @@ def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: K
         if existing.exists() and operation==KafkaOperation.All:
             existing.delete()
         new_record.save()
+        return new_record
 
 
 def remove_kafka_permission_for_group(principal: Group, topic: KafkaTopic, operation: KafkaOperation) -> bool:
@@ -596,3 +612,82 @@ def topics_accessible_to_user(user_id: int) -> Dict[str, str]:
         accessible[topic.name]="public"
 
     return accessible
+
+
+class SCRAMExchange(models.Model):
+    # The SCRAM credential the client of the exchange is claiming to hold
+    cred = models.ForeignKey(
+        SCRAMCredentials,
+        on_delete=models.CASCADE,
+    )
+
+    # The joined client and server nonce
+    # since this is 1) supposed to be unique per exchange and 2) the client final message must
+    # repeat it back after receiving it in the server first message, it can be used to tie the
+    # second round of the exchange back to the first.
+    # RFC 5802 does not appear to specify the size of nonces, but in practice many (most?)
+    # implementations generate a type 4 UUID, and remove the hyphens, producing 32 characters.
+    # The client and server will each do this, producing twice as many characters, and we add an
+    # additional factor of two for safety in case some implmentation uses a larger nonce.
+    j_nonce = models.CharField(
+        max_length=128,
+        editable=False,
+        unique=True,
+    )
+
+    # The length of the server nonce, allowing it to be re-extracted from j_nonce.
+    s_nonce_len = models.IntegerField(
+        editable=False,
+    )
+
+    # Somewhat awkwardly, we will need to use this twice, one when it arrives, and a second time to
+    # restore the server state of the SCRAM exchange, so we must store it.
+    # This must be large enough to hold the GS2 header, the user, the (client) nonce, and some
+    # intersticial bits. The gigantic maximum allowed name size dominates this, but 512 characters
+    # should reasonably hold it all; <100 characters should be typical.
+    client_first = models.CharField(max_length=512)
+
+    # Authentication exchenages should not be kept around forever,
+    # so store when each started in order to facilitate cleanup.
+    began = models.DateTimeField(default = datetime.datetime(1970,1,1,tzinfo=datetime.timezone.utc))
+
+    def s_nonce(self):
+        """Extract the server nonce from the stored joined nonce."""
+        return self.j_nonce[-self.s_nonce_len:]
+
+    def expired(self):
+        return self.began + settings.SCRAM_EXCHANGE_TTL < datetime.datetime.now(datetime.timezone.utc)
+
+    @classmethod
+    def clear_expired(cls) -> int:
+        """
+        Clear exchanges that are expired.
+        """
+        valid_min_creation = datetime.datetime.now(datetime.timezone.utc) - settings.SCRAM_EXCHANGE_TTL
+        deleted_count, detail = cls.objects.filter(began__lt=valid_min_creation).delete()
+        return deleted_count
+
+
+def scram_user_lookup(username):
+    """
+    Search for a SCRAM credential and if found return its details in a form palatable to
+    scramp.ScramServer.
+
+    Raises:
+        ObjectDoesNotExist: if no matching credential is found, or the matching credential is
+                            suspended, and thus not permitted to to be used at this time
+    """
+    cred = SCRAMCredentials.objects.get(username=username)
+    if cred.suspended:
+        raise ObjectDoesNotExist
+    return (bytes(cred.salt), bytes(cred.stored_key), bytes(cred.server_key), cred.iterations)
+
+class RESTAuthToken(rest_authtoken.models.AuthToken):
+    held_by = models.ForeignKey(
+              settings.AUTH_USER_MODEL,
+              on_delete=models.CASCADE)
+
+    def __str__(self) -> str:
+        if self.held_by != self.user:
+            return 'for user {}, held by user {}'.format(self.user, self.held_by)
+        return '{}: {}'.format(self.user, self.hashed_token)
