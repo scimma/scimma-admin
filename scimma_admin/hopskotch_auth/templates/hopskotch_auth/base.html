@@ -1,11 +1,7 @@
-{% load static bootstrap4 tz %}
+{% load static django_bootstrap5 tz %}
 
 <html>
     <head>
-        {% bootstrap_css %}
-        <link rel="stylesheet" href="{% static 'hopskotch_auth/css/main.css' %}">
-        {% bootstrap_javascript jquery='True' %}
-
         <title>SCIMMA Auth | {% block title %}{% endblock %}</title>
     </head>
     <style>
@@ -26,37 +22,129 @@
         {% endblock %}
     </style>
     <body>
-        <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-            <h2 class="text-light">
-                <a class="navbar-brand" href="/hopauth"><img src="{% static 'hopskotch_auth/img/logo_transparent.png' %}" class="img-fluid"> SCiMMA Auth</a>
-                <span class="navbar-brand">
-                {% block page-header %}
-                {% endblock %}
-                </span>
-            </h2>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav ml-auto">
-                {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <span class="text-light">Current user: {{ user.email }} ({{ user.username }})</span>
-                        <form class="form-inline my-2 my-lg-0" id="logout" action="{% url 'oidc_logout' %}" method="post">
-                            {% csrf_token %}
-                            <input class="btn btn-primary" type="submit" value="Log out">
-                        </form>
-                    </li>
-                {% else %} {# Not authenticated #}
-                    <li class="nav-item">
-                        <a href="{% url 'oidc_authentication_init' %}">Log in</a>
-                    </li>
+        <nav class="navbar navbar-dark bg-dark fixed-top">
+            <div class="container-fluid">
+                {% if request.user.is_staff %}
+                <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNav" aria-controls="offcanvasNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
                 {% endif %}
-                </ul>
-              </div>
+                <h2 class="text-light col ms-3">
+                    <a class="navbar-brand" href="/hopauth"><img src="{% static 'hopskotch_auth/img/logo_transparent.png' %}" class="img-fluid"> SCiMMA Auth</a>
+                </h2>
+                <div id="navbarSupportedContent col">
+                    <ul class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <span class="text-light">Current user: {{ user.email }} ({{ user.username }})</span>
+                            <form class="form-inline my-2 my-lg-0" id="logout" action="{% url 'oidc_logout' %}" method="post">
+                                {% csrf_token %}
+                                <input class="btn btn-primary" type="submit" value="Log out">
+                            </form>
+                        </li>
+                    {% else %} {# Not authenticated #}
+                        <li class="nav-item">
+                            <a href="{% url 'oidc_authentication_init' %}">Log in</a>
+                        </li>
+                    {% endif %}
+                    </ul>
+                </div>
+            </div>
         </nav>
-
+        {% if request.user.is_staff %}
+        <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasNav" aria-labelledby="offcanvasNavLabel">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="offcanvasNavLabel">Quick Navigation</h5>
+                <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <ul class="list-unstyled ps-0">
+                    <li class="mb-1">
+                        <button class="btn btn-toggle align-items-center rounded collapsed" data-bs-toggle="collapse" data-bs-target="#cred-collapse" aria-expanded="false">Credentials</button>
+                        <div class="collapse" id="cred-collapse">
+                            <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
+                                <li>
+                                    <a id="create_credential" href="{% url 'create_credential' %}" class="link-dark rounded">Create</a>
+                                </li>
+                                <li>
+                                    <a id="manage_credentials" href="{% url 'admin_credential' %}" class="link-dark rounded">Manage</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="mb-1">
+                        <button class="btn btn-toggle align-items-center rounded collapsed" data-bs-toggle="collapse" data-bs-target="#topic-collapse" aria-expanded="false">Topics</button>
+                        <div class="collapse" id="topic-collapse">
+                            <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
+                                <li>
+                                    <a id="create_topic" href="{% url 'create_topic' %}" class="link-dark rounded">Create</a>
+                                </li>
+                                <li>
+                                    <a href="{% url 'admin_topic' %}" class="link-dark rounded">Manage</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="mb-1">
+                        <button class="btn btn-toggle align-items-center rounded collapsed" data-bs-toggle="collapse" data-bs-target="#group-collapse" aria-expanded="false">Groups</button>
+                        <div class="collapse" id="group-collapse">
+                            <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
+                                <li>
+                                    <a href="{% url 'create_group' %}" class="link-dark rounded">Create</a>
+                                </li>
+                                <li>
+                                    <a href="{% url 'admin_group' %}" class="link-dark rounded">Manage</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
         <main class="container">
             {% bootstrap_messages %}
             {% block page-body %}
             {% endblock %}
         </main>
+
+        {% block loading-modal %}
+        <div class="modal fade" id="loadingBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingBackdropLabel" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-body">
+                  <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div> Loading
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endblock %}
+
+        {% bootstrap_css %}
+        {% bootstrap_javascript %}
+
+        {% block scripts %}
+
+        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+        <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap5.min.css">
+        <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+        <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+        <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap5.min.js"></script>
+
+
+
+        <link rel="stylesheet" href="{% static 'hopskotch_auth/css/main.css' %}">
+        <script type="text/javascript" src="{% static 'hopskotch_auth/js/base.js' %}"></script>
+
+        <!-- Enable popovers on all pages -->
+        <script>
+            var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
+            var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+              return new bootstrap.Popover(popoverTriggerEl)
+            })
+            </script>
+        {% endblock %}
     </body>
 </html>

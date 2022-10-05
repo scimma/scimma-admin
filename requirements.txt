@@ -7,8 +7,10 @@ django-enumfield==2.0.2
 passlib==1.7.2
 mozilla-django-oidc==1.2.3
 psycopg2-binary==2.8.5
-django-bootstrap4~=2.3
+django-bootstrap5
 whitenoise~=5.2
+django-crispy-forms
+crispy-bootstrap5
 djangorestframework
 django-rest-authtoken
 scramp

@@ -110,10 +110,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mozilla_django_oidc',
-    'bootstrap4',  # TODO: staticfile configuration must be fixed for uwsgi/deployment
+    'django_bootstrap5',
+    "crispy_forms",
+    "crispy_bootstrap5",
     'rest_framework',
     'rest_authtoken',
 ]
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+
+CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
     'scimma_admin.settings.set_redirect_headers', # must be placed before SecurityMiddleware to modify redirects

@@ -1,4 +1,4 @@
-{% load bootstrap4 %}
+{% load django_bootstrap5 %}
 
 <html>
   <head>
@@ -8,11 +8,5 @@
   <body>
     <h1>SCiMMA Auth</h1>
     <a href="{% url 'oidc_authentication_init' %}?next={% url 'index' %}" class="btn btn-primary">Login</a>
-    <p>If you do not yet have an account, click
-        <a href="https://registry.scimma.org/registry/co_petitions/start/coef:127">here</a>
-        to create one. You should be able to sign up with your institutional single sign-on
-        credentials, or with another identity provider such as
-        <a href="http://orcid.org">http://orcid.org</a>. If using ORCID, please ensure that your
-        privacy settings allow your email address to be shared with 'trusted parties'.
   </body>
 </html>

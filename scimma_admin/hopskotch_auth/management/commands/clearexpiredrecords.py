@@ -16,11 +16,11 @@ class Command(BaseCommand):
     def clear_expired_authtokens(self) -> int:
         if not "default" in DATABASES:
             self.stderr.write("default database not configured")
-            return
+            return 0
         database = DATABASES["default"]
         if "ENGINE" not in database or database["ENGINE"] != "django.db.backends.postgresql":
-        	self.stderr.write("default database not configured")
-        	return
+            self.stderr.write("default database not configured")
+            return 0
 
         import psycopg2
 
