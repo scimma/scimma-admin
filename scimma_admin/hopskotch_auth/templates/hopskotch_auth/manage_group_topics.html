@@ -11,6 +11,7 @@
 <meta id="bstp_url" data-link="{% url 'bulk_set_topic_permissions' %}">
 <meta id="ctg_url" data-link="{% url 'create_topic_in_group' %}">
 <meta id="rtg_url" data-link="{% url 'remove_topic_from_group' %}">
+<meta id="dt_url" data-link="{% url 'delete_topic' %}">
 <meta id="mt_url" data-link="{% url 'manage_topic' '{}' %}">
     <div class="container-fluid">
         <h2>Manage Group Topics</h2>
@@ -29,7 +30,7 @@
               <button class="btn btn-primary" role="submit">Submit</button>
           </div>
       </form>
-        <h2>Added Topics
+        <h2>Existing Topics
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-question-circle-fill" viewBox="0 0 16 16" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="All currently added topics. To edit the exact permissions for a topic click 'Edit'. To remove a topic from a group click 'Remove'" data-bs-original-title="Help">
           <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247zm2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/>
         </svg></h2>
@@ -44,7 +45,7 @@
             <tbody>
               {% for topic in topics %}
               <tr>
-                <td class="topic_name">{{ topic.topicname }}</td>
+                <td scope="row" class="topic_name" data-name="{{ topic.topicname }}">{{ topic.topicname }}</td>
                 <td class="topic_desc">{{ topic.description}}</td>
                 <td class="topic_edit"><a class="btn btn-primary editButton" href="{% url 'manage_topic' topic.topicname %}">Edit</button></td>
                 <td class="topic_remv"><button type="button" class="btn btn-danger removeButton">Remove</button></td>
@@ -141,6 +142,27 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             <button type="button" class="btn btn-primary" id="save_edit">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="confirmModalLabel">Confirm Deletion</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="confirm_text">
+                Are you sure you want to delete the <span id="deleteType"></span> <span id="deleteName"></span>?
+                All data associated with it will be lost.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="confirmDelete">Confirm</button>
           </div>
         </div>
       </div>

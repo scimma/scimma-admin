@@ -31,8 +31,10 @@ $(document).ready(function() {
   <td class="topic_remv"><button type="button" class="btn btn-danger removeButton">Remove</button>\
   </tr>\
   '
+    added_table = null;
     avail_table = null;
     edit_modal = null;
+    confirm_modal = null;
 
     all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite']
 
@@ -61,7 +63,10 @@ $(document).ready(function() {
       modalElem = $('#topicPermEditModal');
       edit_modal = new bootstrap.Modal($('#topicPermEditModal'), {
         keyboard: false
-      })
+      });
+      confirm_modal = new bootstrap.Modal($('#confirmModal'), {
+          keyboard: false
+      });
     }
 
     function removeFromCallback() {
@@ -90,6 +95,30 @@ $(document).ready(function() {
         complete: function(jqXHR, textStatus) {
         }
       });
+    }
+
+    function deleteTopic(trElem, objectName) {
+        dt_link = $('#dt_url').data().link;
+        $.ajax({
+            url: dt_link,
+            method: "POST",
+            dataType: "json",
+            headers: {
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            data: {
+                topicname: objectName
+            },
+            success: function (data, textStatus, jqXHR){
+                added_table.row(trElem).remove().draw(false);
+            },
+            error: function(jqXHR, textStatus, errorThrown){
+                console.log('Error: ' + errorThrown);
+            },
+            complete: function(jqXHR, textStatus) {
+                confirm_modal.toggle();
+            },
+        });
     }
 
     function createTopicCallback() {
@@ -131,12 +160,32 @@ $(document).ready(function() {
     });
     }
 
+    function onDeleteTopicCallback() {
+        var trElem = $(this).closest('tr');
+        var topicname = $(trElem).find('td.topic_name').text();
+        $('#deleteType').text('topic');
+        $('#deleteName').text(topicname);
+        confirm_modal.toggle();
+    }
+
+    function onConfirmDeleteCallback() {
+        var objectType = $('#deleteType').text();
+        var objectName = $('#deleteName').text();
+        trElem = $('tr').find(`[data-name='${objectName}']`);
+        switch (objectType) {
+            case 'topic':
+                deleteTopic(trElem, objectName);
+                break;
+        }
+    }
+
     initializeTable();
 
     initializeModal();
 
-    $('body').on('click', '.removeButton', removeFromCallback);
+    $('body').on('click', '.removeButton', onDeleteTopicCallback);
 
     $('#confirm_create_topic').on('click', createTopicCallback)
+    $('#confirmDelete').on('click', onConfirmDeleteCallback);
   }
 );

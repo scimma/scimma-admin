@@ -57,6 +57,11 @@ $(document).ready(function() {
             {'searchable': false, 'orderable': false}
         ]
     });
+
+    confirm_modal = new bootstrap.Modal($('#confirmModal'), {
+        keyboard: false
+    });
+
     function onAddMemberCallback() {
         var trElem = $(this).closest('tr');
         var username = trElem.find('td.add_id').text();
@@ -68,7 +73,8 @@ $(document).ready(function() {
         var trElem = $(this).closest('tr');
         var username = trElem.find('td.mem_id').text();
         var groupname = $('#name_field').val();
-        removeMember(groupname, username, trElem);
+        $('#deleteName').text(username);
+        confirm_modal.toggle();
     }
 
     function onChangeMembershipCallback() {
@@ -76,6 +82,14 @@ $(document).ready(function() {
         var username = trElem.find('td.mem_id').text();
         var groupname = $('#name_field').val();
         changeMembership(groupname, username, trElem);
+    }
+
+    function onConfirmDeleteCallback() {
+        var username = $('#deleteName').text();
+        var groupname = $('#name_field').val();
+        tdElem = $('tr').find(`[data-name='${username}']`);
+        trElem = tdElem.closest('tr');
+        removeMember(groupname, username, trElem);
     }
 
     function addMember(groupname, username, trElem) {
@@ -96,7 +110,9 @@ $(document).ready(function() {
             },
             success: function (data, textStatus, jqXHR){
                 avail_table.row(trElem).remove().draw(false);
-                added_table.row.add([mem_id, mem_name, mem_email, '<select class="perm_select"><option selected>Member</option><option>Owner</option></select>', '<button type="submit" class="btn btn-danger removeFrom">Remove</button>']).draw(false);
+                var row=added_table.row.add([mem_id, mem_name, mem_email, '<select class="perm_select"><option selected>Member</option><option>Owner</option></select>', '<button type="submit" class="btn btn-danger removeFrom">Remove</button>']);
+                row.node().querySelector('td.mem_id').dataset.name=mem_id;
+                row.draw(false)
             },
             error: function(jqXHR, textStatus, errorThrown){
                 console.log('Error: ' + errorThrown);
@@ -130,6 +146,7 @@ $(document).ready(function() {
                 console.log('Error: ' + errorThrown);
             },
             complete: function(jqXHR, textStatus) {
+                confirm_modal.toggle();
             }
         });
     }
@@ -163,4 +180,5 @@ $(document).ready(function() {
     $('body').on('click', '.addToCur', onAddMemberCallback);
     $('body').on('click', '.removeFrom', onRemoveMemberCallback);
     $('body').on('change', '.mem_perm', onChangeMembershipCallback);
+    $('#confirmDelete').on('click', onConfirmDeleteCallback);
   });
