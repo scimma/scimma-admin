@@ -152,6 +152,32 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'scimma_admin.wsgi.application'
 
+# Magic to work around https://code.djangoproject.com/ticket/27813#comment:7
+# Fix courtesy of Daniele Varrazzo via
+# https://www.postgresql.org/message-id/CA%2Bmi_8Zy50LYof%3DFfO9qybeQJfoLPpUXCand8CBvapS%3DXoCkGg%40mail.gmail.com
+# and Patrick Heyer via https://github.com/modoboa/modoboa-amavis/issues/115#issuecomment-479141344
+# This is needed because Django (dubiously) decides that it must sort things in order to delete them,
+# leading to the surprising result that types must have a defined order in order to be deleted.
+def fix_psycopg_binary():
+    try:
+        import psycopg2
+    except ImportError:
+        # Fall back to psycopg2cffi
+        from psycopg2cffi import compat
+        compat.register()
+        import psycopg2
+
+    def bytea2bytes(value, cur):
+        if value is None:
+            return None
+        buf = psycopg2.BINARY(value.encode('utf-8'), cur)
+        if buf is not None:
+            return buf.tobytes()
+
+    BYTEA2BYTES = psycopg2.extensions.new_type(
+        psycopg2.BINARY.values, 'BYTEA2BYTES', bytea2bytes
+    )
+    psycopg2.extensions.register_type(BYTEA2BYTES)
 
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
@@ -176,6 +202,9 @@ else:
         'HOST': 'localhost',
         'PORT': 5432,
     }
+
+if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
+    fix_psycopg_binary()
 
 
 # Authentication

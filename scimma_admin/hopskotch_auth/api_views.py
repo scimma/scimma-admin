@@ -154,7 +154,10 @@ class TokenForOidcUser(APIView):
         
         try:
             user = User.objects.get(username=username)
-            
+        except ObjectDoesNotExist:
+            return Response(data={"error": "Unknown username"},
+                            status=status.HTTP_404_NOT_FOUND)
+        try:
             # Issue a short-lived REST token
             token = RESTAuthToken.create_token_for_user(user, held_by=request.user)
 
@@ -170,8 +173,8 @@ class TokenForOidcUser(APIView):
                         f"to act on behalf of {user.username} (user.email)")
             return Response(data=data, status=status.HTTP_200_OK)
         except ObjectDoesNotExist:
-            return Response(data={"error": "Invalid user ID"},
-                            status=status.HTTP_401_UNAUTHORIZED)
+            return Response(data={"error": "Failed to issue a REST token"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -228,8 +231,13 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, *args, **kwargs):
-    	# we don't currently support programmatic deletion of account
-        raise PermissionDenied
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to delete user {kwargs.get('pk','<missing>')} "
+                    f"from {client_ip(request)}")
+        # only staff should delete users
+        if not self.request.user.is_staff:
+            raise PermissionDenied
+        return super().destroy(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
         raise PermissionDenied
