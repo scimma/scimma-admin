@@ -13,4 +13,4 @@ django-crispy-forms
 crispy-bootstrap5
 djangorestframework
 django-rest-authtoken
-scramp
+scramp>=1.4.4

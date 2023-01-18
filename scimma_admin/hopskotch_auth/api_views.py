@@ -93,8 +93,9 @@ class ScramFinal(APIView):
         # a bit ugly: To find the previously started exchange session, if any, we need to extract
         # the nonce from the request. We can either reimplement the parsing logic, or underhandedly
         # reach inside of scramp to use its parse function. We do the latter.
-        parsed = scramp.core._parse_message(client_final)
-        if not 'r' in parsed:
+        try:
+            parsed = scramp.core._parse_message(client_final, "client final", "crp")
+        except:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         try:
             ex = SCRAMExchange.objects.get(j_nonce=parsed['r'])
