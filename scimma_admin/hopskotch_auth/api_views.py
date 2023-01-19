@@ -76,8 +76,7 @@ class ScramFirst(APIView):
             # Authentication has failed, likely due to a malformed SCRAM message, or an unknown
             # username being claimed
             logger.info(f"Rejected invalid SCRAM request (first) from {client_ip(request)}")
-            return Response(data={"error": "Invalid SCRAM request", 
-                                  "server_final": s.get_server_final()}, 
+            return Response(data={"error": "Invalid SCRAM request"},
                             status=status.HTTP_401_UNAUTHORIZED)
 
 class ScramFinal(APIView):
@@ -611,7 +610,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
                     f"from {client_ip(request)}")
         instance = self.get_object()
         # Only admins and group owners can change topics
-        if not self.request.user.is_staff and not is_group_owner(self.request.user.id, instance.group.id):
+        if not self.request.user.is_staff and not is_group_owner(self.request.user.id, instance.owning_group):
             raise PermissionDenied
         
         # avoid invoking the overridden self.update and making logging confusing
