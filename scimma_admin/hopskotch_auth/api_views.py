@@ -537,6 +537,12 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
             
         return queryset
 
+    def get_serializer_class(self):
+        if self.request.user.is_staff:
+            return KafkaTopicAdminSerializer
+        # plain serializer for regular users
+        return KafkaTopicSerializer
+
     def list(self, request, *args, **kwargs):
         if "owning_group" in kwargs:
             logger.info(f"User {request.user.username} ({request.user.email}) "

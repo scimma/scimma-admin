@@ -382,6 +382,10 @@ def manage_topic(request, topicname) -> HttpResponse:
             update_result = engine.update_topic_public_readability(request.user, topic, ('visibility_field' in request.POST))
             if not update_result:
                 return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
+        if topic.archivable != ('archive_field' in request.POST):
+            update_result = engine.update_topic_archiving(request.user, topic, ('archive_field' in request.POST))
+            if not update_result:
+                return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         return HttpResponseRedirect(request.path_info)
     topic_result = engine.get_topic(topicname)
     if not topic_result:
@@ -424,6 +428,7 @@ def manage_topic(request, topicname) -> HttpResponse:
             'topic_name': topic.name.split('.')[1],
             'topic_desc': topic.description,
             'is_visible': topic.publicly_readable,
+            'is_archivable': topic.archivable,
             'all_groups': cleaned_available,
             'group_list': cleaned_added}
         )
