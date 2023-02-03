@@ -303,7 +303,8 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         
         data = {
             "username": bundle.username,
-            "password": bundle.password
+            "password": bundle.password,
+            "pk": bundle.creds.pk
         }
         
         return Response(data=data, status=status.HTTP_201_CREATED)
