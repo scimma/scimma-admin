@@ -324,6 +324,8 @@ class DirectInterface:
     def update_topic_public_readability(self, user: User, topic: KafkaTopic, public: bool) -> Result[None, Error]:
         if not is_group_owner(user.id, topic.owning_group.id) and not user.is_staff:
             return Err(Error('Only owning group owners and staff members can change topic public readability', 403))
+        if not user.is_staff and topic.publicly_readable:
+            return Err(Error('Public topics may not be made private', 403))
         topic.publicly_readable = public
         topic.save()
         return Ok(None)

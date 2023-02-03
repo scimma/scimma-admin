@@ -61,6 +61,10 @@ class KafkaTopicSerializer(serializers.ModelSerializer):
         read_only_fields = ["pk", "owning_group", "name",
                             "max_message_bytes", "retention_ms", "retention_bytes"]
 
+    def validate_publicly_readable(self, value):
+        if value is not True:
+            raise serializers.ValidationError("Public topics may not be made private")
+
 class KafkaTopicAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
