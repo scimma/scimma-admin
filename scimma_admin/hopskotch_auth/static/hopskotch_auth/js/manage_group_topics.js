@@ -143,10 +143,16 @@ $(document).ready(function() {
           var topic_desc = '';
           var topic_access = groupname;
           mt_link = $('#mt_url').data().link;
+          // The placeholder "{}" in mt_link gets URL encoded, so we cannot simply use .format()
+          // to overwrite it. It is also not desirable to URL decode the entrie URL, which might
+          // contain something else which needs to remain encoded. As a hack, we exploit our
+          // knowledge that the placeholder is the last path component, and cut it off with low
+          // level string manipulation.
+          mt_link = mt_link.slice(0,mt_link.lastIndexOf("/")+1)+topic_name;
           added_table.row.add([
             topic_name,
             topic_desc,
-            '<a class="btn btn-primary editButton" href="{}">Edit</button></td>'.format(mt_link.format(topic_name)),
+            '<a class="btn btn-primary editButton" href="{}">Edit</button></td>'.format(mt_link),
             '<button type="button" class="btn btn-danger removeButton">Remove</button>'
 
           ]).draw(false);

@@ -10,6 +10,7 @@ from django.db import models, transaction
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
+from django.core import validators
 from django_enumfield import enum
 import hashlib
 import uuid
@@ -306,6 +307,30 @@ class KafkaTopic(models.Model):
         max_length=1024,
         editable=True,
         default="",
+    )
+    archivable: models.BooleanField = models.BooleanField(
+        default = False,
+    )
+    n_partitions: models.IntegerField = models.IntegerField(
+        default=2,
+        # The maximum of 128 is not a hard limit, and can be increased if there is some reason to
+        # do so; it is just intended to prevent insane numbers of partitions.
+        validators=[validators.MinValueValidator(1), validators.MaxValueValidator(128)],
+    )
+    max_message_bytes: models.IntegerField = models.BigIntegerField(
+        default=1000012,
+        # Allow 1 KB to 100 MB
+        validators=[validators.MinValueValidator(1024), validators.MaxValueValidator(100*1024**2)],
+    )
+    retention_ms: models.IntegerField = models.BigIntegerField(
+        default=2422800000,
+        # Allow 1 second to 1 year
+        validators=[validators.MinValueValidator(1000), validators.MaxValueValidator(365*86400*1000)],
+    )
+    retention_bytes: models.IntegerField = models.BigIntegerField(
+        default=-1,
+        # Allow unlimited (-1) or any limit up to 1 TB
+        validators=[validators.MinValueValidator(-1), validators.MaxValueValidator(1024**4)],
     )
 
     # work around a bug in DRF:

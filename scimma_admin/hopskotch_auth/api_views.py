@@ -76,8 +76,7 @@ class ScramFirst(APIView):
             # Authentication has failed, likely due to a malformed SCRAM message, or an unknown
             # username being claimed
             logger.info(f"Rejected invalid SCRAM request (first) from {client_ip(request)}")
-            return Response(data={"error": "Invalid SCRAM request", 
-                                  "server_final": s.get_server_final()}, 
+            return Response(data={"error": "Invalid SCRAM request"},
                             status=status.HTTP_401_UNAUTHORIZED)
 
 class ScramFinal(APIView):
@@ -93,8 +92,9 @@ class ScramFinal(APIView):
         # a bit ugly: To find the previously started exchange session, if any, we need to extract
         # the nonce from the request. We can either reimplement the parsing logic, or underhandedly
         # reach inside of scramp to use its parse function. We do the latter.
-        parsed = scramp.core._parse_message(client_final)
-        if not 'r' in parsed:
+        try:
+            parsed = scramp.core._parse_message(client_final, "client final", "crp")
+        except:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         try:
             ex = SCRAMExchange.objects.get(j_nonce=parsed['r'])
@@ -537,6 +537,12 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
             
         return queryset
 
+    def get_serializer_class(self):
+        if self.request.user.is_staff:
+            return KafkaTopicAdminSerializer
+        # plain serializer for regular users
+        return KafkaTopicSerializer
+
     def list(self, request, *args, **kwargs):
         if "owning_group" in kwargs:
             logger.info(f"User {request.user.username} ({request.user.email}) "
@@ -610,7 +616,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
                     f"from {client_ip(request)}")
         instance = self.get_object()
         # Only admins and group owners can change topics
-        if not self.request.user.is_staff and not is_group_owner(self.request.user.id, instance.group.id):
+        if not self.request.user.is_staff and not is_group_owner(self.request.user.id, instance.owning_group):
             raise PermissionDenied
         
         # avoid invoking the overridden self.update and making logging confusing
