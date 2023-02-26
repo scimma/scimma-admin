@@ -51,6 +51,8 @@ urlpatterns = [
 
     path("api/version", api_views.Version.as_view(), name="version"),
 
+    path("api/v<int:version>/multi", api_views.MultiRequest.as_view(), name="multi"),
+
     path("api/v<int:version>/scram/first", api_views.ScramFirst.as_view(), name="scram_first"),
     path("api/v<int:version>/scram/final", api_views.ScramFinal.as_view(), name="scram_final"),
 

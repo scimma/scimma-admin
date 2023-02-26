@@ -1,17 +1,25 @@
+import collections
 import datetime
 from django.core.exceptions import PermissionDenied, BadRequest
 from django.db import transaction
 from django.db.models import F, Q
+from django.http import HttpRequest
+from django.urls import resolve, Resolver404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+import io
+import json
 from rest_framework.views import APIView
 from rest_framework import viewsets
 from rest_framework import status
+from rest_framework.renderers import JSONRenderer
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 import rest_authtoken.auth
 import rest_authtoken.models
 import scramp
+import traceback
 import logging
 
 from .models import *
@@ -141,6 +149,104 @@ class ScramFinal(APIView):
                             status=status.HTTP_401_UNAUTHORIZED)
         finally:
             ex.delete()  # clean up the exchange session record
+
+class MultiRequest(APIView):
+    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+
+    def post(self, request, version):
+        auth_header_names = ["HTTP_AUTHORIZATION", "HTTP_PROXY_AUTHORIZATION"]
+
+        logger.info(f"{request.user.username} ({request.user.email}) "
+                    f"requested to execute a multiplexed batch of requests "
+                    f"from {client_ip(request)}")
+
+        if not isinstance(request.data, collections.Mapping):
+            return Response(data="Request body must be a mapping",
+                            status=status.HTTP_400_BAD_REQUEST)
+        response_data = {}
+        for key, rdata in request.data.items():
+            try:
+                if not isinstance(rdata, collections.Mapping) \
+                        or "method" not in rdata or not isinstance(rdata["method"], str)\
+                        or "path" not in rdata or not isinstance(rdata["path"], str):
+                    response_data[key] = {"body":"Invalid request data",
+                                          "status":status.HTTP_400_BAD_REQUEST}
+                    continue
+                sub_request = HttpRequest()
+                #sub_request.GET = ???
+                #sub_request.POST = ???
+                # Leave sub_request.COOKIES empty
+                def header_transform(name):
+                    uname = name.upper().replace('-','_')
+                    if uname == "CONTENT_LENGTH" or uname == "CONTENT_TYPE":
+                        return uname
+                    return "HTTP_"+uname
+
+                sub_request.META = dict(request.META)
+                # strip out all of the original request's Auth data
+                for auth_header_name in auth_header_names:
+                    if auth_header_name in sub_request.META:
+                        del sub_request.META[auth_header_name]
+                if "headers" in rdata:
+                    if not isinstance(rdata["headers"], collections.Mapping):
+                        response_data[key] = {"body":"Invalid request header data",
+                                              "status":status.HTTP_400_BAD_REQUEST}
+                        continue
+                    sr_headers = { header_transform(k):v for k,v in rdata["headers"].items()}
+                    sub_request.META.update(sr_headers)
+                # overwrite headers which should not be inherited
+                sub_request.META["REQUEST_METHOD"] = rdata["method"]
+                sub_request.META["REQUEST_URI"] = rdata["path"]
+                sub_request.META["PATH_INFO"] = rdata["path"]
+                sub_request.META["QUERY_STRING"] = ""  # TODO: add support for this?
+
+                sub_request._read_started = False
+                if "body" in rdata:
+                    # Icky Hack: DRF wants to decode JSON for us, so we must re-encode the
+                    # sub-request's body to be decoded. . . again.
+                    # If there's a way to tell DRF to do no parsing on this request (beacuse it
+                    # already did it), that could be much more efficient
+                    try:
+                        raw_body = json.dumps(rdata["body"]).encode("utf-8")
+                        sub_request.META["CONTENT_LENGTH"] = len(raw_body)
+                        sub_request._stream = io.BytesIO(raw_body)
+                    except:
+                        response_data[key] = {"body":"Bad request body",
+                                              "status":status.HTTP_400_BAD_REQUEST}
+                        continue
+                else:
+                    sub_request.META["CONTENT_LENGTH"] = 0
+                    sub_request._stream = io.BytesIO()
+
+                sub_request.path = rdata["path"]
+                sub_request.method = rdata["method"]
+                sub_request._set_content_type_params(sub_request.META)
+                func, args, kwargs = resolve(sub_request.path)
+                kwargs['request'] = sub_request
+                sub_response = func(*args, **kwargs)
+                # Similar to the issue with reserializing the subrequest body above, we must force
+                # the sub-response to be 'rendered' to get the actual data, but we must then decode
+                # it for inclusion in the full response.
+                sub_response.accepted_renderer = JSONRenderer()
+                sub_response.accepted_media_type = "application/json"
+                sub_response.renderer_context = {}
+                sub_response.render()
+                response_data[key] = {
+                    "body": json.loads(sub_response.content),
+                    "headers": sub_response.headers,
+                    "status": sub_response.status_code,
+                }
+            except Resolver404 as e:
+                response_data[key] = {"body":"URL not found","status":status.HTTP_404_NOT_FOUND}
+                continue
+            except Exception as e:
+                print("Caught exception:",e)
+                print(traceback.format_exc())
+                response_data[key] = {"status":status.HTTP_400_BAD_REQUEST}
+                continue
+
+        return Response(data=response_data,
+                        status=status.HTTP_200_OK)
 
 class TokenForOidcUser(APIView):
     authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
