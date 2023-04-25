@@ -372,7 +372,7 @@ def user_change_status(request: AuthenticatedHttpRequest) -> JsonResponse:
 
 @login_required
 def add_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
-    log_request(request, f"adding topic permission of group {request.POST.get('groupname', '<unset>')}"
+    log_request(request, f"add topic permission of group {request.POST.get('groupname', '<unset>')}"
                 f" for topic {request.POST.get('topicname', '<unset>')}"
                 f" with permission {request.POST.get('permissions', '<unset>')}")
     groupname = request.POST['groupname']
@@ -387,7 +387,7 @@ def add_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonRespons
 
 @login_required
 def remove_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonResponse:
-    log_request(request, f"adding topic permission of group {request.POST.get('groupname', '<unset>')}"
+    log_request(request, f"add topic permission of group {request.POST.get('groupname', '<unset>')}"
                 f" for topic {request.POST.get('topicname', '<unset>')}"
                 f" with permission {request.POST.get('permissions', '<unset>')}")
     groupname = request.POST['groupname']
