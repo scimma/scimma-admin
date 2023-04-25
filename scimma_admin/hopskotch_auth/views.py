@@ -422,10 +422,11 @@ def manage_topic(request, topicname) -> HttpResponse:
                                   'write': KafkaOperation.Write in ops})
         else:
             cleaned_available.append(group.name)
+    short_name = topic.name[len(topic.owning_group.name)+1:] if topic.name.startswith(topic.owning_group.name+'.') else topic.name
     return render(request,
             'hopskotch_auth/manage_topic.html',
             {'topic_owner': topic.owning_group.name,
-            'topic_name': topic.name.split('.')[1],
+            'topic_name': short_name,
             'topic_desc': topic.description,
             'is_visible': topic.publicly_readable,
             'is_archivable': topic.archivable,
