@@ -10,9 +10,9 @@
 
 To make an account, go to [https://my.hop.scimma.org](https://my.hop.scimma.org). Click though the "scimma auth" screen access the CIlogon screen. At the CIlogon screen stop, and make an important decision before choosing an identity provider. The identity provider you select may furnish scimma with an email address.  That email address will automatically be your username within SCiMMA systems.  
 
-There are several considerations for a choice of identity proovider  1) Consider using the Google, ORCID. or experiment-specific identity provider rather than your instututional provider if you expect to change institutions.  2) If using google, consider if your email address  will clearly convery who you are to anyone trying to admit you to a private group.  Recall that our AUP prohibits  using an email address that seems to spoof another's identity. 3) Consider if any experiments or organizations will constrain your choice of email address as a condition for gaining access to a private channel.  
+There are several considerations for a choice of identity provider  1) Consider using the Google, ORCID. or experiment-specific identity provider rather than your instututional provider if you expect to change institutions.  2) If using Google, consider if your email address  will clearly convey who you are to anyone trying to admit you to a private group.  Recall that our Acceptable Use Policy prohibits  using an email address that seems to spoof another's identity. 3) Consider if any experiments or organizations will constrain your choice of email address as a condition for gaining access to a private channel.  
 
-You can use several identities/identity providers to make multiple distinct accounts, but keep in mind the potential confusion this might cause. If you make multiple accounts, it is a good pratice to ensure that the accounts have separate purposes. 
+You can use several identities/identity providers to make multiple distinct accounts, but keep in mind the potential confusion this might cause. If you make multiple accounts, it is a good practice to ensure that the accounts have separate purposes. 
 
 After you make your choice. Choose an identity provider.  Make a note of your choice and consider selecting the  comanage option to remember the provider.
 
