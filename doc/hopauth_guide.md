@@ -8,9 +8,15 @@
 
 # The SCiMMA Hopskotch Authenticator
 
-User accounts for Hopskotch are initially created through COmanage. To join, go to [https://scimma.github.io/IAM/Instructions/JoinInstitute](https://scimma.github.io/IAM/Instructions/JoinInstitute) and follow the instructions to create an account using your institutional identity. The final step of the process, approval of your account, may take around a day to be processed.
+To make an account, go to [https://my.hop.scimma.org](https://my.hop.scimma.org). Click though the "scimma auth" screen access the CIlogon screen. At the CIlogon screen stop, and make an important decision before choosing an identity provider. The identity provider you select may furnish scimma with an email address.  That email address will automatically be your username within SCiMMA systems.  
 
-Once your account is approved go to the registry page, and click on your name where it is displayed near the upper right to open the associated menu, and click on the 'My Groups' button to manage your group memberships. Locate the 'kafkaUsers' group (which may not appear on the first page of the listing; entering it into the name field of the 'Filter' tool at the top of the table can help). The group should be 'Open', allowing you to join it; to do so check the 'Member' box in the 'Actions' column at the right of the table, then click 'Save'. This change should propagate in only a few minutes.
+There are several considerations for a choice of identity proovider  1) Consider using the Google, ORCID. or experiment-specific identity provider rather than your instututional provider if you expect to change institutions.  2) If using google, consider if your email address  will clearly convery who you are to anyone trying to admit you to a private group.  Recall that our AUP prohibits  using an email address that seems to spoof another's identity. 3) Consider if any experiments or organizations will constrain your choice of email address as a condition for gaining access to a private channel.  
+
+You can use several identities/identity providers to make multiple distinct accounts, but keep in mind the potential confusion this might cause. If you make multiple accounts, it is a good pratice to ensure that the accounts have separate purposes. 
+
+After you make your choice. Choose an identity provider.  Make a note of your choice and consider selecting the  comanage option to remember the provider.
+
+Read the acceptable use policy and accept it if you agree.  After acceptance, your account is created, and you will enter the SCiMMA authenticator application.
 
 Hopskotch itself is intended to be accessed programmatically, so it uses additional credentials with fine-grained permissions which are issued and managed via the Hopskotch Authenticator ('Hopauth'). 
 
