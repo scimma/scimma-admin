@@ -130,6 +130,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'hopskotch_auth.api_views.set_scram_auth_info_header',
 ]
 
 ROOT_URLCONF = 'scimma_admin.urls'
