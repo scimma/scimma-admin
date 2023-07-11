@@ -638,12 +638,26 @@ def topics_accessible_to_user(user_id: int) -> Dict[str, str]:
 
     return accessible
 
+def generate_scram_sid():
+    while True:
+        sid=secrets.token_urlsafe(nbytes=32)
+        # check uniqueness
+        if not SCRAMExchange.objects.filter(sid=sid):
+            break
+    return sid
 
 class SCRAMExchange(models.Model):
     # The SCRAM credential the client of the exchange is claiming to hold
     cred = models.ForeignKey(
         SCRAMCredentials,
         on_delete=models.CASCADE,
+    )
+
+    # Session ID
+    sid = models.CharField(
+        max_length=64,
+        unique=True,
+        default=generate_scram_sid
     )
 
     # The joined client and server nonce

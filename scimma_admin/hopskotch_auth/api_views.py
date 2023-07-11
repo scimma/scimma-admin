@@ -16,11 +16,14 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.authentication import BaseAuthentication, get_authorization_header
+from rest_framework.exceptions import AuthenticationFailed
 import rest_authtoken.auth
 import rest_authtoken.models
 import scramp
 import traceback
 import logging
+from urllib.request import parse_http_list
 
 from .models import *
 from .serializers import *
@@ -39,6 +42,19 @@ def find_token(raw_token: bytes):
 	if token is not None:
 		print("Authentication was with token", token)
 
+def describe_auth(request) -> str:
+    auth = getattr(request, "auth", None)
+    if auth:
+        if isinstance(auth, SCRAMCredentials):
+            return f"Authentication was HTTP SCRAM with credential {auth.username}"
+        if isinstance(auth, bytes):
+            token = RESTAuthToken.get_token(auth)
+            if token is not None:
+                return f"Authentication was with token {token}"
+            else:
+                return "Authentication was with unknown token"
+    return "Request was not authenticated"
+
 class Version(APIView):
     # This is non-sensitive information, which a client may need to read in order to authenticate
     # correctly, so it is not itself subject to authentication
@@ -47,6 +63,137 @@ class Version(APIView):
     def get(self, request):
         # This could also return a minimum supported version, etc. if that turns out to be useful
         return Response(data={"current": current_api_version})
+
+def do_scram_first(client_first: str):
+    """
+    Return: a tuple (sid, server first data)
+    """
+    # all credentials we issue are SHA-512
+    s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup)
+    s.set_client_first(client_first)
+
+    # If scramp did not complain, the exchange can proceed.
+    # First, we record the state so that it can be picked up later.
+    ex = SCRAMExchange()
+    ex.cred = SCRAMCredentials.objects.get(username=s.user)
+    ex.j_nonce = s.nonce
+    ex.s_nonce_len = len(s.s_nonce)
+    ex.client_first = client_first
+    ex.began = datetime.datetime.now(datetime.timezone.utc)
+    ex.save()
+    return (ex,s)
+
+def do_scram_final(client_final: str, sid: Optional[str]=None):
+    """
+    Return: If successful, the (completed) SCRAMExchange and the SCRAM server
+    """
+    if sid:
+        print("Client supplied sid:",sid)
+        ex = SCRAMExchange.objects.get(sid=sid)
+    else:
+        # a bit ugly: To find the previously started exchange session, if any, we need to extract
+        # the nonce from the request. We can either reimplement the parsing logic, or underhandedly
+        # reach inside of scramp to use its parse function. We do the latter.
+        try:
+            parsed = scramp.core._parse_message(client_final, "client final", "crp")
+        except:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        ex = SCRAMExchange.objects.get(j_nonce=parsed['r'])
+    # recreate the SCRAM server state from our stored exchange record
+    s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup,
+                                                           s_nonce=ex.s_nonce())
+    s.set_client_first(ex.client_first)
+    s.get_server_first()  # waste of time, but scramp requires this to be called
+    # if we reach this point, we are ready to process the second half of the exchange
+    s.set_client_final(client_final)
+    # if scramp hasn't objected, the authentication has now succeeded
+    return (ex,s)
+
+def parse_list_header(header: str):
+    return [v[1:-1] if v[0] == v[-1] == '"' else v for v in parse_http_list(header)]
+
+def parse_dict_header(header: str):
+    def unquote(v: str):
+        return v[1:-1] if v[0] == v[-1] == '"' else v
+    d = dict()
+    for item in parse_list_header(header):
+        if '=' in item:
+            k, v = item.split('=', 1)
+            d[k] = unquote(v)
+        else:
+            d[k] = None
+    return d
+
+class ScramState(object):
+    def __init__(self, mech, sid, s):
+        self.mech = mech
+        self.sid = sid
+        self.s = s
+
+class ScramAuthentication(BaseAuthentication):
+    def authenticate(self, request):
+        auth_header = get_authorization_header(request)
+        if not auth_header or len(auth_header)==0:
+            return None
+        try:
+            auth_header=auth_header.decode("utf-8")
+        except:
+            raise AuthenticationFailed("Malformed authentication header")
+
+        if not auth_header.upper().startswith("SCRAM-"):
+            return None
+        m = re.fullmatch("(SCRAM-[A-Z0-9-]+) *([^ ].*)", auth_header, flags=re.IGNORECASE)
+        if not m:
+            raise AuthenticationFailed("Malformed SCRAM authentication header")
+        scram_mech=m.group(1).upper()
+        auth_data = parse_dict_header(m.group(2))
+        if "data" in auth_data and "sid" in auth_data:
+            # If we have both of these we are in the final phase of the SCRAM handshake
+            sid = auth_data.get("sid")
+            data = auth_data.get("data")
+            if not sid or not data:
+                raise AuthenticationFailed("Malformed SCRAM authentication header")
+            client_final=base64.b64decode(data).decode("utf-8")
+            ex,s = do_scram_final(client_final, sid)
+            request.META["scram_state"]=ScramState(scram_mech, sid, s)
+            return (ex.cred.owner, ex.cred)
+        # Otherwise, SCRAM has not yet succeeded
+        return None
+
+    def authenticate_header(self, request):
+        auth_header = get_authorization_header(request)
+        if not auth_header or len(auth_header)==0:
+            return "SCRAM-SHA-512"
+        try:
+            auth_header=auth_header.decode("utf-8")
+        except:
+            raise AuthenticationFailed("Malformed SCRAM authentication header")
+        if auth_header.upper().startswith("SCRAM-"):
+            m = re.fullmatch("(SCRAM-[A-Z0-9-]+) *([^ ].*)", auth_header, flags=re.IGNORECASE)
+            if not m:
+                return "SCRAM-SHA-512"
+            scram_mech=m.group(1).upper()
+            auth_data = parse_dict_header(m.group(2))
+            if not auth_data.get("data", None):
+                return "SCRAM-SHA-512"
+            client_first=base64.b64decode(auth_data.get("data")).decode("utf-8")
+            try:
+                # This function will only be called during the SCRAM first phase, so we do that
+                ex, s = do_scram_first(client_first)
+                sfirst=base64.b64encode(s.get_server_first().encode("utf-8")).decode('utf-8')
+                return f"{scram_mech} sid={ex.sid}, data={sfirst}"
+            except (scramp.ScramException):
+                raise AuthenticationFailed("SCRAM authentication failed")
+
+def set_scram_auth_info_header(get_response):
+	def middleware(request):
+		response = get_response(request)
+		scram_state = request.META.get("scram_state", None)
+		if scram_state:
+			sfinal=base64.b64encode(scram_state.s.get_server_final().encode("utf-8")).decode('utf-8')
+			response["Authentication-Info"]=f"{scram_state.mech} sid={scram_state.sid}, data={sfinal}"
+		return response
+	return middleware
 
 class ScramFirst(APIView):
 	# This is an authentication mechanism, so no other authentication should be enforced
@@ -57,25 +204,10 @@ class ScramFirst(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
         
         client_first = request.data["client_first"]
-        
-        # all credentials we issue are SHA-512
-        s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup)
         try:
-            s.set_client_first(client_first)
+            ex, s = do_scram_first(client_first)
             logger.info(f"Began a SCRAM exchange for user {s.user} from {client_ip(request)}")
-        
-            # If scramp did not complain, the exchange can proceed. 
-            # First, we record the state so that it can be picked up later.
-            ex = SCRAMExchange()
-            ex.cred = SCRAMCredentials.objects.get(username=s.user)
-            ex.j_nonce = s.nonce
-            ex.s_nonce_len = len(s.s_nonce)
-            ex.client_first = client_first
-            ex.began = datetime.datetime.now(datetime.timezone.utc)
-            ex.save()
-
-            # Then, we can send the challenge back to the client
-            return Response(data={"server_first": s.get_server_first()}, status=status.HTTP_200_OK)
+            return Response(data={"server_first": s.get_server_first(), "sid": ex.sid}, status=status.HTTP_200_OK)
         except ValueError:
             logger.info(f"Rejected invalid SCRAM request (first) from {client_ip(request)}")
             return Response(data={"error": "Invalid SCRAM request"},
@@ -94,34 +226,15 @@ class ScramFinal(APIView):
     def post(self, request, version):
         if "client_final" not in request.data:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
-        client_final = request.data["client_final"]
-
-        # a bit ugly: To find the previously started exchange session, if any, we need to extract
-        # the nonce from the request. We can either reimplement the parsing logic, or underhandedly
-        # reach inside of scramp to use its parse function. We do the latter.
         try:
-            parsed = scramp.core._parse_message(client_final, "client final", "crp")
-        except:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        try:
-            ex = SCRAMExchange.objects.get(j_nonce=parsed['r'])
+            ex, s = do_scram_final(request.data["client_final"], sid=request.data.get("sid", None))
         except ObjectDoesNotExist:
             logger.info(f"Rejected invalid SCRAM request (final) from {client_ip(request)}; "
                         "Exchange invlid or expired")
             # We have no record of this SCRAM exchange. Either it timed out or was never begun.
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # recreate the SCRAM server state from our stored exchange record
-            s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup, 
-                                                                   s_nonce=ex.s_nonce())
-            s.set_client_first(ex.client_first)
-            s.get_server_first()  # waste of time, but scramp requires this to be called
-            # if we reach this point, we are ready to process the second half of the exchange
-            s.set_client_final(client_final)
-            # if scramp hasn't objected, the authentication has now succeeded
             
+        try:
             # Issue a short-lived REST token
             token = RESTAuthToken.create_token_for_user(ex.cred.owner, held_by=ex.cred.owner)
 
@@ -131,6 +244,7 @@ class ScramFinal(APIView):
                         + settings.REST_TOKEN_TTL
             data = {
                 "server_final": s.get_server_final(),
+                "sid": ex.sid,
                 "token": base64.urlsafe_b64encode(token),
                 "token_expires": expire_time
             }
@@ -141,7 +255,7 @@ class ScramFinal(APIView):
             logger.info(f"Rejected invalid SCRAM request (final) from {client_ip(request)}")
             return Response(data={"error": "Invalid SCRAM request"},
                             status=status.HTTP_401_UNAUTHORIZED)
-        except (ObjectDoesNotExist, scramp.ScramException):
+        except (ObjectDoesNotExist):
             # Authentication has failed
             logger.info(f"Rejected invalid SCRAM request (final) from {client_ip(request)}")
             return Response(data={"error": "Invalid SCRAM request", 
@@ -151,7 +265,7 @@ class ScramFinal(APIView):
             ex.delete()  # clean up the exchange session record
 
 class MultiRequest(APIView):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
 
     def post(self, request, version):
         auth_header_names = ["HTTP_AUTHORIZATION", "HTTP_PROXY_AUTHORIZATION"]
@@ -249,7 +363,7 @@ class MultiRequest(APIView):
                         status=status.HTTP_200_OK)
 
 class TokenForOidcUser(APIView):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     # TODO !!! must also have special authority to use this privileged feature
     permission_classes = [IsAuthenticated, IsAdminUser]
     
@@ -284,7 +398,7 @@ class TokenForOidcUser(APIView):
         
 
 class UserViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     queryset = User.objects.all()
@@ -293,8 +407,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     "requested to list all users "
-                    f"from {client_ip(request)}")
-        find_token(request.auth)
+                    f"from {client_ip(request)}; {describe_auth(request)}")
         return super().list(request, *args, **kwargs)
     
     def retrieve(self, request, *args, **kwargs):
@@ -353,7 +466,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     
 class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     serializer_class = SCRAMCredentialsSerializer
@@ -443,7 +556,7 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class GroupViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     # all users are allowed to see the full list of groups
@@ -498,7 +611,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class GroupMembershipViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
     
     serializer_class = GroupMembershipSerializer
@@ -615,7 +728,7 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class KafkaTopicViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
     
     serializer_class = KafkaTopicSerializer
@@ -731,7 +844,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     serializer_class = GroupKafkaPermissionSerializer
@@ -844,7 +957,7 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         raise PermissionDenied
 
 class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
-    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     serializer_class = GroupKafkaPermissionSerializer
