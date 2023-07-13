@@ -407,21 +407,29 @@ class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
 
+    def __init__(self, *args, **kwargs):
+        self.get_lookup_field = self._get_lookup_field
+        super().__init__(*args, **kwargs)
+
     def get_serializer_class(self):
         return serializers[self.kwargs.get("version",current_api_version)].UserSerializer
 
+    @staticmethod
+    def get_lookup_field(version=current_api_version):
+        if version == 0:
+            return "pk"
+        if version >= 1:
+            return "username"
+
+    def _get_lookup_field(self):
+        return UserViewSet.get_lookup_field(self.kwargs.get("version",current_api_version))
+
     def get_object(self):
-        version = self.kwargs.get("version",current_api_version)
-        if version > 0:
-            self.lookup_field = "username"
+        self.lookup_field = self.get_lookup_field()
         return super().get_object()
 
     def get_target_descriptor(self, kwargs):
-        version = self.kwargs.get("version",current_api_version)
-        if version == 0:
-            return kwargs.get('pk','<missing>')
-        else:
-            return kwargs.get('username','<missing>')
+        return kwargs.get(self.get_lookup_field(),'<missing>')
     
     def list(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
@@ -433,6 +441,15 @@ class UserViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested information about user {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
+        return super().retrieve(request, *args, **kwargs)
+
+    def retrieve_current(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested information about themself "
+                    f"from {client_ip(request)}")
+        lf = self.get_lookup_field()
+        # Co-opt the lookup infrastructure to point at the user making the request
+        self.kwargs[lf] = getattr(request.user, lf)
         return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
@@ -539,6 +556,14 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
             logger.info(f"User {request.user.username} ({request.user.email}) "
                         "requested to list SCRAM credentials belonging to all users "
                         f"from {client_ip(request)}")
+        return super().list(request, *args, **kwargs)
+
+    def list_for_current_user(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list SCRAM credentials belonging to themself "
+                    f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        self.kwargs["user"] = getattr(request.user, UserViewSet.get_lookup_field(version))
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
@@ -734,6 +759,14 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
             logger.info(f"User {request.user.username} ({request.user.email}) "
                         "requested to list all group memberships "
                         f"from {client_ip(request)}")
+        return super().list(request, *args, **kwargs)
+
+    def list_for_current_user(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list their own group memberships "
+                    f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        self.kwargs["user"] = getattr(request.user, UserViewSet.get_lookup_field(version))
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):

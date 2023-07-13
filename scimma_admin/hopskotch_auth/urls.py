@@ -95,6 +95,10 @@ urlpatterns = [
     path("api/v<int:version>/users/<str:user>/credentials/<int:username>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
     path("api/v<int:version>/users/<str:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="user_groups"),
 
+    path("api/v<int:version>/current_user", api_views.UserViewSet.as_view({"get": "retrieve_current"}), name="current_user"),
+    path("api/v<int:version>/current_user/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list_for_current_user"}), name="current_user_credentials"),
+    path("api/v<int:version>/current_user/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list_for_current_user"}), name="current_user_groups"),
+
     path("api/v<int:version>/scram_credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="scram_credentials"),
     path("api/v<int:version>/scram_credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="scram_credentials_detail"),
 
