@@ -58,29 +58,59 @@ urlpatterns = [
 
     path("api/v<int:version>/oidc/token_for_user", api_views.TokenForOidcUser.as_view(), name="token_for_user"),
 
+	# v0, for backwards compatibility
+
+	path("api/v0/users", api_views.UserViewSet.as_view({"get": "list", "post": "create"}), {"name":"users", "version":0}),
+    path("api/v0/users/<int:pk>", api_views.UserViewSet.as_view({"get": "retrieve", "delete": "destroy"}), {"name":"user_detail", "version":0}),
+    path("api/v0/users/<int:user>/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), {"name":"user_credentials", "version":0}),
+    path("api/v0/users/<int:user>/credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), {"name":"user_credential_detail", "version":0}),
+    path("api/v0/users/<int:user>/credentials/<int:pk>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), {"name":"user_credential_permissions", "version":0}),
+    path("api/v0/users/<int:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), {"name":"user_groups", "version":0}),
+
+    path("api/v0/scram_credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), {"name":"scram_credentials", "version":0}),
+    path("api/v0/scram_credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), {"name":"scram_credentials_detail", "version":0}),
+
+    path("api/v0/topics", api_views.KafkaTopicViewSet.as_view({"get": "list"}), {"name":"topics", "version":0}),
+    path("api/v0/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy"}), {"name":"topic_detail", "version":0}),
+    path("api/v0/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), {"name":"topic_permissions", "version":0}),
+
+    path("api/v0/groups", api_views.GroupViewSet.as_view({"get": "list", "post": "create"}), {"name":"groups", "version":0}),
+    path("api/v0/groups/<int:pk>", api_views.GroupViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), {"name":"group_detail", "version":0}),
+    path("api/v0/groups/<int:group>/members", api_views.GroupMembershipViewSet.as_view({"get": "list", "post": "create"}), {"name":"group_members", "version":0}),
+    path("api/v0/groups/<int:group>/members/<int:pk>", api_views.GroupMembershipViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), {"name":"group_member_detail", "version":0}),
+    path("api/v0/groups/<int:owning_group>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list", "post": "create"}), {"name":"group_topics", "version":0}),
+    path("api/v0/groups/<int:owning_group>/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "patch": "partial_update"}), {"name":"group_topic_detail", "version":0}),
+    path("api/v0/groups/<int:granting_group>/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), {"name":"group_topic_permissions", "version":0}),
+    path("api/v0/groups/<int:granting_group>/topics/<int:topic>/permissions/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), {"name":"group_topic_permission_detail", "version":0}),
+    path("api/v0/groups/<int:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), {"name":"group_permissions_given", "version":0}),
+    path("api/v0/groups/<int:granting_group>/permissions_given/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), {"name":"group_permissions_given_detail", "version":0}),
+    path("api/v0/groups/<int:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), {"name":"group_permissions_received", "version":0}),
+
+    # Current version
+
     path("api/v<int:version>/users", api_views.UserViewSet.as_view({"get": "list", "post": "create"}), name="users"),
-    path("api/v<int:version>/users/<int:pk>", api_views.UserViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="user_detail"),
-    path("api/v<int:version>/users/<int:user>/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="user_credentials"),
-    path("api/v<int:version>/users/<int:user>/credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="user_credential_detail"),
-    path("api/v<int:version>/users/<int:user>/credentials/<int:cred>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
-    path("api/v<int:version>/users/<int:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="user_groups"),
+    path("api/v<int:version>/users/<str:username>", api_views.UserViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="user_detail"),
+    path("api/v<int:version>/users/<str:user>/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="user_credentials"),
+    path("api/v<int:version>/users/<str:user>/credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="user_credential_detail"),
+    path("api/v<int:version>/users/<str:user>/credentials/<int:username>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
+    path("api/v<int:version>/users/<str:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="user_groups"),
 
     path("api/v<int:version>/scram_credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="scram_credentials"),
-    path("api/v<int:version>/scram_credentials/<int:pk>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="scram_credentials_detail"),
+    path("api/v<int:version>/scram_credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="scram_credentials_detail"),
 
     path("api/v<int:version>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list"}), name="topics"),
-    path("api/v<int:version>/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="topic_detail"),
-    path("api/v<int:version>/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="topic_permissions"),
+    path("api/v<int:version>/topics/<str:name>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="topic_detail"),
+    path("api/v<int:version>/topics/<str:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="topic_permissions"),
 
     path("api/v<int:version>/groups", api_views.GroupViewSet.as_view({"get": "list", "post": "create"}), name="groups"),
-    path("api/v<int:version>/groups/<int:pk>", api_views.GroupViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="group_detail"),
-    path("api/v<int:version>/groups/<int:group>/members", api_views.GroupMembershipViewSet.as_view({"get": "list", "post": "create"}), name="group_members"),
-    path("api/v<int:version>/groups/<int:group>/members/<int:pk>", api_views.GroupMembershipViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="group_member_detail"),
-    path("api/v<int:version>/groups/<int:owning_group>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list", "post": "create"}), name="group_topics"),
-    path("api/v<int:version>/groups/<int:owning_group>/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "patch": "partial_update"}), name="group_topic_detail"),
-    path("api/v<int:version>/groups/<int:granting_group>/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="group_topic_permissions"),
-    path("api/v<int:version>/groups/<int:granting_group>/topics/<int:topic>/permissions/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_topic_permission_detail"),
-    path("api/v<int:version>/groups/<int:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_given"),
-    path("api/v<int:version>/groups/<int:granting_group>/permissions_given/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_permissions_given_detail"),
-    path("api/v<int:version>/groups/<int:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_received"),
+    path("api/v<int:version>/groups/<str:name>", api_views.GroupViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="group_detail"),
+    path("api/v<int:version>/groups/<str:group>/members", api_views.GroupMembershipViewSet.as_view({"get": "list", "post": "create"}), name="group_members"),
+    path("api/v<int:version>/groups/<str:group>/members/<int:pk>", api_views.GroupMembershipViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="group_member_detail"),
+    path("api/v<int:version>/groups/<str:owning_group>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list", "post": "create"}), name="group_topics"),
+    path("api/v<int:version>/groups/<str:owning_group>/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "patch": "partial_update"}), name="group_topic_detail"),
+    path("api/v<int:version>/groups/<str:granting_group>/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="group_topic_permissions"),
+    path("api/v<int:version>/groups/<str:granting_group>/topics/<int:topic>/permissions/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_topic_permission_detail"),
+    path("api/v<int:version>/groups/<str:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_given"),
+    path("api/v<int:version>/groups/<str:granting_group>/permissions_given/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_permissions_given_detail"),
+    path("api/v<int:version>/groups/<str:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_received"),
 ]
