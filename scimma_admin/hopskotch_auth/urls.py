@@ -92,7 +92,7 @@ urlpatterns = [
     path("api/v<int:version>/users/<str:username>", api_views.UserViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="user_detail"),
     path("api/v<int:version>/users/<str:user>/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="user_credentials"),
     path("api/v<int:version>/users/<str:user>/credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="user_credential_detail"),
-    path("api/v<int:version>/users/<str:user>/credentials/<int:username>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
+    path("api/v<int:version>/users/<str:user>/credentials/<str:cred>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
     path("api/v<int:version>/users/<str:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="user_groups"),
 
     path("api/v<int:version>/current_user", api_views.UserViewSet.as_view({"get": "retrieve_current"}), name="current_user"),
@@ -101,6 +101,12 @@ urlpatterns = [
 
     path("api/v<int:version>/scram_credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="scram_credentials"),
     path("api/v<int:version>/scram_credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="scram_credentials_detail"),
+    path("api/v<int:version>/scram_credentials/<str:cred>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="scram_credential_permissions"),
+	path("api/v<int:version>/scram_credentials/<str:cred>/permissions/topic/<str:topic>", api_views.CredentialPermissionsForTopic.as_view(), name="scram_credential_topic_permissions"),
+
+    path("api/v<int:version>/current_credential", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve_current"}), name="current_credential"),
+    path("api/v<int:version>/current_credential/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list_for_current_credential"}), name="current_credential_permissions"),
+    path("api/v<int:version>/current_credential/permissions/topic/<str:topic>", api_views.CurrentCredentialPermissionsForTopic.as_view(), name="current_credential_topic_permissions"),
 
     path("api/v<int:version>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list"}), name="topics"),
     path("api/v<int:version>/topics/<str:name>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="topic_detail"),

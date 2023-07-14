@@ -24,6 +24,7 @@ import scramp
 import traceback
 import logging
 from urllib.request import parse_http_list
+from typing import Optional
 
 from .models import *
 from .serializers import v0 as serializers_v0
@@ -42,11 +43,6 @@ current_api_version = 1
 # version compatibility. Viewsets may find this in self.kwargs, for use in methods like 
 # `get_serializer_class`, which may also need to change depending on the request version. 
 
-def find_token(raw_token: bytes):
-	token = RESTAuthToken.get_token(raw_token)
-	if token is not None:
-		print("Authentication was with token", token)
-
 def describe_auth(request) -> str:
     auth = getattr(request, "auth", None)
     if auth:
@@ -59,6 +55,19 @@ def describe_auth(request) -> str:
             else:
                 return "Authentication was with unknown token"
     return "Request was not authenticated"
+
+def find_current_credential(request) -> Optional[SCRAMCredentials]:
+    auth = getattr(request, "auth", None)
+    if auth:
+        if isinstance(auth, SCRAMCredentials):
+            return auth
+        if isinstance(auth, bytes):
+            token = RESTAuthToken.get_token(auth)
+            if token and token.derived_from:
+                return token.derived_from
+            else:
+                return None
+    return None
 
 class Version(APIView):
     # This is non-sensitive information, which a client may need to read in order to authenticate
@@ -240,7 +249,8 @@ class ScramFinal(APIView):
             
         try:
             # Issue a short-lived REST token
-            token = RESTAuthToken.create_token_for_user(ex.cred.owner, held_by=ex.cred.owner)
+            token = RESTAuthToken.create_token_for_user(ex.cred.owner, held_by=ex.cred.owner,
+                                                        derived_from=ex.cred)
 
             # Return to the client the SCRAM server final message, the issued token, and
             # expiration time of the token
@@ -383,7 +393,10 @@ class TokenForOidcUser(APIView):
                             status=status.HTTP_404_NOT_FOUND)
         try:
             # Issue a short-lived REST token
-            token = RESTAuthToken.create_token_for_user(user, held_by=request.user)
+            # Note that we set derived_to to None because we do not want this token to be associated
+            # back to the admin user credential which created it, as that would cause odd effects
+            # if it is used with the current_credential routes.
+            token = RESTAuthToken.create_token_for_user(user, held_by=request.user, derived_from=None)
 
             # Return to the client the the issued token and expiration time of the token
             expire_time = RESTAuthToken.get_token(token).created \
@@ -446,7 +459,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def retrieve_current(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested information about themself "
-                    f"from {client_ip(request)}")
+                    f"from {client_ip(request)}; {describe_auth(request)}")
         lf = self.get_lookup_field()
         # Co-opt the lookup infrastructure to point at the user making the request
         self.kwargs[lf] = getattr(request.user, lf)
@@ -505,8 +518,22 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
+    def __init__(self, *args, **kwargs):
+        self.get_lookup_field = self._get_lookup_field
+        super().__init__(*args, **kwargs)
+
     def get_serializer_class(self):
         return serializers[self.kwargs.get("version",current_api_version)].SCRAMCredentialsSerializer
+
+    @staticmethod
+    def get_lookup_field(version=current_api_version):
+        if version == 0:
+            return "pk"
+        if version >= 1:
+            return "username"
+
+    def _get_lookup_field(self):
+        return SCRAMCredentialsViewSet.get_lookup_field(self.kwargs.get("version",current_api_version))
 
     def get_queryset(self):
         queryset = SCRAMCredentials.objects.all()
@@ -535,17 +562,11 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_object(self):
-        version = self.kwargs.get("version",current_api_version)
-        if version > 0:
-            self.lookup_field = "username"
+        self.lookup_field = self.get_lookup_field()
         return super().get_object()
 
     def get_target_descriptor(self, kwargs):
-        version = self.kwargs.get("version",current_api_version)
-        if version == 0:
-            return kwargs.get('pk','<missing>')
-        else:
-            return kwargs.get('username','<missing>')
+        return kwargs.get(self.get_lookup_field,'<missing>')
 
     def list(self, request, *args, **kwargs):
         if "user" in kwargs:
@@ -570,6 +591,18 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested the details of SCRAM credential {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
+        return super().retrieve(request, *args, **kwargs)
+
+    def retrieve_current(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested the details of the SCRAM credential currently in use "
+                    f"from {client_ip(request)}")
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        lf = self.get_lookup_field()
+        # Co-opt the lookup infrastructure to point at this particular credential
+        self.kwargs[lf] = getattr(cred, lf)
         return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
@@ -842,6 +875,20 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
 class KafkaTopicViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
+
+    def __init__(self, *args, **kwargs):
+        self.get_lookup_field = self._get_lookup_field
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def get_lookup_field(version=current_api_version):
+        if version == 0:
+            return "pk"
+        if version >= 1:
+            return "name"
+
+    def _get_lookup_field(self):
+        return KafkaTopicViewSet.get_lookup_field(self.kwargs.get("version",current_api_version))
     
     def get_queryset(self):
         queryset = KafkaTopic.objects.all()
@@ -875,9 +922,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_object(self):
-        version = self.kwargs.get("version",current_api_version)
-        if version > 0:
-            self.lookup_field = "name"
+        self.lookup_field = self.get_lookup_field()
         return super().get_object()
 
     def get_serializer_class(self):
@@ -887,11 +932,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         return serializers[self.kwargs.get("version",current_api_version)].KafkaTopicSerializer
 
     def get_target_descriptor(self, kwargs):
-        version = self.kwargs.get("version",current_api_version)
-        if version == 0:
-            return kwargs.get('pk','<missing>')
-        else:
-            return kwargs.get('name','<missing>')
+        return kwargs.get(self.get_lookup_field(),'<missing>')
 
     def list(self, request, *args, **kwargs):
         if "owning_group" in kwargs:
@@ -1134,10 +1175,8 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
             cred = self.kwargs["cred"]
 
             version = self.kwargs.get("version",current_api_version)
-            if version == 0:
-                search = KafkaTopic.objects.filter(id=cred)
-            if version >= 1:
-                search = KafkaTopic.objects.filter(username=cred)
+            search = SCRAMCredentials.objects.filter(
+                **{SCRAMCredentialsViewSet.get_lookup_field(version): cred})
             if not search.exists():
                 raise BadRequest
             cred = search[0]
@@ -1162,6 +1201,17 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
             logger.info(f"User {request.user.username} ({request.user.email}) "
                         "requested to list all SCRAM credential permissions "
                         f"from {client_ip(request)}")
+        return super().list(request, *args, **kwargs)
+
+    def list_for_current_credential(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list permissions attatched to the current SCRAM credential"
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        self.kwargs["cred"] = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
@@ -1245,3 +1295,52 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         raise PermissionDenied
+
+class CredentialPermissionsForTopic(APIView):
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, already_logged=False, *args, **kwargs):
+        if not already_logged:
+            logger.info(f"User {request.user.username} ({request.user.email}) "
+                        f"requested to list Kafka permissions for topic {kwargs.get('topic','<missing>')} "
+                        f"associated with SCRAM credential {kwargs.get('cred','<missing>')} "
+                        f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+
+        cred = kwargs["cred"]
+        search = SCRAMCredentials.objects.filter(**{SCRAMCredentialsViewSet.get_lookup_field(version): cred})
+        if not search.exists():
+            raise BadRequest
+        cred = search[0]
+
+        topic = self.kwargs["topic"]
+        search = KafkaTopic.objects.filter(**{KafkaTopicViewSet.get_lookup_field(version): topic})
+        if not search.exists():
+            raise BadRequest
+        topic = search[0]
+
+        perms = set()
+        if topic.publicly_readable:
+            perms.add(KafkaOperation.Read)
+
+        queryset = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
+        for permission in queryset:
+            perms.add(permission.operation)
+
+        serializer = serializers[self.kwargs.get("version",current_api_version)].ReadableEnumField(KafkaOperation)
+
+        return Response(data={"allowed_operations": [serializer.to_representation(p) for p in perms]})
+
+class CurrentCredentialPermissionsForTopic(CredentialPermissionsForTopic):
+    def get(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list Kafka permissions for topic {kwargs.get('topic','<missing>')} "
+                    f"associated with the current SCRAM credential "
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        kwargs["cred"] = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
+        return super().get(request, already_logged=True, *args, **kwargs)
