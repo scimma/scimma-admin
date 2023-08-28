@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from . import views
 from . import callbacks
@@ -117,10 +118,15 @@ urlpatterns = [
     path("api/v<int:version>/groups/<str:group>/members", api_views.GroupMembershipViewSet.as_view({"get": "list", "post": "create"}), name="group_members"),
     path("api/v<int:version>/groups/<str:group>/members/<int:pk>", api_views.GroupMembershipViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="group_member_detail"),
     path("api/v<int:version>/groups/<str:owning_group>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list", "post": "create"}), name="group_topics"),
-    path("api/v<int:version>/groups/<str:owning_group>/topics/<int:pk>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "patch": "partial_update"}), name="group_topic_detail"),
-    path("api/v<int:version>/groups/<str:granting_group>/topics/<int:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="group_topic_permissions"),
-    path("api/v<int:version>/groups/<str:granting_group>/topics/<int:topic>/permissions/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_topic_permission_detail"),
+    path("api/v<int:version>/groups/<str:owning_group>/topics/<str:name>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "patch": "partial_update"}), name="group_topic_detail"),
+    path("api/v<int:version>/groups/<str:granting_group>/topics/<str:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="group_topic_permissions"),
+    path("api/v<int:version>/groups/<str:granting_group>/topics/<str:topic>/permissions/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_topic_permission_detail"),
     path("api/v<int:version>/groups/<str:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_given"),
     path("api/v<int:version>/groups/<str:granting_group>/permissions_given/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_permissions_given_detail"),
     path("api/v<int:version>/groups/<str:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_received"),
+
+    path('api/swagger-ui/', TemplateView.as_view(
+         template_name='hopskotch_auth/swagger-ui.html',
+         extra_context={'schema_url':'openapi-schema'}
+    ), name='swagger-ui'),
 ]
