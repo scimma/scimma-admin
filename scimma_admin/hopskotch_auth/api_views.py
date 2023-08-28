@@ -526,7 +526,11 @@ class TokenForOidcUser(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
     
     def post(self, request, version):
-        if "vo_person_id" not in request.data:
+        if "sub" in request.data:
+            username = request.data["sub"]
+        elif "vo_person_id" in request.data:
+            username = request.data["vo_person_id"]
+        else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         username = request.data["vo_person_id"]
         
@@ -537,7 +541,7 @@ class TokenForOidcUser(APIView):
                             status=status.HTTP_404_NOT_FOUND)
         try:
             # Issue a short-lived REST token
-            # Note that we set derived_to to None because we do not want this token to be associated
+            # Note that we set derived_from to None because we do not want this token to be associated
             # back to the admin user credential which created it, as that would cause odd effects
             # if it is used with the current_credential routes.
             token = RESTAuthToken.create_token_for_user(user, held_by=request.user, derived_from=None)
@@ -618,8 +622,8 @@ class UserViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
                 raise PermissionDenied
         
-        if "vo_person_id" not in request.data:
-            return Response(data={"error": "vo_person_id missing"},
+        if "sub" not in request.data:
+            return Response(data={"error": "sub missing"},
                             status=status.HTTP_400_BAD_REQUEST)
         if "is_member_of" not in request.data:
             return Response(data={"error": "is_member_of missing"},
