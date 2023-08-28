@@ -1,0 +1,3170 @@
+openapi: 3.0.2
+info:
+  title: 'HopAuth REST API'
+  version: '1.0.0'
+paths:
+  /hopauth/api/version:
+    get:
+      operationId: getVersionInfo
+      description: "Returns the details of the server's current API version"
+      parameters: []
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/APIVersionData"
+          description: ''
+      tags:
+      - hopauth
+  /hopauth/api/v{version}/multi:
+    post:
+      operationId: multiRequest
+      description: 'Submit a request to perform a bundle of sub-requests. Each sub-request is processed independently, including its authentication. The request body is a mapping of user-chosen keys to sub-requests, and the response will be in the form of a mapping with the same keys, so that sub-responses can be matched to the sub-requests the client wanted to make. Each sub-request must include a method (HTTP verb) and path requested. Each may optionally include headers (useful for including authorization tokens), and a request body if applicable. Each sub-response will include a status and response body, and may also include response headers.'
+      parameters:
+      - name: version
+        in: path
+        required: true
+        description: 'API version'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MultiRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultiRequestResult'
+          description: ''
+        '400':
+          description: "Malformed request"
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v{version}/scram/first:
+    post:
+      operationId: scramFirst
+      description: 'Begin a SCRAM exchange to authenticate and get a temporary token issued. If successful, the exchange must be completed using `scram/final`.'
+      parameters:
+      - name: version
+        in: path
+        required: true
+        description: 'API version'
+        schema:
+          type: integer
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScramFirstRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScramFirstResult'
+          description: ''
+        '400':
+          description: "Malformed request"
+        '401':
+          description: "Authentication failed"
+      tags:
+      - hopauth
+  /hopauth/api/v{version}/scram/final:
+    post:
+      operationId: scramFinal
+      description: 'Complete a previously started SCRAM exchenage to authenticate and get a temporary token issued. Further requests can authenticate with just the token for the duration of its validity.'
+      parameters:
+      - name: version
+        in: path
+        required: true
+        description: 'API version'
+        schema:
+          type: integer
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScramFinalRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScramFinalResult'
+          description: ''
+        '400':
+          description: "Malformed request"
+        '401':
+          description: "Authentication failed"
+        '404':
+          description: "In-progress SCRAM exchange not found"
+      tags:
+      - hopauth
+  /hopauth/api/v{version}/oidc/token_for_user:
+    post:
+      operationId: createTokenForOidcUser
+      description: 'Get a temporary REST token issued on behalf of another user. Only staff users may perform this action, which is intended to allow trusted subsidiary services to act on behalf of users.'
+      parameters:
+      - name: version
+        in: path
+        required: true
+        description: 'API version'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OidcTokenRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcTokenResult'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "Target user not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/users:
+    get:
+      operationId: listUsers
+      description: 'List all users'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+    post:
+      operationId: createUser
+      description: "Create a new account for a user. This is a privileged operation which only users authenticated as staff may perform. The required request data is consists of standard OIDC claims; specifically the subject ('sub'), which is used as the username, the 'is_member_of' claim containing group membership information, and the 'eamil' claim. Optionally, the 'given_name' and 'family_name' claims may be supplied to populate the user's first and last name fields for display purposes."
+      parameters:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+      tags:
+      - hopauth
+  /hopauth/api/v1/users/{username}:
+    get:
+      operationId: retrieveUser
+      description: 'Fetch data on a specific user. Accessible only to that user and to staff users.'
+      parameters:
+      - name: username
+        in: path
+        required: true
+        description: 'Username for the target user'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The requested user was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyUser
+      description: 'Delete a user. Only the user and staff users may perform this action.'
+      parameters:
+      - name: username
+        in: path
+        required: true
+        description: 'Username for the target user'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The requested user was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/users/{user}/credentials:
+    get:
+      operationId: listSCRAMCredentials
+      description: 'List the SCRAM credentials owned by a specific user. Users may only access their own credentials, unless they are staff.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username for the target user'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The requested user was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createSCRAMCredentialsByUser
+      description: 'Issue a new SCRAM credential'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username for the user for whom to issue a new credential'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSCRAMCredentialsRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSCRAMCredentialsResult'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target user was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/users/{user}/credentials/{username}:
+    get:
+      operationId: retrieveSCRAMCredentialsByUser
+      description: 'Fetch data on a specific SCRAM credential owned by a user. Only accessible to the owner of the credential and staff members.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username of the user who owns the credential'
+        schema:
+          type: string
+      - name: username
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateSCRAMCredentialsByUser
+      description: 'Update a SCRAM credential. Only the description and suspended flag can be changed; the former only by the credential owner or a staff user, and the latter only by staff users.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username of the user who owns the credential'
+        schema:
+          type: string
+      - name: username
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SCRAMCredentials'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The owning user or target credential was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroySCRAMCredentials
+      description: 'Delete a SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+       - name: user
+         in: path
+         required: true
+         description: 'Username of the user who owns the credential'
+         schema:
+           type: string
+       - name: username
+         in: path
+         required: true
+         description: 'Username of the credential'
+         schema:
+           type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The owning user or target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/users/{user}/credentials/{cred}/permissions:
+    get:
+      operationId: listCredentialKafkaPermissions
+      description: 'List the permissions attached to a specific SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username of the user who owns the credential'
+        schema:
+          type: string
+      - name: cred
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CredentialKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The owning user or target credential was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createCredentialKafkaPermission
+      description: 'Attach a new permission to a SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username of the user who owns the credential'
+        schema:
+          type: string
+      - name: cred
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialKafkaPermissionCreateRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The owning user or target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/users/{user}/memberships:
+    get:
+      operationId: listGroupMembershipsForUser
+      description: "List a specific user's group memberships. Users may only access their own group membership listings, unless they are staff users."
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Username of the user'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupMembership'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target user was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/current_user:
+    get:
+      operationId: retrieveCurrentUser
+      description: 'Fetch data on the user making the request. This is useful for stateless tools which have access to a credential, but do not otherwise know on behalf of which user they are acting.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/current_user/credentials:
+    get:
+      operationId: listForCurrentUserSCRAMCredentials
+      description: 'List SCRAM credentials owned by the user making the request'
+      parameters:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/current_user/memberships:
+    get:
+      operationId: listForCurrentUserGroupMemberships
+      description: 'List group memberships of the user making the request'
+      parameters:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/scram_credentials:
+    get:
+      operationId: listSCRAMCredentials
+      description: 'List all SCRAM credentials in the system. This action is only available to staff users.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+    post:
+      operationId: createSCRAMCredentials
+      description: 'Issue a new SCRAM credential'
+      parameters:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSCRAMCredentialsRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSCRAMCredentialsResult'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/scram_credentials/{username}:
+    get:
+      operationId: retrieveSCRAMCredentials
+      description: 'Fetch data on a specific SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: username
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateSCRAMCredentials
+      description: 'Update a SCRAM credential. Only the description and suspended flag can be changed; the former only by the credential owner or a staff user, and the latter only by staff users.'
+      parameters:
+      - name: username
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SCRAMCredentials'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/scram_credentials/{cred}/permissions:
+    get:
+      operationId: listCredentialKafkaPermissions
+      description: 'List the permissions attached to a specific SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: cred
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CredentialKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createCredentialKafkaPermission
+      description: 'Attach a new permission to a SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: cred
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialKafkaPermissionCreateRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/scram_credentials/{cred}/permissions/topic/{topic}:
+    get:
+      operationId: retrieveCredentialPermissionsForTopic
+      description: 'List the permissions attached to a specific SCRAM credential which peertain to a particular topic. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: cred
+        in: path
+        required: true
+        description: 'Username of the credential'
+        schema:
+          type: string
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaOperation'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The credential or topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/current_credential:
+    get:
+      operationId: retrieveCurrentSCRAMCredentials
+      description: 'Fetch data on the SCRAM credential associated with the request. Note that this will fail if the request is made using token authentication if the token was issued by the `oidc/token_for_user` function.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials'
+          description: ''
+        '400':
+          description: "The request is invalid because it was made with a token not tied to a specific SCRAM credential of the user it represents."
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/current_credential/permissions:
+    get:
+      operationId: listForCurrentCredentialCredentialKafkaPermission
+      description: 'List the permissions attached to the SCRAM credential associated with the request. Note that this will fail if the request is made using token authentication if the token was issued by the `oidc/token_for_user` function.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialKafkaPermission'
+          description: ''
+        '400':
+          description: "The request is invalid because it was made with a token not tied to a specific SCRAM credential of the user it represents."
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/current_credential/permissions/topic/{topic}:
+    get:
+      operationId: retrieveCurrentCredentialPermissionsForTopic
+      description: 'List permissions attached to the SCRAM credential associated with the request which relate to the specified topic. Note that this will fail if the request is made using token authentication if the token was issued by the `oidc/token_for_user` function.'
+      parameters:
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaOperation'
+          description: ''
+        '400':
+          description: "The request is invalid because it was made with a token not tied to a specific SCRAM credential of the user it represents."
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/topics:
+    get:
+      operationId: listKafkaTopics
+      description: 'List Kafka topics. The data returned will include only those topics to which the requesting user has some level of access; for norml users this will be all public topics and all topics owned by groups to which the user belongs. Staff users get a list of all topics in the system.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaTopic'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v1/topics/{name}:
+    get:
+      operationId: retrieveKafkaTopic
+      description: 'Fetch data about a specific Kafka topic'
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyKafkaTopic
+      description: 'Delete a Kafka topic. Only users who are Owners of the group which owns the topic and staff users may perform this action.'
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/topics/{topic}/permissions:
+    get:
+      operationId: listGroupKafkaPermissionsForTopic
+      description: 'List permissions to a specific topic which are granted to other groups'
+      parameters:
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups:
+    get:
+      operationId: listGroups
+      description: 'List all groups'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+    post:
+      operationId: createGroup
+      description: 'Create a new group. Only staff users can perform this action.'
+      parameters:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Group'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{name}:
+    get:
+      operationId: retrieveGroup
+      description: 'Fetch data about a specific group'
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateGroup
+      description: "Update a group. Only the group's description can be altered. Only Owners of the group and staff users can perform this action."
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Group'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroup
+      description: 'Delete a group. Only staff users can perform this action.'
+      parameters:
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{group}/members:
+    get:
+      operationId: listGroupMemberships
+      description: 'List all memberships in a group. Only group members and staff users may perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupMembership'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createGroupMembership
+      description: 'Add a membership for a user to a group. Only Owners of the group and staff users can perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMembership'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{group}/members/{id}:
+    get:
+      operationId: retrieveGroupMembership
+      description: 'Fetch data on a specific membership in a group. Only group members and staff users can perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the membership'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group or membership was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateGroupMembership
+      description: 'Update a membership within a group. Only group owners and staff users can perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the membership'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMembership'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group or membership was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroupMembership
+      description: 'Delete a group membership. Only group owners and staff users may perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Name of the group'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the membership'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group or membership was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{owning_group}/topics:
+    get:
+      operationId: listKafkaTopicsByGroup
+      description: 'List topics owned by a specific group. Only group members and staff users can perform this action.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Name of the owning group'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaTopic'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createKafkaTopic
+      description: 'Create a Kafka topic. Only owners of the group and staff users can perform this action.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Name of the owning group'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateKafkaTopicRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{owning_group}/topics/{name}:
+    get:
+      operationId: retrieveKafkaTopicByGroup
+      description: 'Fetch data about a specific topic belonging to a group. If the topic is public, any user may perform this action; otherwise, it is available only to members of the owning group and staff users.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Name of the owning group'
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateKafkaTopic
+      description: "Update a Kafka topic. Only staff users can adjust the `max_message_bytes`,  `retention_ms`, `retention_bytes`, and `n_partitions` properties, and only group owners can make changes to the remaining mutable properties."
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Name of the owning group'
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KafkaTopic'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyKafkaTopicByGroup
+      description: 'Delete a Kafka topic. This action can only be performed by Owners of the group which owns the topic and staff users.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Name of the owning group'
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{granting_group}/topics/{topic}/permissions:
+    get:
+      operationId: listGroupKafkaPermissionsForTopicByGroup
+      description: 'List permissions to a specific topic which are granted to other groups. Only members of the owning group and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the group which owns the topic'
+        schema:
+          type: string
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createGroupKafkaPermission
+      description: 'Create a permission granting a group access to a topic. Only owners of the group which owns the topic and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the group which owns the topic'
+        schema:
+          type: string
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupKafkaPermission'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group or target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{granting_group}/topics/{topic}/permissions/{id}:
+    get:
+      operationId: retrieveGroupKafkaPermissionByTopic
+      description: 'Fetch data about a specific permission granting a group access to a topic. Only members of the group which owns the topic and staff users '
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the group which owns the topic'
+        schema:
+          type: string
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the permission'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group, target topic, or permission record was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroupKafkaPermissionByGroup
+      description: 'Delete a permission granting a group access to a topic. Only owners of the group which owns the topic and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the group which owns the topic'
+        schema:
+          type: string
+      - name: topic
+        in: path
+        required: true
+        description: 'Name of the topic'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the permission'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group, target topic, or permission record was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{granting_group}/permissions_given:
+    get:
+      operationId: listGroupKafkaPermissionsGiven
+      description: 'List all of the permissions granted by the specified group to other groups. Only members of the granting group and staff users can perform this operation.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the granting group'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{granting_group}/permissions_given/{id}:
+    get:
+      operationId: retrieveGroupKafkaPermission
+      description: 'Fecth data about a specific permission granted by a group to another group. Only members of the granting group and staff users can perform this operation.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the granting group'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the permission'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group or permission record was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroupKafkaPermission
+      description: 'Delete a permission granting a group access to a topic. Only owners of the group which owns the topic and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Name of the granting group'
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: 'ID number of the permission'
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group or permission record was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v1/groups/{subject_group}/permissions_received:
+    get:
+      operationId: listGroupKafkaPermissionsReceived
+      description: 'List the permissions a particular group has been granted by other groups. Only members of the subject group and staff users can perform this action.'
+      parameters:
+      - name: subject_group
+        in: path
+        required: true
+        description: 'Name of the receiving group'
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The subject group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/users:
+    get:
+      operationId: listUsers_v0
+      description: 'List all users'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+    post:
+      operationId: createUser_v0
+      description: "Create a new account for a user. This is a privileged operation which only users authenticated as staff may perform. The required request data is consists of standard OIDC claims; specifically the subject ('sub'), which is used as the username, the 'is_member_of' claim containing group membership information, and the 'eamil' claim. Optionally, the 'given_name' and 'family_name' claims may be supplied to populate the user's first and last name fields for display purposes."
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+  /hopauth/api/v0/users/{pk}:
+    get:
+      operationId: retrieveUser_v0
+      description: 'Fetch data on a specific user. Accessible only to that user and to staff users.'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: The primary key for this user.
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The requested user was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyUser_v0
+      description: 'Delete a user. Only the user and staff users may perform this action.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this user.
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target user was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/users/{user}/credentials:
+    get:
+      operationId: listUserSCRAMCredentials_v0
+      description: 'List the SCRAM credentials owned by a specific user. Users may only access their own credentials, unless they are staff.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user for whose credentials to query'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SCRAMCredentials_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target user was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createSCRAMCredentialsByUser_v0
+      description: 'Issue a new SCRAM credential'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user for whom to issue a new credential'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSCRAMCredentialsRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSCRAMCredentialsResult'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target user was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/users/{user}/credentials/{pk}:
+    get:
+      operationId: retrieveSCRAMCredentialsByUser_v0
+      description: 'Fetch data on a specific SCRAM credential owned by a user. Only accessible to the owner of the credential and staff members.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user who owns the credential'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateSCRAMCredentialsByUser_v0
+      description: 'Update a SCRAM credential. Only the description and suspended flag can be changed; the former only by the credential owner or a staff user, and the latter only by staff users.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user who owns the credential'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SCRAMCredentials_v0'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The owning user or target credential was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroySCRAMCredentials_v0
+      description: 'Delete a SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user who owns the credential'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The owning user or target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/users/{user}/credentials/{id}/permissions:
+    get:
+      operationId: listCredentialKafkaPermissions_v0
+      description: 'List the permissions attached to a specific SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user who owns the credential'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CredentialKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createCredentialKafkaPermission_v0
+      description: 'Attach a new permission to a SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user who owns the credential'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialKafkaPermissionCreateRequest_v0'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/users/{user}/memberships:
+    get:
+      operationId: listGroupMembershipsForUser_v0
+      description: "List a specific user's group memberships. Users may only access their own group membership listings, unless they are staff users."
+      parameters:
+      - name: user
+        in: path
+        required: true
+        description: 'Primary key of the user'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupMembership_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target user was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/scram_credentials:
+    get:
+      operationId: listSCRAMCredentials_v0
+      description: 'List all SCRAM credentials in the system. This action is only available to staff users.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SCRAMCredentials_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+    post:
+      operationId: createSCRAMCredentials_v0
+      description: 'Issue a new SCRAM credential'
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSCRAMCredentialsRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSCRAMCredentialsResult'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v0/scram_credentials/{pk}:
+    get:
+      operationId: retrieveSCRAMCredentials_v0
+      description: 'Fetch data on a specific SCRAM credential. Only the credential owner or a staff user may perform this action.'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateSCRAMCredentials_v0
+      description: 'Update a SCRAM credential. Only the description and suspended flag can be changed; the former only by the credential owner or a staff user, and the latter only by staff users.'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the credential'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SCRAMCredentials_v0'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SCRAMCredentials_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target credential was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/topics:
+    get:
+      operationId: listKafkaTopics_v0
+      description: 'List Kafka topics. The data returned will include only those topics to which the requesting user has some level of access; for norml users this will be all public topics and all topics owned by groups to which the user belongs. Staff users get a list of all topics in the system.'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaTopic_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+  /hopauth/api/v0/topics/{pk}:
+    get:
+      operationId: retrieveKafkaTopic_v0
+      description: 'Fetch data about a specific Kafka topic'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyKafkaTopic_v0
+      description: 'Delete a Kafka topic. Only users who are Owners of the group which owns the topic and staff users may perform this action.'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/topics/{topic}/permissions:
+    get:
+      operationId: listGroupKafkaPermissionsForTopic_v0
+      description: 'List permissions to a specific topic which are granted to other groups'
+      parameters:
+      - name: topic
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups:
+    get:
+      operationId: listGroups_v0
+      description: 'List all groups'
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+      tags:
+      - hopauth
+    post:
+      operationId: createGroup_v0
+      description: 'Create a new group. Only staff users can perform this action.'
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Group_v0'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{pk}:
+    get:
+      operationId: retrieveGroup_v0
+      description: 'Fetch data about a specific group'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateGroup_v0
+      description: "Update a group. Only the group's description can be altered. Only Owners of the group and staff users can perform this action."
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Group_v0'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroup_v0
+      description: 'Delete a group. Only staff users can perform this action.'
+      parameters:
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{group}/members:
+    get:
+      operationId: listGroupMemberships_v0
+      description: 'List all memberships in a group. Only group members and staff users may perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupMembership_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createGroupMembership_v0
+      description: 'Add a membership for a user to a group. Only Owners of the group and staff users can perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMembership_v0'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{group}/members/{pk}:
+    get:
+      operationId: retrieveGroupMembership_v0
+      description: 'Fetch data on a specific membership in a group. Only group members and staff users can perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the membership'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group or membership was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateGroupMembership_v0
+      description: 'Update a membership within a group. Only group owners and staff users can perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the membership'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMembership_v0'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group or membership was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroupMembership_v0
+      description: 'Delete a group membership. Only group owners and staff users may perform this action.'
+      parameters:
+      - name: group
+        in: path
+        required: true
+        description: 'Primary key of the group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the membership'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group or membership was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{owning_group}/topics:
+    get:
+      operationId: listKafkaTopicsByGroup_v0
+      description: 'List topics owned by a specific group. Only group members and staff users can perform this action.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Primary key of the owning group'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaTopic_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target group was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createKafkaTopic_v0
+      description: 'Create a Kafka topic. Only owners of the group and staff users can perform this action.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Primary key of the owning group'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateKafkaTopicRequest_v0'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{owning_group}/topics/{pk}:
+    get:
+      operationId: retrieveKafkaTopicByGroup_v0
+      description: 'Fetch data about a specific topic belonging to a group. If the topic is public, any user may perform this action; otherwise, it is available only to members of the owning group and staff users.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Primary key of the owning group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    patch:
+      operationId: partialUpdateKafkaTopic_v0
+      description: "Update a Kafka topic. Only staff users can adjust the `max_message_bytes`,  `retention_ms`, `retention_bytes`, and `n_partitions` properties, and only group owners can make changes to the remaining mutable properties."
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Primary key of the owning group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KafkaTopic_v0'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KafkaTopic_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyKafkaTopicByGroup_v0
+      description: 'Delete a Kafka topic. This action can only be performed by Owners of the group which owns the topic and staff users.'
+      parameters:
+      - name: owning_group
+        in: path
+        required: true
+        description: 'Primary key of the owning group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{granting_group}/topics/{topic}/permissions:
+    get:
+      operationId: listGroupKafkaPermissionsForTopicByGroup_v0
+      description: 'List permissions to a specific topic which are granted to other groups. Only members of the owning group and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the group which owns the topic'
+        schema:
+          type: integer
+      - name: topic
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The target topic was not found"
+      tags:
+      - hopauth
+    post:
+      operationId: createGroupKafkaPermission_v0
+      description: 'Create a permission granting a group access to a topic. Only owners of the group which owns the topic and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the group which owns the topic'
+        schema:
+          type: integer
+      - name: topic
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupKafkaPermission_v0'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group or target topic was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{granting_group}/topics/{topic}/permissions/{pk}:
+    get:
+      operationId: retrieveGroupKafkaPermissionByTopic_v0
+      description: 'Fetch data about a specific permission granting a group access to a topic. Only members of the group which owns the topic and staff users '
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the group which owns the topic'
+        schema:
+          type: integer
+      - name: topic
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the permission'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group, target topic, or permission record was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroupKafkaPermissionByGroup_v0
+      description: 'Delete a permission granting a group access to a topic. Only owners of the group which owns the topic and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the group which owns the topic'
+        schema:
+          type: integer
+      - name: topic
+        in: path
+        required: true
+        description: 'Primary key of the topic'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the permission'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group, target topic, or permission record was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{granting_group}/permissions_given:
+    get:
+      operationId: listGroupKafkaPermissionsGiven_v0
+      description: 'List all of the permissions granted by the specified group to other groups. Only members of the granting group and staff users can perform this operation.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the granting group'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission_v0'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{granting_group}/permissions_given/{pk}:
+    get:
+      operationId: retrieveGroupKafkaPermission_v0
+      description: 'Fecth data about a specific permission granted by a group to another group. Only members of the granting group and staff users can perform this operation.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the granting group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the permission'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group or permission record was not found"
+      tags:
+      - hopauth
+    delete:
+      operationId: destroyGroupKafkaPermission_v0
+      description: 'Delete a permission granting a group access to a topic. Only owners of the group which owns the topic and staff users can perform this action.'
+      parameters:
+      - name: granting_group
+        in: path
+        required: true
+        description: 'Primary key of the granting group'
+        schema:
+          type: integer
+      - name: pk
+        in: path
+        required: true
+        description: 'Primary key of the permission'
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The granting group or permission record was not found"
+      tags:
+      - hopauth
+  /hopauth/api/v0/groups/{subject_group}/permissions_received:
+    get:
+      operationId: listGroupKafkaPermissionsReceived_v0
+      description: 'List the permissions a particular group has been granted by other groups. Only members of the subject group and staff users can perform this action.'
+      parameters:
+      - name: subject_group
+        in: path
+        required: true
+        description: 'Primary key of the receiving group'
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupKafkaPermission'
+          description: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: "The subject group was not found"
+      tags:
+      - hopauth
+security:
+- {$ref: "#/components/securitySchemes/SCRAM"}
+- {$ref: "#/components/securitySchemes/Token"}
+components:
+  schemas:
+    APIVersionData:
+      type: object
+      properties:
+        current:
+          type: integer
+          readOnly: true
+        minimum_supported:
+          type: integer
+          readOnly: true
+    User_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+    CreateUserRequest:
+      type: object
+      properties:
+        sub:
+          type: string
+        is_member_of:
+          type: array
+          items:
+            type: string
+        email:
+          type: string
+          format: email
+        given_name:
+          type: string
+        family_name:
+          type: string
+      required: ["sub", "is_member_of", "email"]
+    SCRAMCredentials_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        owner:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        suspended:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1024
+    SCRAMCredentials:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owner:
+          type: string
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        suspended:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1024
+    CreateSCRAMCredentialsRequest:
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 1024
+    CreateSCRAMCredentialsResult:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        pk:
+          type: integer
+    KafkaOperation:
+      type: string
+      enum: ["All", "Read", "Write", "Create", "Delete", "Alter", "Describe", "ClusterAction", "DescribeConfigs", "AlterConfigs", "IdempotentWrite"]
+    CredentialKafkaPermission_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        principal:
+          type: integer
+          readOnly: true
+        topic:
+          type: integer
+          readOnly: true
+        operation:
+          $ref: '#/components/schemas/KafkaOperation'
+          readOnly: true
+    CredentialKafkaPermissionCreateRequest_v0:
+      properties:
+        principal:
+          type: integer
+        topic:
+          type: integer
+        operation:
+          $ref: '#/components/schemas/KafkaOperation'
+    CredentialKafkaPermission:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        principal:
+          type: string
+          readOnly: true
+        topic:
+          type: string
+          readOnly: true
+        operation:
+          $ref: '#/components/schemas/KafkaOperation'
+          readOnly: true
+    CredentialKafkaPermissionCreateRequest:
+      properties:
+        principal:
+          type: string
+        topic:
+          type: string
+        operation:
+          $ref: '#/components/schemas/KafkaOperation'
+    GroupMembership_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        group:
+          type: integer
+          readOnly: true
+        status:
+          type: string
+          enum: ["Member", "Owner"]
+    GroupMembership:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: string
+          readOnly: true
+        group:
+          type: string
+          readOnly: true
+        status:
+          type: string
+          enum: ["Member", "Owner"]
+    KafkaTopic_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        owning_group:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        publicly_readable:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1024
+        archivable:
+          type: boolean
+        max_message_bytes:
+          type: integer
+        retention_ms:
+          type: integer
+        retention_bytes:
+          type: integer
+    CreateKafkaTopicRequest_v0:
+      type: object
+      properties:
+        owning_group:
+          type: integer
+        name:
+          type: string
+        publicly_readable:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1024
+    KafkaTopic:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owning_group:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        publicly_readable:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1024
+        archivable:
+          type: boolean
+        max_message_bytes:
+          type: integer
+        retention_ms:
+          type: integer
+        retention_bytes:
+          type: integer
+    CreateKafkaTopicRequest:
+      type: object
+      properties:
+        owning_group:
+          type: string
+        name:
+          type: string
+        publicly_readable:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1024
+    GroupKafkaPermission_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        principal:
+          type: integer
+          readOnly: true
+        topic:
+          type: integer
+          readOnly: true
+        operation:
+          $ref: '#/components/schemas/KafkaOperation'
+          readOnly: true
+    GroupKafkaPermission:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        principal:
+          type: string
+          readOnly: true
+        topic:
+          type: string
+          readOnly: true
+        operation:
+          $ref: '#/components/schemas/KafkaOperation'
+          readOnly: true
+    Group_v0:
+      type: object
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          maxLength: 1024
+      required:
+      - name
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          maxLength: 1024
+      required:
+      - name
+    MultiRequest:
+      type: object
+      patternProperties:
+        "^.*$":
+          type: object
+          properties:
+            method:
+              type: string
+            path:
+              type: string
+            headers:
+              type: object
+              patternProperties:
+                "^.*$":
+                  type: string
+            body:
+              type: string
+          required: ["method", "path"]
+    MultiRequestResult:
+      type: object
+      patternProperties:
+        "^.*$":
+          type: object
+          properties:
+            status:
+              type: integer
+            headers:
+              type: object
+              patternProperties:
+                "^.*$":
+                  type: string
+            body:
+              type: string
+          required: ["status", "body"]
+    ScramFirstRequest:
+      type: object
+      properties:
+        client_first:
+          type: string
+      required: ["client_first"]
+    ScramFirstResult:
+      type: object
+      properties:
+        server_first:
+          type: string
+        sid:
+          type: string
+      required: ["server_first", "sid"]
+    ScramFinalRequest:
+      type: object
+      properties:
+        client_final:
+          type: string
+        sid:
+          type: string
+      required: ["client_final"]
+    ScramFinalResult:
+      type: object
+      properties:
+        server_final:
+          type: string
+        sid:
+          type: string
+        token:
+          type: string
+        token_expires:
+          type: string
+          format: date-time
+      required: ["server_first", "sid", "token", "token_expires"]
+    OidcTokenRequest:
+      type: object
+      properties:
+        sub:
+          type: string
+        vo_person_id:
+          type: string
+    OidcTokenResult:
+      type: object
+      properties:
+        token:
+          type: string
+        token_expires:
+          type: string
+          format: date-time
+      required: ["token", "token_expires"]
+  responses:
+    Unauthenticated:
+      description: "Suitable authentication was not supplied in the request"
+    Forbidden:
+      description: "Unauthenticated users are not allowed to perform this action"
+  securitySchemes:
+    SCRAM:
+      type: http
+      description: "Salted Challenge Response HTTP Authentication Mechanism (RFC 7804)"
+      scheme: SCRAM-SHA-512
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization

@@ -24,23 +24,50 @@ import scramp
 import traceback
 import logging
 from urllib.request import parse_http_list
+from typing import Optional
 
 from .models import *
-from .serializers import *
+from .serializers import v0 as serializers_v0
+from .serializers import v1 as serializers_v1
+serializers = {
+    0: serializers_v0,
+    1: serializers_v1,
+}
 from .views import client_ip
 from .auth import HopskotchOIDCAuthenticationBackend
 
 logger = logging.getLogger(__name__)
 
-current_api_version = 0
+current_api_version = 1
 # All views should receive a 'version' argument in their kwargs, which can be used to implement
 # version compatibility. Viewsets may find this in self.kwargs, for use in methods like 
 # `get_serializer_class`, which may also need to change depending on the request version. 
 
-def find_token(raw_token: bytes):
-	token = RESTAuthToken.get_token(raw_token)
-	if token is not None:
-		print("Authentication was with token", token)
+def describe_auth(request) -> str:
+    auth = getattr(request, "auth", None)
+    if auth:
+        if isinstance(auth, SCRAMCredentials):
+            return f"Authentication was HTTP SCRAM with credential {auth.username}"
+        if isinstance(auth, bytes):
+            token = RESTAuthToken.get_token(auth)
+            if token is not None:
+                return f"Authentication was with token {token}"
+            else:
+                return "Authentication was with unknown token"
+    return "Request was not authenticated"
+
+def find_current_credential(request) -> Optional[SCRAMCredentials]:
+    auth = getattr(request, "auth", None)
+    if auth:
+        if isinstance(auth, SCRAMCredentials):
+            return auth
+        if isinstance(auth, bytes):
+            token = RESTAuthToken.get_token(auth)
+            if token and token.derived_from:
+                return token.derived_from
+            else:
+                return None
+    return None
 
 def describe_auth(request) -> str:
     auth = getattr(request, "auth", None)
@@ -61,8 +88,138 @@ class Version(APIView):
     authentication_classes = []
 
     def get(self, request):
-        # This could also return a minimum supported version, etc. if that turns out to be useful
-        return Response(data={"current": current_api_version})
+        return Response(data={"current": current_api_version, "minimum_supported": 0})
+
+def do_scram_first(client_first: str):
+    """
+    Return: If successful, the SCRAMExchange and the SCRAM server object
+    """
+    # all credentials we issue are SHA-512
+    s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup)
+    s.set_client_first(client_first)
+
+    # If scramp did not complain, the exchange can proceed.
+    # First, we record the state so that it can be picked up later.
+    ex = SCRAMExchange()
+    ex.cred = SCRAMCredentials.objects.get(username=s.user)
+    ex.j_nonce = s.nonce
+    ex.s_nonce_len = len(s.s_nonce)
+    ex.client_first = client_first
+    ex.began = datetime.datetime.now(datetime.timezone.utc)
+    ex.save()
+    return (ex,s)
+
+def do_scram_final(client_final: str, sid: Optional[str]=None):
+    """
+    Return: If successful, the (completed) SCRAMExchange and the SCRAM server object
+    """
+    if sid:
+        print("Client supplied sid:",sid)
+        ex = SCRAMExchange.objects.get(sid=sid)
+    else:
+        # a bit ugly: To find the previously started exchange session, if any, we need to extract
+        # the nonce from the request. We can either reimplement the parsing logic, or underhandedly
+        # reach inside of scramp to use its parse function. We do the latter.
+        try:
+            parsed = scramp.core._parse_message(client_final, "client final", "crp")
+        except:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        ex = SCRAMExchange.objects.get(j_nonce=parsed['r'])
+    # recreate the SCRAM server state from our stored exchange record
+    s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup,
+                                                           s_nonce=ex.s_nonce())
+    s.set_client_first(ex.client_first)
+    s.get_server_first()  # waste of time, but scramp requires this to be called
+    # if we reach this point, we are ready to process the second half of the exchange
+    s.set_client_final(client_final)
+    # if scramp hasn't objected, the authentication has now succeeded
+    return (ex,s)
+
+def parse_list_header(header: str):
+    return [v[1:-1] if v[0] == v[-1] == '"' else v for v in parse_http_list(header)]
+
+def parse_dict_header(header: str):
+    def unquote(v: str):
+        return v[1:-1] if v[0] == v[-1] == '"' else v
+    d = dict()
+    for item in parse_list_header(header):
+        if '=' in item:
+            k, v = item.split('=', 1)
+            d[k] = unquote(v)
+        else:
+            d[k] = None
+    return d
+
+class ScramState(object):
+    def __init__(self, mech, sid, s):
+        self.mech = mech
+        self.sid = sid
+        self.s = s
+
+class ScramAuthentication(BaseAuthentication):
+    def authenticate(self, request):
+        auth_header = get_authorization_header(request)
+        if not auth_header or len(auth_header)==0:
+            return None
+        try:
+            auth_header=auth_header.decode("utf-8")
+        except:
+            raise AuthenticationFailed("Malformed authentication header")
+
+        if not auth_header.upper().startswith("SCRAM-"):
+            return None
+        m = re.fullmatch("(SCRAM-[A-Z0-9-]+) *([^ ].*)", auth_header, flags=re.IGNORECASE)
+        if not m:
+            raise AuthenticationFailed("Malformed SCRAM authentication header")
+        scram_mech=m.group(1).upper()
+        auth_data = parse_dict_header(m.group(2))
+        if "data" in auth_data and "sid" in auth_data:
+            # If we have both of these we are in the final phase of the SCRAM handshake
+            sid = auth_data.get("sid")
+            data = auth_data.get("data")
+            if not sid or not data:
+                raise AuthenticationFailed("Malformed SCRAM authentication header")
+            client_final=base64.b64decode(data).decode("utf-8")
+            ex,s = do_scram_final(client_final, sid)
+            request.META["scram_state"]=ScramState(scram_mech, sid, s)
+            return (ex.cred.owner, ex.cred)
+        # Otherwise, SCRAM has not yet succeeded
+        return None
+
+    def authenticate_header(self, request):
+        auth_header = get_authorization_header(request)
+        if not auth_header or len(auth_header)==0:
+            return "SCRAM-SHA-512"
+        try:
+            auth_header=auth_header.decode("utf-8")
+        except:
+            raise AuthenticationFailed("Malformed SCRAM authentication header")
+        if auth_header.upper().startswith("SCRAM-"):
+            m = re.fullmatch("(SCRAM-[A-Z0-9-]+) *([^ ].*)", auth_header, flags=re.IGNORECASE)
+            if not m:
+                return "SCRAM-SHA-512"
+            scram_mech=m.group(1).upper()
+            auth_data = parse_dict_header(m.group(2))
+            if not auth_data.get("data", None):
+                return "SCRAM-SHA-512"
+            client_first=base64.b64decode(auth_data.get("data")).decode("utf-8")
+            try:
+                # This function will only be called during the SCRAM first phase, so we do that
+                ex, s = do_scram_first(client_first)
+                sfirst=base64.b64encode(s.get_server_first().encode("utf-8")).decode('utf-8')
+                return f"{scram_mech} sid={ex.sid}, data={sfirst}"
+            except (scramp.ScramException):
+                raise AuthenticationFailed("SCRAM authentication failed")
+
+def set_scram_auth_info_header(get_response):
+	def middleware(request):
+		response = get_response(request)
+		scram_state = request.META.get("scram_state", None)
+		if scram_state:
+			sfinal=base64.b64encode(scram_state.s.get_server_final().encode("utf-8")).decode('utf-8')
+			response["Authentication-Info"]=f"{scram_state.mech} sid={scram_state.sid}, data={sfinal}"
+		return response
+	return middleware
 
 def do_scram_first(client_first: str):
     """
@@ -236,7 +393,8 @@ class ScramFinal(APIView):
             
         try:
             # Issue a short-lived REST token
-            token = RESTAuthToken.create_token_for_user(ex.cred.owner, held_by=ex.cred.owner)
+            token = RESTAuthToken.create_token_for_user(ex.cred.owner, held_by=ex.cred.owner,
+                                                        derived_from=ex.cred)
 
             # Return to the client the SCRAM server final message, the issued token, and
             # expiration time of the token
@@ -379,7 +537,10 @@ class TokenForOidcUser(APIView):
                             status=status.HTTP_404_NOT_FOUND)
         try:
             # Issue a short-lived REST token
-            token = RESTAuthToken.create_token_for_user(user, held_by=request.user)
+            # Note that we set derived_to to None because we do not want this token to be associated
+            # back to the admin user credential which created it, as that would cause odd effects
+            # if it is used with the current_credential routes.
+            token = RESTAuthToken.create_token_for_user(user, held_by=request.user, derived_from=None)
 
             # Return to the client the the issued token and expiration time of the token
             expire_time = RESTAuthToken.get_token(token).created \
@@ -402,7 +563,30 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+
+    def __init__(self, *args, **kwargs):
+        self.get_lookup_field = self._get_lookup_field
+        super().__init__(*args, **kwargs)
+
+    def get_serializer_class(self):
+        return serializers[self.kwargs.get("version",current_api_version)].UserSerializer
+
+    @staticmethod
+    def get_lookup_field(version=current_api_version):
+        if version == 0:
+            return "pk"
+        if version >= 1:
+            return "username"
+
+    def _get_lookup_field(self):
+        return UserViewSet.get_lookup_field(self.kwargs.get("version",current_api_version))
+
+    def get_object(self):
+        self.lookup_field = self.get_lookup_field()
+        return super().get_object()
+
+    def get_target_descriptor(self, kwargs):
+        return kwargs.get(self.get_lookup_field(),'<missing>')
     
     def list(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
@@ -412,8 +596,17 @@ class UserViewSet(viewsets.ModelViewSet):
     
     def retrieve(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested information about user {kwargs.get('pk','<missing>')} "
+                    f"requested information about user {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
+        return super().retrieve(request, *args, **kwargs)
+
+    def retrieve_current(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested information about themself "
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        lf = self.get_lookup_field()
+        # Co-opt the lookup infrastructure to point at the user making the request
+        self.kwargs[lf] = getattr(request.user, lf)
         return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
@@ -451,7 +644,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to delete user {kwargs.get('pk','<missing>')} "
+                    f"requested to delete user {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         # only staff should delete users
         if not self.request.user.is_staff:
@@ -469,14 +662,36 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
-    serializer_class = SCRAMCredentialsSerializer
+    def __init__(self, *args, **kwargs):
+        self.get_lookup_field = self._get_lookup_field
+        super().__init__(*args, **kwargs)
+
+    def get_serializer_class(self):
+        return serializers[self.kwargs.get("version",current_api_version)].SCRAMCredentialsSerializer
+
+    @staticmethod
+    def get_lookup_field(version=current_api_version):
+        if version == 0:
+            return "pk"
+        if version >= 1:
+            return "username"
+
+    def _get_lookup_field(self):
+        return SCRAMCredentialsViewSet.get_lookup_field(self.kwargs.get("version",current_api_version))
 
     def get_queryset(self):
         queryset = SCRAMCredentials.objects.all()
-        
+
         # if specified, pull out only the credentials belonging to a specific user
         if "user" in self.kwargs:
             owner = self.kwargs["user"]
+            
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = User.objects.filter(username=owner)
+                if not search.exists():
+                    raise BadRequest
+                owner = search[0]
 
             # non-staff users may not view other users' credentials
             if not self.request.user.is_staff and owner!=self.request.user.id:
@@ -490,6 +705,13 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def get_object(self):
+        self.lookup_field = self.get_lookup_field()
+        return super().get_object()
+
+    def get_target_descriptor(self, kwargs):
+        return kwargs.get(self.get_lookup_field,'<missing>')
+
     def list(self, request, *args, **kwargs):
         if "user" in kwargs:
             logger.info(f"User {request.user.username} ({request.user.email}) "
@@ -501,10 +723,30 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
                         f"from {client_ip(request)}")
         return super().list(request, *args, **kwargs)
 
+    def list_for_current_user(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list SCRAM credentials belonging to themself "
+                    f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        self.kwargs["user"] = getattr(request.user, UserViewSet.get_lookup_field(version))
+        return super().list(request, *args, **kwargs)
+
     def retrieve(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested the details of SCRAM credential {kwargs.get('pk','<missing>')} "
+                    f"requested the details of SCRAM credential {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
+        return super().retrieve(request, *args, **kwargs)
+
+    def retrieve_current(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested the details of the SCRAM credential currently in use "
+                    f"from {client_ip(request)}")
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        lf = self.get_lookup_field()
+        # Co-opt the lookup infrastructure to point at this particular credential
+        self.kwargs[lf] = getattr(cred, lf)
         return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
@@ -530,7 +772,7 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to delete SCRAM credential {kwargs.get('cred','<missing>')} "
+                    f"requested to delete SCRAM credential {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         return super().destroy(request, *args, **kwargs)
     
@@ -539,7 +781,7 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
     
     def partial_update(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to update SCRAM credential {kwargs.get('pk','<missing>')} "
+                    f"requested to update SCRAM credential {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
     
         instance = self.get_object()
@@ -561,8 +803,23 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     # all users are allowed to see the full list of groups
     queryset = Group.objects.all()
-    serializer_class = GroupSerializer
-    
+
+    def get_serializer_class(self):
+        return serializers[self.kwargs.get("version",current_api_version)].GroupSerializer
+
+    def get_object(self):
+        version = self.kwargs.get("version",current_api_version)
+        if version > 0:
+            self.lookup_field = "name"
+        return super().get_object()
+
+    def get_target_descriptor(self, kwargs):
+        version = self.kwargs.get("version",current_api_version)
+        if version == 0:
+            return kwargs.get('pk','<missing>')
+        else:
+            return kwargs.get('name','<missing>')
+
     def list(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     "requested to list all groups "
@@ -571,7 +828,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested the details of group {kwargs.get('pk','<missing>')} "
+                    f"requested the details of group {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         return super().retrieve(request, *args, **kwargs)
 
@@ -586,7 +843,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to delete group {kwargs.get('pk','<missing>')} "
+                    f"requested to delete group {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         # only staff should delete groups
         if not self.request.user.is_staff:
@@ -598,7 +855,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     
     def partial_update(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to update group {kwargs.get('pk','<missing>')} "
+                    f"requested to update group {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
     
         group = self.get_object()
@@ -614,13 +871,21 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
     
-    serializer_class = GroupMembershipSerializer
+    def get_serializer_class(self):
+        return serializers[self.kwargs.get("version",current_api_version)].GroupMembershipSerializer
 
     def get_queryset(self):
         queryset = GroupMembership.objects.all()
         # if specified, pull out only the memberships of a specific user
         if "user" in self.kwargs:
             target_user = self.kwargs["user"]
+            
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = User.objects.filter(username=target_user)
+                if not search.exists():
+                    raise BadRequest
+                target_user = search[0]
             
             # non-staff users may not view other users' group memberships
             if not self.request.user.is_staff and target_user!=self.request.user.id:
@@ -631,11 +896,18 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         # if specified, pull out only the memberships of a specific group
         if "group" in self.kwargs:
             group = self.kwargs["group"]
-            
+
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = Group.objects.filter(name=group)
+                if not search.exists():
+                    raise BadRequest
+                group = search[0]
+
             # non-staff members may not examine the membership lists of groups to which they do not belong
             if not self.request.user.is_staff and not is_group_member(self.request.user.id, group):
                 raise PermissionDenied
-            
+
             queryset = queryset.filter(group=group)
 
         # only staff members may see the full, unfiltered list
@@ -643,6 +915,13 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
             raise PermissionDenied
             
         return queryset
+
+    def get_target_descriptor(self, kwargs):
+        version = self.kwargs.get("version",current_api_version)
+        if version == 0:
+            return kwargs.get('pk','<missing>')
+        else:
+            return kwargs.get('id','<missing>')
 
     def list(self, request, *args, **kwargs):
         if "user" in kwargs:
@@ -659,9 +938,17 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
                         f"from {client_ip(request)}")
         return super().list(request, *args, **kwargs)
 
+    def list_for_current_user(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list their own group memberships "
+                    f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        self.kwargs["user"] = getattr(request.user, UserViewSet.get_lookup_field(version))
+        return super().list(request, *args, **kwargs)
+
     def retrieve(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested the details of group membership {kwargs.get('pk','<missing>')} "
+                    f"requested the details of group membership {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         return super().retrieve(request, *args, **kwargs)
 
@@ -676,10 +963,15 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         group = serializer.validated_data['group']
         target_user = serializer.validated_data['user']
         
+        if "group" not in kwargs:
+        	raise BadRequest
         # Not strictly required, but to keep things clear, require that the group to which the
         # mmebership would be added match what was specified in the URL.
-        if "group" not in kwargs or group.id!=kwargs["group"]:
-        	raise BadRequest
+        version = self.kwargs.get("version",current_api_version)
+        if version == 0 and group.id!=kwargs["group"]:
+            raise BadRequest
+        if version > 0 and group.name!=kwargs["group"]:
+            raise BadRequest
         
         # Only admins and group owners can change group memberships
         if not self.request.user.is_staff and not is_group_owner(self.request.user.id, group.id):
@@ -697,8 +989,7 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to remove permission {kwargs.get('pk','<missing>')} "
-                    f"from SCRAM credential {kwargs.get('cred','<missing>')} "
+                    f"requested to delete group membership {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         instance = self.get_object()
         
@@ -708,15 +999,13 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
-        
-        return super().destroy(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
         raise PermissionDenied
     
     def partial_update(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to update group {kwargs.get('pk','<missing>')} "
+                    f"requested to update membership {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         instance = self.get_object()
         # Only admins and group owners can change group memberships
@@ -730,8 +1019,20 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
 class KafkaTopicViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
-    
-    serializer_class = KafkaTopicSerializer
+
+    def __init__(self, *args, **kwargs):
+        self.get_lookup_field = self._get_lookup_field
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def get_lookup_field(version=current_api_version):
+        if version == 0:
+            return "pk"
+        if version >= 1:
+            return "name"
+
+    def _get_lookup_field(self):
+        return KafkaTopicViewSet.get_lookup_field(self.kwargs.get("version",current_api_version))
     
     def get_queryset(self):
         queryset = KafkaTopic.objects.all()
@@ -739,6 +1040,13 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         # if specified, pull out only the topics owned by a specific group
         if "owning_group" in self.kwargs:
             group = self.kwargs["owning_group"]
+            
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = Group.objects.filter(name=group)
+                if not search.exists():
+                    raise BadRequest
+                group = search[0]
 
             # non-staff users may not generally view topics owned by groups to which they do not belong
             if not self.request.user.is_staff and not is_group_member(self.request.user.id, group):
@@ -757,11 +1065,18 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
             
         return queryset
 
+    def get_object(self):
+        self.lookup_field = self.get_lookup_field()
+        return super().get_object()
+
     def get_serializer_class(self):
-        if self.request.user.is_staff:
-            return KafkaTopicAdminSerializer
+        if getattr(self.request, "user", None) and self.request.user.is_staff:
+            return serializers[self.kwargs.get("version",current_api_version)].KafkaTopicAdminSerializer
         # plain serializer for regular users
-        return KafkaTopicSerializer
+        return serializers[self.kwargs.get("version",current_api_version)].KafkaTopicSerializer
+
+    def get_target_descriptor(self, kwargs):
+        return kwargs.get(self.get_lookup_field(),'<missing>')
 
     def list(self, request, *args, **kwargs):
         if "owning_group" in kwargs:
@@ -776,7 +1091,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested the details of Kafka topic {kwargs.get('pk','<missing>')} "
+                    f"requested the details of Kafka topic {self.get_target_descriptor(kwargs)} "
                     f"from {client_ip(request)}")
         return super().retrieve(request, *args, **kwargs)
 
@@ -784,25 +1099,38 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         if "owning_group" not in self.kwargs:
             raise BadRequest
         
-        group_id = self.kwargs["owning_group"]
-        
-        logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to create a Kafka topic owned by group {group_id} "
-                    f"from {client_ip(request)}")
-        
-        try:
-            group = Group.objects.get(id=group_id)
-        except ObjectDoesNotExist as dne:
-            Response(status=status.HTTP_400_BAD_REQUEST)
-        
+        data = request.data
+        version = self.kwargs.get("version",current_api_version)
+        if version == 0:
+            group_id = self.kwargs["owning_group"]
+
+            logger.info(f"User {request.user.username} ({request.user.email}) "
+                        f"requested to create a Kafka topic owned by group {group_id} "
+                        f"from {client_ip(request)}")
+
+            try:
+                group = Group.objects.get(id=group_id)
+                data["owning_group"] = group.id
+            except ObjectDoesNotExist as dne:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+        elif version == 1:
+            group_name = self.kwargs["owning_group"]
+
+            logger.info(f"User {request.user.username} ({request.user.email}) "
+                        f"requested to create a Kafka topic owned by group {group_name} "
+                        f"from {client_ip(request)}")
+
+            try:
+                group = Group.objects.get(name=group_name)
+                data["owning_group"] = group.name
+            except ObjectDoesNotExist as dne:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
         # non-staff users may not create topics owned by groups of which they are not owners
         if not self.request.user.is_staff and not is_group_owner(self.request.user.id, group.id):
             raise PermissionDenied
-        
-        data = request.data
-        data["owning_group"] = group.id
 
-        serializer = KafkaTopicCreationSerializer(data=data)
+        serializer = serializers[self.kwargs.get("version",current_api_version)].KafkaTopicCreationSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             topic = serializer.save()
@@ -815,7 +1143,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to delete Kafka topic {kwargs.get('pk','<missing>')} "
+                    f"requested to delete Kafka topic {self.get_target_descriptor(kwargs)} "
                     f"owned by group {kwargs.get('owning_group','<unknown>')} "
                     f"from {client_ip(request)}")
 
@@ -831,7 +1159,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
     
     def partial_update(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to update Kafka topic {kwargs.get('pk','<missing>')} "
+                    f"requested to update Kafka topic {self.get_target_descriptor(kwargs)} "
                     f"owned by group {kwargs.get('owning_group','<unknown>')} "
                     f"from {client_ip(request)}")
         instance = self.get_object()
@@ -847,15 +1175,24 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
-    serializer_class = GroupKafkaPermissionSerializer
+    def get_serializer_class(self):
+        return serializers[self.kwargs.get("version",current_api_version)].GroupKafkaPermissionSerializer
 
     def get_queryset(self):
+        # TODO: switch between group pks and group names
         queryset = GroupKafkaPermission.objects.all()
         all = True
-        
+
         # if specified, pull out permissions granted by the specified group
         if "granting_group" in self.kwargs:
             group = self.kwargs["granting_group"]
+
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = Group.objects.filter(name=group)
+                if not search.exists():
+                    raise BadRequest
+                group = search[0]
             
             # non-staff users may not query the full set of permissions granted by groups
             # to which they do not belong
@@ -868,6 +1205,13 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         # if specified, pull out permissions granted by the specified group
         if "subject_group" in self.kwargs:
             group = self.kwargs["subject_group"]
+
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = Group.objects.filter(name=group)
+                if not search.exists():
+                    raise BadRequest
+                group = search[0]
             
             # non-staff users may not query the full set of permissions granted to groups
             # to which they do not belong
@@ -876,25 +1220,30 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
             
             queryset = queryset.filter(principal=group)
             all = False
-            
+
         # if specified, pull out permissions relating to the specified topic
         if "topic" in self.kwargs:
-            topic_id = self.kwargs["topic"]
-            # TODO: is it okay to let ObjectDoesNotExist propagate from here?
-            topic = KafkaTopic.objects.get(id=topic_id)
-            
+            topic = self.kwargs["topic"]
+
+            version = self.kwargs.get("version",current_api_version)
+            if version >= 1:
+                search = KafkaTopic.objects.filter(name=topic)
+                if not search.exists():
+                    raise BadRequest
+                topic = search[0]
+
             # non-staff users may not query the full set of permissions to a topic if they do not
             # belong to the group which owns it
             if not self.request.user.is_staff and not is_group_member(self.request.user.id, topic.owning_group):
                 raise PermissionDenied
-            
+
             queryset = queryset.filter(topic=topic)
             all = False
-            
+
         # only staff members may see the unrestricted list
         if all and not self.request.user.is_staff:
             raise PermissionDenied
-            
+
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -960,27 +1309,33 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
     permission_classes = [IsAuthenticated]
 
-    serializer_class = GroupKafkaPermissionSerializer
+    def get_serializer_class(self):
+        return serializers[self.kwargs.get("version",current_api_version)].CredentialKafkaPermissionSerializer
 
     def get_queryset(self):
         queryset = CredentialKafkaPermission.objects.all()
-        
+
         if "cred" in self.kwargs:
-            cred_id = self.kwargs["cred"]
-            # TODO: is it okay to let ObjectDoesNotExist propagate from here?
-            cred = SCRAMCredentials.objects.get(id=cred_id)
-            
+            cred = self.kwargs["cred"]
+
+            version = self.kwargs.get("version",current_api_version)
+            search = SCRAMCredentials.objects.filter(
+                **{SCRAMCredentialsViewSet.get_lookup_field(version): cred})
+            if not search.exists():
+                raise BadRequest
+            cred = search[0]
+
             # non-staff users may not query the properties of credentials they do not own
             if not self.request.user.is_staff and cred.owner!=self.request.user:
                 raise PermissionDenied
-            
+
             queryset = queryset.filter(principal=cred)
         elif not self.request.user.is_staff:
             # only staff users may query the full list
             raise PermissionDenied
-        
+
         return queryset
-        
+
     def list(self, request, *args, **kwargs):
         if "cred" in kwargs:
             logger.info(f"User {request.user.username} ({request.user.email}) "
@@ -990,6 +1345,17 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
             logger.info(f"User {request.user.username} ({request.user.email}) "
                         "requested to list all SCRAM credential permissions "
                         f"from {client_ip(request)}")
+        return super().list(request, *args, **kwargs)
+
+    def list_for_current_credential(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list permissions attatched to the current SCRAM credential"
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        self.kwargs["cred"] = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
@@ -1008,11 +1374,11 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         principal = serializer.validated_data["principal"]
         topic = serializer.validated_data["topic"]
         operation = serializer.validated_data["operation"]
-        
+
         # Only credential owners and admins should be able to add permissions to a credential
         if not self.request.user.is_staff and request.user!=principal.owner:
             raise PermissionDenied
-        
+
         # Avoid creating duplicates
         # General case
         existing_perm = CredentialKafkaPermission.objects.filter(principal=principal, 
@@ -1032,7 +1398,7 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         notional_perm = CredentialKafkaPermission(principal=principal, topic=topic, operation=operation)
         # Do not 'create' notional_perm into the database yet as we have not set its parent permission,
         # and may or may not find a suitable value for that
-        
+
         # Try to discover some group permission which can serve as a basis for this credential permission
         group_perms = GroupKafkaPermission.objects.filter(models.Q(operation=KafkaOperation.All) |
                                                           models.Q(operation=operation),
@@ -1049,7 +1415,7 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
 
         notional_perm.parent = base_perm
         notional_perm.save()
-        
+
         result_data = self.get_serializer(notional_perm).data
         headers = self.get_success_headers(result_data)
         return Response(result_data, status=status.HTTP_201_CREATED, headers=headers)
@@ -1061,15 +1427,64 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
                     f"from {client_ip(request)}")
         perm = self.get_object()
         cred = SCRAMCredentials.objects.get(id=perm.principal)
-        
+
         # Only credential owners and admins should be able to remove permissions from a credential
         if not self.request.user.is_staff and request.user!=cred.owner:
             raise PermissionDenied
-        
+
         return super().destroy(request, *args, **kwargs)
-    
+
     def update(self, request, *args, **kwargs):
         raise PermissionDenied
-    
+
     def partial_update(self, request, *args, **kwargs):
         raise PermissionDenied
+
+class CredentialPermissionsForTopic(APIView):
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, already_logged=False, *args, **kwargs):
+        if not already_logged:
+            logger.info(f"User {request.user.username} ({request.user.email}) "
+                        f"requested to list Kafka permissions for topic {kwargs.get('topic','<missing>')} "
+                        f"associated with SCRAM credential {kwargs.get('cred','<missing>')} "
+                        f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+
+        cred = kwargs["cred"]
+        search = SCRAMCredentials.objects.filter(**{SCRAMCredentialsViewSet.get_lookup_field(version): cred})
+        if not search.exists():
+            raise BadRequest
+        cred = search[0]
+
+        topic = self.kwargs["topic"]
+        search = KafkaTopic.objects.filter(**{KafkaTopicViewSet.get_lookup_field(version): topic})
+        if not search.exists():
+            raise BadRequest
+        topic = search[0]
+
+        perms = set()
+        if topic.publicly_readable:
+            perms.add(KafkaOperation.Read)
+
+        queryset = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
+        for permission in queryset:
+            perms.add(permission.operation)
+
+        serializer = serializers[self.kwargs.get("version",current_api_version)].ReadableEnumField(KafkaOperation)
+
+        return Response(data={"allowed_operations": [serializer.to_representation(p) for p in perms]})
+
+class CurrentCredentialPermissionsForTopic(CredentialPermissionsForTopic):
+    def get(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list Kafka permissions for topic {kwargs.get('topic','<missing>')} "
+                    f"associated with the current SCRAM credential "
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        kwargs["cred"] = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
+        return super().get(request, already_logged=True, *args, **kwargs)

@@ -725,8 +725,14 @@ class RESTAuthToken(rest_authtoken.models.AuthToken):
     held_by = models.ForeignKey(
               settings.AUTH_USER_MODEL,
               on_delete=models.CASCADE)
+    derived_from = models.ForeignKey(
+              SCRAMCredentials,
+              on_delete=models.CASCADE,
+              null=True)
 
     def __str__(self) -> str:
+        if self.derived_from:
+            return 'for user {}, derived from credential {}'.format(self.user, self.derived_from.username)
         if self.held_by != self.user:
             return 'for user {}, held by user {}'.format(self.user, self.held_by)
         return '{}: {}'.format(self.user, self.hashed_token)
