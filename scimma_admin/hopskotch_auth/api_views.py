@@ -348,7 +348,7 @@ def set_scram_auth_info_header(get_response):
 		scram_state = request.META.get("scram_state", None)
 		if scram_state:
 			sfinal=base64.b64encode(scram_state.s.get_server_final().encode("utf-8")).decode('utf-8')
-			response["Authentication-Info"]=f"{scram_state.mech} sid={scram_state.sid}, data={sfinal}"
+			response["Authentication-Info"]=f"sid={scram_state.sid}, data={sfinal}"
 		return response
 	return middleware
 
@@ -1273,7 +1273,7 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested to create a group permission "
                     f"from {client_ip(request)}")
-        serializer = GroupKafkaPermissionCreateSerializer(data=request.data)
+        serializer = serializers[self.kwargs.get("version",current_api_version)].GroupKafkaPermissionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         topic = serializer.validated_data['topic']
@@ -1282,7 +1282,7 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff and not is_group_owner(self.request.user.id, topic.owning_group):
             raise PermissionDenied
         
-        perm = add_kafka_permission_for_group(serializer.validated_data['principal'].id,
+        perm = add_kafka_permission_for_group(serializer.validated_data['principal'],
                                               serializer.validated_data['topic'],
                                               serializer.validated_data['operation'])
         
@@ -1372,7 +1372,7 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested to add a permission to SCRAM credential {kwargs.get('cred','<missing>')} "
                     f"from {client_ip(request)}")
-        serializer = CredentialKafkaPermissionCreationSerializer(data=request.data)
+        serializer = serializers[self.kwargs.get("version",current_api_version)].CredentialKafkaPermissionCreationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         principal = serializer.validated_data["principal"]
