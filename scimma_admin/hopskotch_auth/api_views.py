@@ -1316,15 +1316,22 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return serializers[self.kwargs.get("version",current_api_version)].CredentialKafkaPermissionSerializer
 
+    def get_credential_identifier_name(self, version):
+        if version==0:
+            return "pk"
+        elif version==1:
+            return "cred"
+
     def get_queryset(self):
         queryset = CredentialKafkaPermission.objects.all()
 
-        if "cred" in self.kwargs:
-            cred = self.kwargs["cred"]
+        version = self.kwargs.get("version",current_api_version)
+        identifier = self.get_credential_identifier_name(version)
+        if identifier in self.kwargs:
+            cred_id = self.kwargs[identifier]
 
-            version = self.kwargs.get("version",current_api_version)
             search = SCRAMCredentials.objects.filter(
-                **{SCRAMCredentialsViewSet.get_lookup_field(version): cred})
+                **{SCRAMCredentialsViewSet.get_lookup_field(version): cred_id})
             if not search.exists():
                 raise BadRequest
             cred = search[0]
@@ -1341,9 +1348,11 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        if "cred" in kwargs:
+        version = self.kwargs.get("version",current_api_version)
+        identifier = self.get_credential_identifier_name(version)
+        if identifier in kwargs:
             logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to list permissions attatched to SCRAM credential {kwargs['cred']} "
+                    f"requested to list permissions attatched to SCRAM credential {kwargs[identifier]} "
                     f"from {client_ip(request)}")
         else:
             logger.info(f"User {request.user.username} ({request.user.email}) "
@@ -1359,20 +1368,25 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         cred = find_current_credential(request)
         if not cred:
             raise BadRequest("No SCRAM credential associated with this request")
-        self.kwargs["cred"] = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
+        self.kwargs[self.get_credential_identifier_name(version)] \
+            = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
+        version = self.kwargs.get("version",current_api_version)
+        identifier = self.get_credential_identifier_name(version)
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested the details of SCRAM credential permission {kwargs.get('pk','<missing>')} "
+                    f"requested the details of SCRAM credential permission {kwargs.get(identifier,'<missing>')} "
                     f"from {client_ip(request)}")
         return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
+        version = self.kwargs.get("version",current_api_version)
+        identifier = self.get_credential_identifier_name(version)
         logger.info(f"User {request.user.username} ({request.user.email}) "
-                    f"requested to add a permission to SCRAM credential {kwargs.get('cred','<missing>')} "
+                    f"requested to add a permission to SCRAM credential {kwargs.get(identifier,'<missing>')} "
                     f"from {client_ip(request)}")
-        serializer = serializers[self.kwargs.get("version",current_api_version)].CredentialKafkaPermissionCreationSerializer(data=request.data)
+        serializer = serializers[version].CredentialKafkaPermissionCreationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         principal = serializer.validated_data["principal"]
@@ -1425,6 +1439,8 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         return Response(result_data, status=status.HTTP_201_CREATED, headers=headers)
 
     def destroy(self, request, *args, **kwargs):
+        version = self.kwargs.get("version",current_api_version)
+        identifier = self.get_credential_identifier_name(version)
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested to remove permission {kwargs.get('pk','<missing>')} "
                     f"from SCRAM credential {kwargs.get('cred','<missing>')} "
