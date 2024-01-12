@@ -960,7 +960,8 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested to add a member to group {kwargs.get('group','<missing>')} "
                     f"from {client_ip(request)}")
-        serializer = GroupMembershipCreationSerializer(data=request.data)
+        version = self.kwargs.get("version",current_api_version)
+        serializer = serializers[version].GroupMembershipCreationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         print(f"validated_data: {serializer.validated_data}")
@@ -970,8 +971,7 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         if "group" not in kwargs:
         	raise BadRequest
         # Not strictly required, but to keep things clear, require that the group to which the
-        # mmebership would be added match what was specified in the URL.
-        version = self.kwargs.get("version",current_api_version)
+        # membership would be added match what was specified in the URL.
         if version == 0 and group.id!=kwargs["group"]:
             raise BadRequest
         if version > 0 and group.name!=kwargs["group"]:
