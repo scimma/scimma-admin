@@ -69,19 +69,6 @@ def find_current_credential(request) -> Optional[SCRAMCredentials]:
                 return None
     return None
 
-def describe_auth(request) -> str:
-    auth = getattr(request, "auth", None)
-    if auth:
-        if isinstance(auth, SCRAMCredentials):
-            return f"Authentication was HTTP SCRAM with credential {auth.username}"
-        if isinstance(auth, bytes):
-            token = RESTAuthToken.get_token(auth)
-            if token is not None:
-                return f"Authentication was with token {token}"
-            else:
-                return "Authentication was with unknown token"
-    return "Request was not authenticated"
-
 class Version(APIView):
     # This is non-sensitive information, which a client may need to read in order to authenticate
     # correctly, so it is not itself subject to authentication
