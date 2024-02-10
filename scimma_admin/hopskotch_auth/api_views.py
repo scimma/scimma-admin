@@ -158,6 +158,14 @@ class ScramState(object):
 
 class ScramAuthentication(BaseAuthentication):
     def authenticate(self, request):
+        # This is a bit tricky, as it doesn't directly have anything to do with SCRAM Auth:
+        # If the request wraps one which is already authenticated, we hoist out that authentication
+        # information and just return it immediately.
+        # This is used by the multi request mechanism to cascade authentication down to sub-requests
+        if hasattr(request._request,"user") and request._request.user.is_authenticated \
+              and hasattr(request._request,"auth"):
+            return (request._request.user, request._request.auth)
+
         auth_header = get_authorization_header(request)
         if not auth_header or len(auth_header)==0:
             return None
@@ -335,6 +343,14 @@ class MultiRequest(APIView):
                         continue
                     sr_headers = { header_transform(k):v for k,v in rdata["headers"].items()}
                     sub_request.META.update(sr_headers)
+                # Implement our own auth pseudo-mecahnism, allowing the sub-request to re-use the
+                # parent request's auth. Note that what we replicate is not the authentication data
+                # which was sent, but the end result of the authentication, so that authentication
+                # is not repeated.
+                if "HTTP_AUTHORIZATION" in sub_request.META \
+                      and sub_request.META["HTTP_AUTHORIZATION"] == "Inherit":
+                    sub_request.user = request.user
+                    sub_request.auth = request.auth
                 # overwrite headers which should not be inherited
                 sub_request.META["REQUEST_METHOD"] = rdata["method"]
                 sub_request.META["REQUEST_URI"] = rdata["path"]
