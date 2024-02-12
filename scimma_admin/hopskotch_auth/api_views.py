@@ -101,7 +101,6 @@ def do_scram_final(client_final: str, sid: Optional[str]=None):
     Return: If successful, the (completed) SCRAMExchange and the SCRAM server
     """
     if sid:
-        print("Client supplied sid:",sid)
         ex = SCRAMExchange.objects.get(sid=sid)
     else:
         # a bit ugly: To find the previously started exchange session, if any, we need to extract
@@ -288,6 +287,7 @@ class ScramFinal(APIView):
 
 class MultiRequest(APIView):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, version):
         auth_header_names = ["HTTP_AUTHORIZATION", "HTTP_PROXY_AUTHORIZATION"]
@@ -836,7 +836,6 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         serializer = serializers[version].GroupMembershipCreationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        print(f"validated_data: {serializer.validated_data}")
         group = serializer.validated_data['group']
         target_user = serializer.validated_data['user']
         
