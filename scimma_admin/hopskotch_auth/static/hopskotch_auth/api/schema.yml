@@ -21,7 +21,11 @@ paths:
   /hopauth/api/v{version}/multi:
     post:
       operationId: multiRequest
-      description: 'Submit a request to perform a bundle of sub-requests. Each sub-request is processed independently, including its authentication. The request body is a mapping of user-chosen keys to sub-requests, and the response will be in the form of a mapping with the same keys, so that sub-responses can be matched to the sub-requests the client wanted to make. Each sub-request must include a method (HTTP verb) and path requested. Each may optionally include headers (useful for including authorization tokens), and a request body if applicable. Each sub-response will include a status and response body, and may also include response headers.'
+      description: "Submit a request to perform a bundle of sub-requests. Each sub-request is processed independently, including its authentication. The request body is a mapping of user-chosen keys to sub-requests, and the response will be in the form of a mapping with the same keys, so that sub-responses can be matched to the sub-requests the client wanted to make. Each sub-request must include a method (HTTP verb) and path requested. Each may optionally include headers (useful for including authorization tokens), and a request body if applicable. Each sub-response will include a status and response body, and may also include response headers. Authentication (and authorization)
+is generally checked separately for each sub-request independent of both other sub-requests and the
+original multi-request, so in most cases each sub-request should include its own `Authorization`
+header. Besides using the `Token` scheme, a speical 'pseudo-scheme', `Inherit`, is supported, which
+causes the sub-request to share the parent multi-request's authentication."
       parameters:
       - name: version
         in: path
