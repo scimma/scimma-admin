@@ -178,7 +178,7 @@ In addition to all of the capabilities granted to normal users, administrators h
 
 Administrators are responsible for creating all groups. Additionally, they can manage the membership of any group.
 
-Group creation is accessed by the menu following `Quick Navigation > Groups > Manage`. The group creation form, requires only the name and the description for the new group to be created. Group names must be unique and are limited to 256 characters.
+Group creation is accessed by the menu following `Quick Navigation > Groups > Manage`. The group creation form requires only the name and the description for the new group to be created. Group names must be unique and are limited to 256 characters.
 
 [![The creating group page](hopauth_screenshots/create_group.png)](hopauth_screenshots/create_group.png)
 
