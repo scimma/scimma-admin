@@ -87,7 +87,7 @@ If it's not your first time, after selecting you institution and authenticating,
 
 [![The main Hopauth page when logged in displays the identity of the current user, all currently extant credentials for the user, the option to generate a new credential, and all of the user's group memberships](hopauth_screenshots/main_page_no_data.png)](hopauth_screenshots/main_page_no_data.png)
 
-The main page shows all credentials you currently have, the option to create new credentials, and all groups to which you belong. When you first log in you will have no credentials issued, and probably belong to no groups (although a list of public groups is shown on the main page).
+The main page shows all credentials you currently have, the option to create new credentials, and all groups to which you belong. When you first log in you will have no credentials issued, and probably belong to no groups (although a list of public topics is shown on the main page).
 
 To access Hopskotch, you must create at least one credential.
 
@@ -97,15 +97,15 @@ To create a credential, simple click the 'Create new credentials' button on the 
 
 [![Create a new credential](hopauth_screenshots/create_new_credential.png)](hopauth_screenshots/create_new_credential.png)
 
-After that you will be required to add a description for you new credential.
+After that you will be required to add a description for your new credential.
 
 [![Add a description for your new credential](hopauth_screenshots/describe_new_credential.png)](hopauth_screenshots/describe_new_credential.png)
 
-Besides description, no other input is required since credentials are randomly generated. The resulting page will show your new credential. 
+Besides a description, no other input is required since credentials are randomly generated. The resulting page will show your new credential.
 
 [![After generating a new credential it is displayed and you have the option to download it as a file](hopauth_screenshots/issue_new_credential.png)](hopauth_screenshots/issue_new_credential.png)
 
-The plain-text password is **only** displayed **once** on this page, so be certain to record it. The 'Download as CSV' button on the page will download the whole credential as a file in a form that the `hop` client can accept. This is normally the easiest way to obtain and store your credentials. 
+The plain-text password is **only** displayed **once** on this page, so be certain to record it. The 'Download as CSV' button on the page will download the whole credential as a file in a form that the `hop` client can accept. This is normally the easiest way to obtain and store your credentials.
 
 After you return to the main page, your newly created credential will be listed there:
 
@@ -117,13 +117,13 @@ By default, a new credential will allow you to authenticate with Hopskotch/Kafka
 
 To add permissions to a credential, locate it in the table on the main page and click the corresponding 'Manage' button. This will take you to the management page for that credential. If you would like to delete a credential instead, click the corresponding 'Delete' button.
 
-The management page shows all the avaialble permissions that can be added to a credential, as well as all the permissions currently assigned to that credential, any of which can be removed.
+The management page shows all the available permissions that can be added to a credential, as well as all the permissions currently assigned to that credential, any of which can be removed.
 
 [![The credential management page](hopauth_screenshots/cred_management.png)](hopauth_screenshots/cred_management.png)
 
 The reason for configuring permissions per-credential, rather than just having one credential per user which has the same permissions as the user is to make it easy to create compartmentalized credentials for specific purposes. For example, you might create one credential with write permission to a single, critical alert topic which can be placed in an automated data processing pipeline, and then create a separate credential with read access to many topics which you keep on your laptop for doing interactive analysis work.
 
-The permissions available to associate with your credentials are shown in the 'Available Permissions' section. These will include all of the permissions available to you because of your group memberships. To add one, simply select it from the list and press the 'Add' button. It should then appear in the table above. The permission is named with the topic to which it applies, other columns of that table refers to the type of access to be allowed and the read/write permissions.
+The permissions available to associate with your credentials are shown in the 'Available Permissions' section. These will include all of the permissions available to you because of your group memberships. To add one, simply select it from the list and press the 'Add' button. It should then appear in the table above. The listing will show the topics to which the permission applies, along with that topic's description, the group through which that permission is conferred, and whether the permission allows reading, writing, or both.
 
 
 ## Manage Groups and Topics
@@ -138,13 +138,13 @@ The management page for a group shows all current members and their level of mem
 
 [![The management page for a group](hopauth_screenshots/group_management.png)](hopauth_screenshots/group_management.png)
 
-To add a member, simply click the 'Add' button for any user in the list at the 'Available Users' section. After adding it to your group, you can select whether that person should be a regular member or also be and owner from the drop-down menu under 'Permission'. Users are listed with both their internal SCiMMA identifier and their email address, which is easier to recognize.
+To add a member, simply click the 'Add' button for any user in the list at the 'Available Users' section. After adding to your group, you can select whether that person should be a regular member or also be an owner from the drop-down menu under 'Permission'. Users are listed with both their internal SCiMMA identifier and their email address, which is easier to recognize.
 
 In the 'Current Members' section of the page any member of the group can be removed or have their membership status switched between regular membership and ownership of the group.
 
 ### Managing Topics
 
-If you are the owner of a group you can create topics owned by your group where you and other members of your group can write (and read) data in Hopskotch. To do so, enter the desired topic name into the field in the 'Create Topic' section of the group topic's management page, and click the 'Create' button. Topic names must be unique across the system, may be 1-249 characters long, and may only contain the characters `a-zA-Z0-9._-`.
+If you are the owner of a group you can create topics owned by your group where you and other members of your group can write (and read) data in Hopskotch. To do so, enter the desired topic name into the field in the 'Create Topic' section of the group topic's management page, and click the 'Create' button. Topic names must be unique within the group, may be 1-249 characters long, and may only contain the characters `a-zA-Z0-9._-`.
 
 [![The management page for a topic](hopauth_screenshots/topic_management_g.png)](hopauth_screenshots/topic_management_g.png)
 
@@ -152,15 +152,15 @@ A topic is always accessible to all members of the group which owns it, but by d
 
 ### Granting Other Groups Access to Topics
 
-Since, by default, Hopskotch user who are not members of a group cannot access that group's topics, it may be desirable to grant such access in order to share data.
+Since, by default, Hopskotch users who are not members of a group cannot access that group's topics, it may be desirable to grant such access in order to share data.
 
 To manage access to a topic, locate the topic in the 'Manage Group Topics' page, and click the 'Edit' button. This will open the topic's management page. In the 'Manage Group Topics' page you can also delete the topic entirely.
 
 [![The management page for a topic](hopauth_screenshots/topic_management.png)](hopauth_screenshots/topic_management.png)
 
-The 'Manage Topic' page shows all currently granted permissions (read/write) for the topic (at the group level), gives the option to modify those permissions. The owning group will have 'All' permission for the topic; this permission cannot be changed or removed as long as the topic exists. In this page you can also modify the topic's description, define its visibility and set the archiving option.
+The 'Manage Topic' page shows all currently granted permissions (read/write) for the topic (at the group level), and gives the option to modify those permissions. The owning group will have 'All' permission for the topic; this permission cannot be changed or removed as long as the topic exists. In this page you can also modify the topic's description, define its visibility and set the archiving option.
 
-One option to grant specific levels of access to specific groups is adding a group to a topic. This can be done by clicking the 'Add' button next to a group's name in the 'Available Groups' section, then you will have to set the read/write permissions, once the group appears in the 'Added Groups' section. One this is done, members of the chosen group will have the option to add this permission to their credentials. :
+One option to grant specific levels of access to specific groups is granting a group access to a topic. This can be done by clicking the 'Add' button next to a group's name in the 'Available Groups' section, then you will have to set the read/write permissions, once the group appears in the 'Added Groups' section. One this is done, members of the chosen group will have the option to add this permission to their credentials. :
 
 [![The management page for a topic, showing a permission granted to another group](hopauth_screenshots/topic_management_2.png)](hopauth_screenshots/topic_management_2.png)
 
@@ -201,6 +201,6 @@ Administrators can also view and edit the permissions of all users' credentials.
 
 [![The admin view of a specific credential's management page](hopauth_screenshots/admin_cred_suspend.png)](hopauth_screenshots/admin_cred_suspend.png)
 
-By clicking on the credential's Manage 'buttonThis' aministrator access to the same page as the credential's owner, and has all of the same capabilities to edit the credential's permissions.
+By clicking on the credential's 'Manage' button an administrator has access to the same page as the credential's owner, and has all of the same capabilities to edit the credential's permissions.
 
 A suspended credential is preserved in the system with all of its permissions, but will not be accepted by Hopskotch/Kafka until the suspension is removed. The intended purpose of this feature is for containment in case of security incidents. If a credential is suspected to have been compromised, it can be suspended to remove access without losing information about the credential and its capabilities. It should be noted that if a credential is suspected to be compromised because the owning user's account may have been compromised, hen in addition to suspending all of the user's credentials, the user's account should be suspended as well, as otherwise the account could simply be used to issue additional, equivalent credentials.
