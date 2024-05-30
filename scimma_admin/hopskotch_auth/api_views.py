@@ -764,8 +764,7 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
                 target_user = search[0]
             
             # non-staff users may not view other users' group memberships
-            if not self.request.user.is_staff and target_user!=self.request.user.id:
-                print(f"DEBUG: Denying group membership query permission: request.user.is_staff: {self.request.user.is_staff}, target_user: {target_user}, request.user.id: {self.request.user.id}")
+            if not self.request.user.is_staff and target_user!=self.request.user:
                 raise PermissionDenied
 
             queryset = queryset.filter(user=target_user)
