@@ -19,3 +19,5 @@ scimma_admin/staticfiles
 db.sqlite3
 *.pem
 localdev.conf
+
+**/.DS_Store
