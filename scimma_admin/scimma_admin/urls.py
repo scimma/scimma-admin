@@ -17,13 +17,18 @@ from django.contrib import admin
 from django.urls import include, path
 from django.http import HttpResponse
 from hopskotch_auth import views
+from scimma_admin.settings import HAVE_WEBSITE
 
 def OK(request):
     return HttpResponse("OK")
 
 urlpatterns = [
-    path('', views.index),
     path('health_check/', OK),
     path('hopauth/', include("hopskotch_auth.urls")),
     path('auth/', include('mozilla_django_oidc.urls')),
 ]
+
+if HAVE_WEBSITE:
+    urlpatterns.insert(0, path("", include("home.urls")))
+else:
+    urlpatterns.insert(0, path("", views.index))

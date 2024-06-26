@@ -100,6 +100,12 @@ ALLOWED_HOSTS = ["*"]
 
 # Application definition
 
+try:
+    os.stat(os.path.join(BASE_DIR, "home"))
+    HAVE_WEBSITE=True
+except FileNotFoundError:
+    HAVE_WEBSITE=False
+
 INSTALLED_APPS = [
     'hopskotch_auth',
     'whitenoise.runserver_nostatic',
@@ -116,6 +122,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_authtoken',
 ]
+if HAVE_WEBSITE:
+    INSTALLED_APPS.insert(0, 'home.apps.HomeConfig')
+
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
 CRISPY_TEMPLATE_PACK = "bootstrap5"
@@ -228,7 +237,10 @@ else:
 
 LOGIN_URL ='/hopauth/login'
 LOGIN_REDIRECT_URL = '/hopauth'
-LOGOUT_REDIRECT_URL = '/hopauth/logout'
+if HAVE_WEBSITE:
+    LOGOUT_REDIRECT_URL = '/'
+else:
+    LOGOUT_REDIRECT_URL = '/hopauth/logout'
 LOGIN_REDIRECT_URL_FAILURE = '/hopauth/login_failure'
 
 # Internationalization
