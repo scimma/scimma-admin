@@ -4,6 +4,7 @@ from django.contrib import messages
 import logging
 import secrets
 from django.conf import settings
+from .models import sync_mailing_list_membership
 
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,12 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         user.email = self.get_email(claims)
         user.is_staff = is_member_of(claims, '/SCiMMA Developers')
         user.save()
+        
+        # Putting this here is a bit of a hack, and slows down the login process, but
+        # deals with the case of a user's mailing list membership being altered externally.
+        # Doing this once on login is a trade-off, as it will miss external changes while
+        # the user is logged in, but avoids making repeated external requests
+        sync_mailing_list_membership(user, settings.OPENMMA_MAILINGLIST)
 
         return user
 

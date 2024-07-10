@@ -22,6 +22,7 @@ import re
 import datetime
 import rest_authtoken.models
 
+from . import sympa_interface
 
 class SCRAMAlgorithm(enum.Enum):
     SHA256 = 1
@@ -736,3 +737,26 @@ class RESTAuthToken(rest_authtoken.models.AuthToken):
         if self.held_by != self.user:
             return 'for user {}, held by user {}'.format(self.user, self.held_by)
         return '{}: {}'.format(self.user, self.hashed_token)
+
+class MailingListMembership(models.Model):
+    user: models.ForeignKey = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
+    list_name: models.CharField = models.CharField(
+        max_length=256,
+    )
+
+def sync_mailing_list_membership(user: settings.AUTH_USER_MODEL, list_addr: str):
+    # find out the mailing list's opinion on whether the user is subscribed
+    subscribed = sympa_interface.check_user_list_subscription(user.email, list_addr)
+    # find out whether we havbe a record of a subscription
+    cur_membership = MailingListMembership.objects.filter(user=user, list_name=list_addr)
+    if cur_membership.exists() != subscribed:
+        # we have a mismatch to resolve
+        if subscribed:
+            # the user is subscribed but we didn't know about it, so add a DB record
+            MailingListMembership.objects.create(user=user, list_name=list_addr)
+        else:
+            # the user is not subscribed, but we have an erroneous record, so we delete it
+            cur_membership.delete()

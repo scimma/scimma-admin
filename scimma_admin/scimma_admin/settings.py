@@ -84,8 +84,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 if not LOCAL_TESTING:
     SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
+    SYMPA_CREDS = get_secret(AWS_NAME_PREFIX+"scimma-admin-sympa-secret")
 else:
     SECRET_KEY = "zzzlocal"
+    SYMPA_CREDS = {}
 
 if not LOCAL_TESTING:
     SECURE_SSL_REDIRECT = True
@@ -236,7 +238,7 @@ else:
 
 
 LOGIN_URL ='/hopauth/login'
-LOGIN_REDIRECT_URL = '/hopauth'
+LOGIN_REDIRECT_URL = '/services'
 if HAVE_WEBSITE:
     LOGOUT_REDIRECT_URL = '/'
 else:
@@ -299,6 +301,9 @@ LOGGING = {
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="/Hopskotch Users")
+
+# For now we work with just one mailing list, so it gets to be a setting by itself
+OPENMMA_MAILINGLIST = "openmma@lists.scimma.org"
 
 SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
 

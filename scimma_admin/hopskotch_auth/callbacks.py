@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from .models import *
 from .directinterface import DirectInterface, Error
 from .views import log_request, json_with_error, AuthenticatedHttpRequest
+from django.conf import settings
 
 engine = DirectInterface()
 
@@ -401,6 +402,7 @@ def remove_topic_group_permission(request: AuthenticatedHttpRequest) -> JsonResp
         if not status_result:
             return json_with_error(request, 'remove_topic_group_permission', status_result.err())
     return JsonResponse(data={}, status=200)
+
 # TODO: duplicate ?
 '''
 @login_required
@@ -607,3 +609,22 @@ def remove_permission(username, credname, groupname, topicname, permission):
     to_delete.delete()
     return None, {}
 '''
+
+@login_required
+def subscribe_openmma(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"subscribe to the OpenMMA mailinglist")
+    
+    result = engine.subscribe_to_mailinglist(request.user, settings.OPENMMA_MAILINGLIST)
+    if not result:
+        return json_with_error(request, "subscribe_openmma", result.err())
+    return JsonResponse(data={}, status=200)
+
+
+@login_required
+def unsubscribe_openmma(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, f"unsubscribe from the OpenMMA mailinglist")
+    
+    result = engine.unsubscribe_from_mailinglist(request.user, settings.OPENMMA_MAILINGLIST)
+    if not result:
+        return json_with_error(request, "unsubscribe_openmma", result.err())
+    return JsonResponse(data={}, status=200)

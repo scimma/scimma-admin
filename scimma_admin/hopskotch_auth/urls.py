@@ -46,6 +46,8 @@ urlpatterns = [
     path("add_topic_group_permission", callbacks.add_topic_group_permission, name="add_topic_group_permission"),
     path("remove_topic_group_permission", callbacks.remove_topic_group_permission, name="remove_topic_group_permission"),
     path("remove_topic_from_group", callbacks.remove_topic_from_group, name="remove_topic_from_group"),
+    path("subscribe_openmma", callbacks.subscribe_openmma, name="subscribe_openmma"),
+    path("unsubscribe_openmma", callbacks.unsubscribe_openmma, name="unsubscribe_openmma"),
     path("download", views.download, name="download"),
 
     #----

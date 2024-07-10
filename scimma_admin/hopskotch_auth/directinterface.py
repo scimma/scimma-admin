@@ -3,6 +3,7 @@ from typing import Dict, List, Set
 
 from .models import *
 from .result import Result, Ok, Err
+from .sympa_interface import subscribe_user_to_list, unsubscribe_user_from_list
 
 @dataclass
 class Error:
@@ -608,3 +609,45 @@ class DirectInterface:
             return Err(Error(f'Topic "{topic_name}" does not exist', 404))
         cred_perms = CredentialKafkaPermission.objects.filter(principal=cred, topic=topic)
         return Ok(list(cred_perms))
+
+    def user_is_member_of_mailinglist(self, user: User, mailinglist: str) -> Result[bool, Error]:
+        """
+        This checks for a database record of a mailing list subscription,
+        and does not query the actual list software. This is fast for repeated use
+        but may potentially give a stale answer.
+        """
+        try:
+            membership = MailingListMembership.objects.get(user=user, list_name=mailinglist)
+            return Ok(True)
+        except ObjectDoesNotExist as dne:
+            return Ok(False)
+
+    def subscribe_to_mailinglist(self, user: User, mailinglist: str) -> Result[None, Error]:
+        cur_membership = MailingListMembership.objects.filter(user=user, list_name=mailinglist)
+        if cur_membership.exists():
+            return Err(Error(f'User "{user}" is already subscribed to list "{mailinglist}"', 400))
+
+        # before creating the database record, attempt to do the actual subscription
+        try:
+            subscribe_user_to_list(user.email, mailinglist, 
+                                   f"{user.first_name} {user.last_name}"
+                                   if user.first_name or user.last_name else "")
+        except Exception as e:
+            return Err(Error(str(e), 500))
+
+        MailingListMembership.objects.create(user=user, list_name=mailinglist)
+        return Ok(None)
+
+    def unsubscribe_from_mailinglist(self, user: User, mailinglist: str) -> Result[None, Error]:
+        membership = MailingListMembership.objects.filter(user=user, list_name=mailinglist)
+        if not membership.exists():
+            return Err(Error(f'User "{user}" is not subscribed to list "{mailinglist}"', 400))
+
+        # before removing the database record, attempt to do the actual unsubscription
+        try:
+            unsubscribe_user_from_list(user.email, mailinglist)
+        except Exception as e:
+            return Err(Error(str(e), 500))
+
+        membership.delete()
+        return Ok(None)

@@ -81,13 +81,13 @@ def log_request(request: AuthenticatedHttpRequest, description: str):
 
 def redirect_with_error(request: AuthenticatedHttpRequest, operation: str, err: Error,
                         redirect_to: str, *redir_args, **redir_kwargs) -> HttpResponse:
-    logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
+    logger.info(f"Request by user {request.user.username} ({request.user.email}) failed. "
                 f"Operation={operation}, Reason={err.desc}")
     messages.error(request, err.desc)
     return redirect(redirect_to,  permanent=False, *redir_args, **redir_kwargs)
 
 def json_with_error(request: AuthenticatedHttpRequest, operation: str, err: Error) -> JsonResponse:
-    logger.info(f"Request by user {request.user.username} ({request.user.email} failed. "
+    logger.info(f"Request by user {request.user.username} ({request.user.email}) failed. "
                 f"Operation={operation}, Reason={err.desc}")
     return JsonResponse(status=err.status, data={'error': err.desc})
 
@@ -147,11 +147,23 @@ def login(request: AuthenticatedHttpRequest) -> HttpResponse:
 
 
 def logout(request: AuthenticatedHttpRequest) -> HttpResponse:
-    return HttpResponse("you're logged out!")
+    return render(request, 'hopskotch_auth/logged_out.html',)
 
 
 def login_failure(request: AuthenticatedHttpRequest) -> HttpResponse:
     return render(request, 'hopskotch_auth/login_failure.html')
+
+
+@login_required
+def services(request: AuthenticatedHttpRequest) -> HttpResponse:
+    if not request.user.is_authenticated:
+        return render(request, 'hopskotch_auth/services_not_logged_in.html')
+    
+    mlist = settings.OPENMMA_MAILINGLIST
+    openmma_subscription = engine.user_is_member_of_mailinglist(request.user, mlist)
+    return render(request, 'hopskotch_auth/services.html',
+                  {"openmma_subscription": openmma_subscription.ok()})
+
 
 @login_required
 def create_credential(request: AuthenticatedHttpRequest) -> HttpResponse:
