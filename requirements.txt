@@ -1,4 +1,4 @@
-django>=4.2,<5.0
+django>=4.2.14,<5.0
 psycopg2==2.8.5
 boto3==1.14.2
 uWSGI==2.0.22
