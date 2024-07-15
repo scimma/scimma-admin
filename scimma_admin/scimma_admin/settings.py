@@ -15,6 +15,7 @@ import boto3
 import requests
 import configparser
 import datetime
+import json
 from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
@@ -84,7 +85,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 if not LOCAL_TESTING:
     SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
-    SYMPA_CREDS = get_secret(AWS_NAME_PREFIX+"scimma-admin-sympa-secret")
+    SYMPA_CREDS = json.loads(get_secret(AWS_NAME_PREFIX+"scimma-admin-sympa-secret"))
 else:
     SECRET_KEY = "zzzlocal"
     SYMPA_CREDS = {}
