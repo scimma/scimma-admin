@@ -1,0 +1,70 @@
+{% extends "hopskotch_auth/base.html" %}
+{% load django_bootstrap5 tz %}
+{% load static %}
+{% block title %}Home{% endblock %}
+
+{% block page-style %}
+{% endblock %}
+
+{% block page-header %}
+{% endblock %}
+
+{% block page-body %}
+<meta id="openmma_subscribe_url" data-link="{% url 'subscribe_openmma' %}">
+<meta id="openmma_unsubscribe_url" data-link="{% url 'unsubscribe_openmma' %}">
+<div class="container-fluid">
+<h1>SCiMMA Services</h1>
+<hr>
+<h2>Hopskotch</h2>
+<p><strong>Hopskotch</strong> is SCiMMA's scalable, high-throughput low-latency platform for handling real-time data streams for MMA applications, based on <a href="https://kafka.apache.org">Apache Kafka</a>. 
+It provides data transport and storage, and is primarily accessed programmatically.
+Through its web interface you can manage access credentials, user groups, and topics. 
+<p><a href="{% url 'index' %}" class="btn btn-primary">Click here to manage your Hopskotch settings</a>
+<p>SCiMMA recommends using our <a href="https://pypi.org/project/hop-client/">hop-client</a> python package to send and receive data via Hopskotch, but any client tool or library for working with Kafka can be used.
+Hopskotch also provides a <a href="{% url 'swagger-ui' %}">REST API</a> which enables programmatic access to all of the same capabilities as the web interface.
+<hr>
+<h2>HERMES</h2>
+<p><strong>HERMES</strong> is a high-level web interface for MMA alerts, built on Hopskotch. 
+It allows both viewing and sending messages, including to GCN and TNS. 
+<p><a href="https://hermes.lco.global/" class="btn btn-primary">Click here to use HERMES</a>
+<hr>
+<h2>OpenMMA</h2>
+<p><strong>OpenMMA</strong> is a community forum to facilitate the exchange of information related to multi-messenger astrophysics (MMA). 
+<p><a href="https://github.com/scimma/openMMA/wiki" class="btn btn-primary">Click here for the OpenMMA Wiki</a>
+
+<div style="display:{% if openmma_subscription %}block{% else %}none{% endif %}" id="openmma_subscribed">
+	<p>You are subscribed to the <a href="https://lists.scimma.org/lists/info/openmma">OpenMMA mailing list</a>. 
+	<p><button role="button" id="unsubscribeBtn" class="btn btn-danger unsubscribeOpenMMA">Unsubscribe</a>
+</div>
+<div style="display:{% if openmma_subscription %}none{% else %}block{% endif %}" id="openmma_unsubscribed">
+	<p>You are not currently subscribed to the <a href="https://lists.scimma.org/lists/info/openmma">OpenMMA mailing list</a>. 
+	<p><button role="button" id="subscribeBtn" class="btn btn-primary subscribeOpenMMA">Subscribe</a>
+</div>
+</div>
+<div class="modal fade" id="subscribeErrorModal" tabindex="-1" aria-labelledby="subscribeErrorModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+	  <div class="modal-content">
+		<div class="modal-header">
+		  <h5 class="modal-title" id="subscribeErrorLabel">Error</h5>
+		  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+		</div>
+		<div class="modal-body">
+			<div id="error-text">
+				Error text goes here
+			</div>
+			<div id="support-text">
+				If this error persists, please file a ticket at <a href="https://support.scimma.org/">https://support.scimma.org</a>.
+			</div>
+		</div>
+		<div class="modal-footer">
+		  <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+		</div>
+	  </div>
+	</div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static 'hopskotch_auth/js/openmma_subscription.js' %}"></script>
+{% endblock %}
