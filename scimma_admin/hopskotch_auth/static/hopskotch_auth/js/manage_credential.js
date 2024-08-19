@@ -22,8 +22,6 @@ function getCookie(c_name)
  }
 
 $(document).ready(function() {
-    all_perms = ['Read', 'Write', 'Create', 'Delete', 'Alter', 'Describe', 'ClusterAction', 'DescribeConfigs', 'AlterConfigs', 'IdempotentWrite'];
-  line_count = $('#added_permissions > tbody > tr').length;
 
   function initializeModal() {
     modalElem = $('#topicPermEditModal');
@@ -38,7 +36,7 @@ $(document).ready(function() {
           {'className': 'topic_name'},
           {'className': 'topic_desc'},
           {'className': 'topic_access', 'searchable': false},
-          {'searchable': false, 'orderable': false}
+          {'className': 'operations', 'searchable': false, 'orderable': false}
       ]
   });
 
@@ -48,174 +46,113 @@ $(document).ready(function() {
         {'className': 'topic_name'},
         {'className': 'topic_desc'},
         {'className': 'topic_access'},
-        {'className': 'perm_boxes', 'searchable': false, 'orderable': false},
-        {'className': 'remove_button', 'searchable': false, 'orderable': false},
+        {'className': 'operations', 'searchable': false, 'orderable': false},
     ]
   })
-
-  table_1_format = '\
-    <tr>\
-    <td class="topic_name">{}</td>\
-    <td class="topic_desc">{}</td>\
-    <td class="topic_access">{}</td>\
-    <td class="perm_boxes">Read <input type="checkbox" class="form-check-input readCheck" checked> Write <input type="checkbox" class="form-check-input writeCheck"></td>\
-    <td scope="col" class="remove_button"><button type="button" class="btn btn-danger removeFrom objectModifier">Remove</button></td>\
-    </tr>\
-  '
-
-  perm_box_format = 'Read <input type="checkbox" class="form-check-input readCheck" checked> Write <input type="checkbox" class="form-check-input writeCheck">'
-  remove_button_format = '<button type="button" class="btn btn-danger removeFrom objectModifier">Remove</button>'
-
-  table_2_format = '\
-    <tr>\
-    <td class="topic_name">{}</td>\
-    <td class="topic_desc">{}</td>\
-    <td class="topic_access">{}</td>\
-    <td><button type="button" class="btn btn-primary addToCur">Add</button></td>\
-    </tr>\
-  '
-
-  add_button_format = '<button type="button" class="btn btn-primary addToCur">Add</button>'
-
-  function addToCurCallback() {
-      var trElem = $(this).closest('tr');
-      var topic_name = $(trElem).find('td.topic_name').text();
-      var topic_desc = $(trElem).find('td.topic_desc').text();
-      var topic_access = $(trElem).find('td.topic_access').text();
-      var credname = $('#idNameField').val();
-      var trElem = $(this).closest('tr');
-      var topic_name = $(trElem).find('td.topic_name').text();
-      acp_link = $('#acp_url').data().link;
-      $.ajax({
-        url: acp_link,
-        method: "POST",
-        dataType: "json",
-        headers: {
-            "X-CSRFToken": getCookie('csrftoken')
-        },
-        data: {
-            'credname': credname,
-            'topicname': topic_name,
-            'permission': ['Read'],
-        },
-        success: function (data, textStatus, jqXHR){
-            avail_table.row(trElem).remove().draw(false);
-            added_table.row.add([topic_name, topic_desc, topic_access, perm_box_format, remove_button_format]).draw(false);
-            //var row = avail_table.row(trElem);
-            //row.remove().draw();
-            //$('#added_permissions > tbody:last-child').append(table_1_format.format(topic_name, topic_desc, topic_access));
-        },
-        error: function(jqXHR, textStatus, errorThrown){
-            console.log('Error: ' + errorThrown);
-        },
-        complete: function(jqXHR, textStatus) {
-            console.log('Complete: ' + textStatus);
-        }
-    });
-      
-  }
-
-  function removeFromCallback() {
-      var trElem = $(this).closest('tr');
-      var credname = $('#idNameField').val();
-      var topic_name = $(trElem).find('td.topic_name').text();
-      var topic_desc = $(trElem).find('td.topic_desc').text();
-      var topic_access = $(trElem).find('td.topic_access').text();
-      dacp_link = $('#rcp_url').data().link;
-      $.ajax({
-            url: dacp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                'credname': credname,
-                'topicname': topic_name,
-                'permission': ['Read', 'Write'],
-
-
-            },
-            success: function (data, textStatus, jqXHR){
-                //var rowNode = avail_table.row.add($(table_2_format.format(topic_name, topic_desc, topic_access))).draw(false);
-                //trElem.remove();
-                added_table.row(trElem).remove().draw(false);
-                avail_table.row.add([topic_name, topic_desc, topic_access, add_button_format]).draw(false);
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            }
-        });
-    }
-
-    function onReadCallback() {
+    progress_spinner = "<span class=\"spinner-border spinner-border-sm\" role=\"status\" aria-hidden=\"true\"></span>";
+    
+    function addPermCallback(){
         var credname = $('#idNameField').val();
+        var spanElem = $(this).closest('span');
         var trElem = $(this).closest('tr');
-        var isChecked = $(this).is(':checked');
         var topic_name = $(trElem).find('td.topic_name').text();
-        var readLink = isChecked ? $('#acp_url').data().link : $('#rcp_url').data().link;
-        $.ajax({
-            url: readLink,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                'credname': credname,
-                'topicname': topic_name,
-                'permission': ['Read'],
-            },
-            success: function (data, textStatus, jqXHR){
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            }
-        });
-    }
-
-    function onWriteCallback() {
-        var credname = $('#idNameField').val();
-        var trElem = $(this).closest('tr');
-        var isChecked = $(this).is(':checked');
-        var topic_name = $(trElem).find('td.topic_name').text();
-        var readLink = isChecked ? $('#acp_url').data().link : $('#rcp_url').data().link;
-        $.ajax({
-            url: readLink,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                'credname': credname,
-                'topicname': topic_name,
-                'permission': ['Write'],
-            },
-            success: function (data, textStatus, jqXHR){
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            }
-        });
-
+        var topic_desc = $(trElem).find('td.topic_desc').text();
+        var topic_access = $(trElem).find('td.topic_access').text();
+        var op_name = $(spanElem).contents().filter(function(){return this.nodeType == Node.TEXT_NODE; }).text().trim();
+        var readLink = $('#acp_url').data().link;
         
+        $(this).addClass("disabled");
+        $(this).text("");
+        $(this).prepend(progress_spinner);
+        
+        $.ajax({
+            url: readLink,
+            method: "POST",
+            dataType: "json",
+            headers: {
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            data: {
+                'credname': credname,
+                'topicname': topic_name,
+                'permission': [op_name],
+            },
+            success: function (data, textStatus, jqXHR){
+            },
+            error: function(jqXHR, textStatus, errorThrown){
+                $(this).removeClass("disabled");
+                $(this).text("Add");
+                //TODO: show error to user
+                console.log('Error: ' + errorThrown);
+            },
+            complete: function(jqXHR, textStatus) {
+                //add to other table, creating row if necessary
+                let cur_row=added_table.row((idx, data) => data[0] == topic_name)
+                if(cur_row.length==0)
+                    cur_row=added_table.row.add([topic_name, topic_desc, topic_access, ""]).draw(false);
+                console.log(cur_row);
+                var otherTr=cur_row.node();
+                $(otherTr).find('td.operations').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-danger remPerm objectModifier\">Remove</button></span> <br>");
+                //remove from this table, removing the whole row if empty
+                spanElem.remove();
+                var items = $(trElem).find('td.operations span').length;
+                if(items==0)
+                    avail_table.row(trElem).remove().draw(false);
+            }
+        });
     }
-
-  $('body').on('click', '.addToCur', addToCurCallback);
-
-  $('body').on('click', '.removeFrom', removeFromCallback);
-
-  $('body').on('click', '.readCheck', onReadCallback);
-
-  $('body').on('click', '.writeCheck', onWriteCallback);
+    
+    function remPermCallback(){
+        var credname = $('#idNameField').val();
+        var spanElem = $(this).closest('span');
+        var trElem = $(this).closest('tr');
+        var topic_name = $(trElem).find('td.topic_name').text();
+        var topic_desc = $(trElem).find('td.topic_desc').text();
+        var topic_access = $(trElem).find('td.topic_access').text();
+        var op_name = $(spanElem).contents().filter(function(){return this.nodeType == Node.TEXT_NODE; }).text().trim();
+        var readLink = $('#rcp_url').data().link;
+        var items = $(trElem).find('td.operations span').length; //should be computed only when ready to move elements
+        $(this).addClass("disabled");
+        $(this).text("");
+        $(this).prepend(progress_spinner);
+        
+        $.ajax({
+            url: readLink,
+            method: "POST",
+            dataType: "json",
+            headers: {
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            data: {
+                'credname': credname,
+                'topicname': topic_name,
+                'permission': [op_name],
+            },
+            success: function (data, textStatus, jqXHR){
+            },
+            error: function(jqXHR, textStatus, errorThrown){
+                $(this).removeClass("disabled");
+                $(this).text("Remove");
+                //TODO: show error to user
+                console.log('Error: ' + errorThrown);
+            },
+            complete: function(jqXHR, textStatus) {
+                //add to other table, creating row if necessary
+                let cur_row=avail_table.row((idx, data) => data[0] == topic_name)
+                if(cur_row.length==0)
+                    cur_row=avail_table.row.add([topic_name, topic_desc, topic_access, ""]).draw(false);
+                console.log(cur_row);
+                var otherTr=cur_row.node();
+                $(otherTr).find('td.operations').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-primary addPerm objectModifier\">Add</button></span> <br>");
+                //remove from this table, removing the whole row if empty
+                spanElem.remove();
+                var items = $(trElem).find('td.operations span').length;
+                if(items==0)
+                    added_table.row(trElem).remove().draw(false);
+            }
+        });
+    }
+  
+    $('body').on('click', '.addPerm', addPermCallback);
+    $('body').on('click', '.remPerm', remPermCallback);
 } );
