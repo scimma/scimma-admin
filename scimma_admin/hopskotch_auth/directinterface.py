@@ -76,7 +76,6 @@ class DirectInterface:
         return Ok(None)
 
     def get_credential(self, requesting_user: User, cred_name: str) -> Result[SCRAMCredentials, Error]:
-        # TODO: check that requesting_user has authority to manipulate owning_user's credentials
         try:
             credential = SCRAMCredentials.objects.get(username=cred_name)
         except ObjectDoesNotExist as dne:
@@ -143,7 +142,9 @@ class DirectInterface:
 
         base_perm: Optional[GroupKafkaPermission] = None
         for group_perm in group_perms:
-            if is_group_member(requesting_user.id, group_perm.principal.id):
+            # Need to check group membership of the credential's owner, 
+            # even if the request to create the permission comes from another user (a staff member)
+            if is_group_member(cred.owner.id, group_perm.principal.id):
                 base_perm = group_perm
                 break
 
@@ -161,13 +162,14 @@ class DirectInterface:
         )
         return Ok(None)
 
-    def remove_credential_permission(self, user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
+    def remove_credential_permission(self, requesting_user: User, cred_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
         try:
-            cred = SCRAMCredentials.objects.get(owner=user, username=cred_name)
+            cred = SCRAMCredentials.objects.get(username=cred_name)
         except ObjectDoesNotExist as dne:
             return Err(Error(f'Credential {cred_name} does not exist', 404))
-        if cred.owner != user and not user.is_staff:
-            return Err(Error(f'Credentials can only be modified by the owning user or a staff member', 403))
+        if cred.owner != requesting_user and not requesting_user.is_staff:
+            return Err(Error(f'User "{requesting_user.username}" does not have permissions for '
+                             f'credential {cred_name} and is not staff', 403))
         try:
             topic = KafkaTopic.objects.get(name=topic_name)
         except ObjectDoesNotExist as dne:

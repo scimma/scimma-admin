@@ -236,13 +236,9 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
                 'topic': perm.topic.name,
                 'description': perm.topic.description,
                 'access_via': perm.parent.principal.name,
-                'read': False,
-                'write': False,
+                'permissions': []
             }
-        if perm.operation == KafkaOperation.Read:
-            cred_topic_perms[perm.topic.name]['read'] = True
-        if perm.operation == KafkaOperation.Write:
-            cred_topic_perms[perm.topic.name]['write'] = True
+        cred_topic_perms[perm.topic.name]['permissions'].append(perm.operation._name_)
         
     added_topics = []
     easy_lookup = []
@@ -257,15 +253,26 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
     avail_perms = engine.get_available_credential_permissions(request.user, cred.owner)
     if not avail_perms:
         return redirect_with_error(request, "manage_credential", avail_perms.err(), 'index')
-    avail_topics = []
+    avail_topics = {}
     for perm in avail_perms.ok():
-        if perm[0].topic.name not in easy_lookup:
-            avail_topics.append({
+        if perm[1]!="Read" and perm[1]!="Write":
+            # To keep things simple, expose only read and write permissions in the GUI.
+            # Other permissions can be added via the API, but needing to do so is rare.
+            continue
+        if perm[0].topic.name in cred_topic_perms \
+          and (perm[1] in cred_topic_perms[perm[0].topic.name]["permissions"] or \
+               "All" in cred_topic_perms[perm[0].topic.name]["permissions"]):
+            continue;
+        if perm[0].topic.name not in avail_topics:
+            avail_topics[perm[0].topic.name]={
                 'topic': perm[0].topic.name,
                 'topic_description': perm[0].topic.description,
-                'accessible_by': perm[0].principal.name
-            })
-            easy_lookup.append(perm[0].topic.name)
+                'accessible_by': perm[0].principal.name,
+                'permissions': [perm[1]]
+            }
+        else:
+            avail_topics[perm[0].topic.name]["permissions"].append(perm[1])
+
     '''
     avail_topics = [{"topic": x[0].topic.name,
                      "topic_description": x[0].topic.description,
@@ -276,9 +283,8 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
     return render(request,
         'hopskotch_auth/manage_credential.html',
         {
-            'accessible_topics': avail_topics,
+            'accessible_topics': list(avail_topics.values()),
             'added_topics': list(cred_topic_perms.values()),
-            #'added_topics': added_topics,
             'cur_username': cred.username,
             'cur_desc': cred.description})
 

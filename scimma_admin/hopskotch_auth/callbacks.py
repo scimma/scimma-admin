@@ -35,7 +35,7 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
 
 @login_required
 def add_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
-    log_request(request, "adding a credential permission")
+    log_request(request, "add a credential permission")
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     perms = request.POST.getlist('permission[]')
@@ -62,13 +62,14 @@ def add_credential_permissions(request: AuthenticatedHttpRequest) -> JsonRespons
 
 @login_required
 def remove_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResponse:
+    log_request(request, "remove a credential permission")
     print(request.POST)
     credname = request.POST['credname']
     topicname = request.POST['topicname']
     perms = request.POST.getlist('permission[]')
 
     if isinstance(perms, str):
-        perms = ['perms']
+        perms = [perms]
     topic_result = engine.get_topic(topicname)
     if not topic_result:
         return json_with_error(request, "remove_credential_permission", topic_result.err())
@@ -81,6 +82,8 @@ def remove_credential_permissions(request: AuthenticatedHttpRequest) -> JsonResp
         except Exception:
             return json_with_error(request, "remove_credential_permission", Error('Bad permission name: {}'.format(perm.lower()), 400))
         rem_result = engine.remove_credential_permission(request.user, credname, topicname, perm_result)
+        if not rem_result:
+            return json_with_error(request, "remove_credential_permission", rem_result.err())
     return JsonResponse(data={}, status=200)
 
 # TODO: the name and implementation of this function are inconsistent: does it get (accessible)
