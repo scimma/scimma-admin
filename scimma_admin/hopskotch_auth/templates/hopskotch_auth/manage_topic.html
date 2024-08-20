@@ -9,16 +9,17 @@
 <meta id="agp_url" data-link="{% url 'add_topic_group_permission' %}">
 <meta id="rgp_url" data-link="{% url 'remove_topic_group_permission' %}">
     <div class="container-fluid">
-        <h2>Manage Topic</h2>
+        <h2>Manage Topic: {{ topic_name }}</h2>
+            <h3>Owned by group: <a href="{% url 'manage_group_topics' topic_owner %}">{{ topic_owner }}</a></h3>
             <form class="form-horizontal" id="id-createTopicForm" method="post">
                 {% csrf_token %}
-                <div id="div_id_owning_group_field" class="mb-3 row">
+                <div id="div_id_owning_group_field" class="mb-3 row" style="display:none">
                     <label for="id_owning_group_field" class="col-form-label col-lg-2 requiredField">Owning Group<span class="asteriskField">*</span></label>
                     <div class="col-lg-8">
                         <input type="text" name="owning_group_field" value="{{ topic_owner }}" class="row textinput textInput form-control" readonly="True" required="" id="id_owning_group_field">
                     </div> 
                 </div> 
-                <div id="div_id_name_field" class="mb-3 row">
+                <div id="div_id_name_field" class="mb-3 row" style="display:none">
                     <label for="id_name_field" class="col-form-label col-lg-2 requiredField">Name<span class="asteriskField">*</span></label>
                     <div class="col-lg-8"> 
                         <input type="text" name="name_field" value="{{ topic_name }}" class="row textinput textInput form-control" readonly="True" required="" id="id_name_field">
@@ -66,108 +67,55 @@
             </div> 
         </form>
     {% include "hopskotch_auth/messages.html" %}
-    <h2>Added Groups</h2>
+    <h2>Existing Permissions</h2>
     <div class="row mb-3">
         <table class="table" id="added_groups">
             <thead>
                 <th scope="col">Group</th>
                 <th scope="col">Permission</th>
-                <th scope="col">Remove</th>
             </thead>
             <tbody>
                 {% for group in group_list %}
                 <tr scope="row">
                     <td scope="col" class="group_name">{{ group.name }}</td>
-                    <td scope="col" class="perm_fields">{% if group.name == topic_owner %}{% else %}
-                      <div>
-                        Read <input class="readCheck" type="checkbox" {% if group.read %}checked{% endif %}> Write <input class="writeCheck" type="checkbox" {% if group.write %}checked{% endif %}>
-                      </div>
-                      {% endif %}</td>
-                    <td scope="col" class="remove_button">{% if group.name == topic_owner %}Owner{% else %}<button type="button" class="btn btn-danger removeFrom">Remove</button>{% endif %}</td>
+                    <td scope="col" class="permissions">
+                      {% if group.name == topic_owner %}
+                      All (Owner)
+                      {% else %}
+                        {% for perm in group.permissions %}
+                          <span display="inline-block">{{ perm }}&nbsp;<button role="button" style="padding-top: 0; padding-bottom:0;" class="btn btn-sm btn-danger remPerm objectModifier">Remove</button></span> <br>
+                        {% endfor %}
+                      {% endif %}
+                      </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-        <h2>Available Groups</h2>
+        <h2>Available Permissions</h2>
         <div id="cur_permissions">
             <table class="table table-hover" id="avail_table">
                 <thead>
                     <tr>
-                        <th scope="col">Group Name</th>
-                        <th scope="col">Add</th>
+                        <th scope="col">Group</th>
+                        <th scope="col">Permission</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for group in all_groups %}
                     <tr>
-                        <td scope="col" class="group_name">{{ group }}</td>
-                        <td scope="col" class="remove_button"><button type="button" class="btn btn-primary addToCur">Add</button></td>
+                        <td scope="col" class="group_name">{{ group.name }}</td>
+                        <td scope="col" class="permissions">
+                          {% for perm in group.permissions %}
+                            <span display="inline-block">{{ perm }}&nbsp;<button role="button" style="padding-top: 0; padding-bottom:0;" class="btn btn-sm btn-primary addPerm objectModifier">Add</button></span> <br>
+                          {% endfor %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="modal fade" id="topicPermEditModal" tabindex="-1" aria-labelledby="topicPermEditLabel" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="topicPermEditLabel">Modal title</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <input type="hidden" id="currently_editing" value="">
-              <span class="border">
-                <div class="form-check form-switch">
-                  <label for="Read_perm" class="form-check-label">Read</label>
-                  <input type="checkbox" id="Read_perm" class="form-check-input" name="permCheck" value="Read">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="Write_perm" class="form-check-label">Write</label>
-                  <input type="checkbox" id="Write_perm" class="form-check-input" name="permCheck" value="Write">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="Create_perm" class="form-check-label">Create</label>
-                  <input type="checkbox" id="Create_perm" class="form-check-input" name="permCheck" value="Create">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="Delete_perm" class="form-check-label">Delete</label>
-                  <input type="checkbox" id="Delete_perm" class="form-check-input" name="permCheck" value="Delete">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="Alter_perm" class="form-check-label">Alter</label>
-                  <input type="checkbox" id="Alter_perm" class="form-check-input" name="permCheck" value="Alter">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="Describe_perm" class="form-check-label">Describe</label>
-                  <input type="checkbox" id="Describe_perm" class="form-check-input" name="permCheck" value="Describe">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="ClusterAction_perm" class="form-check-label">ClusterAction</label>
-                  <input type="checkbox" id="ClusterAction_perm" class="form-check-input" name="permCheck" value="ClusterAction">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="DescribeConfigs_perm" class="form-check-label">DescribeConfigs</label>
-                  <input type="checkbox" id="DescribeConfigs_perm" class="form-check-input" name="permCheck" value="DescribeConfigs">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="AlterConfigs_perm" class="form-check-label">AlterConfigs</label>
-                  <input type="checkbox" id="AlterConfigs_perm" class="form-check-input" name="permCheck" value="AlterConfigs">
-                </div>
-                <div class="form-check form-switch">
-                  <label for="IdempotentWrite_perm" class="form-check-label">IdempotentWrite</label>
-                  <input type="checkbox" id="IdempotentWrite_perm" class="form-check-input" name="permCheck" value="IdempotentWrite">
-                </div>
-              </span>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="button" class="btn btn-primary" id="save_edit">Save changes</button>
-            </div>
-          </div>
-        </div>
-      </div>
 {% endblock %}
 
 {% block scripts %}
