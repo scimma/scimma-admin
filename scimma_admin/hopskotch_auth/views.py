@@ -273,13 +273,6 @@ def manage_credential(request: AuthenticatedHttpRequest, credname: str) -> HttpR
         else:
             avail_topics[perm[0].topic.name]["permissions"].append(perm[1])
 
-    '''
-    avail_topics = [{"topic": x[0].topic.name,
-                     "topic_description": x[0].topic.description,
-                     "accessible_by": x[0].principal.name
-                    } for x in avail_perms.ok() if x[0].topic.name not in easy_lookup]
-    '''
-
     return render(request,
         'hopskotch_auth/manage_credential.html',
         {
@@ -413,33 +406,32 @@ def manage_topic(request, topicname) -> HttpResponse:
     access_result = engine.get_groups_with_access_to_topic(request.user, topic)
     if not access_result:
         return redirect_with_error(request, "manage_topic", access_result.err(), 'index')
-    groups_added = access_result.ok()
+    existing_perms = access_result.ok()
 
     groups_result = engine.get_all_groups()
     if not groups_result:
         return redirect_with_error(request, "manage_topic", groups_result.err(), 'index')
     groups_available = groups_result.ok()
 
-    cleaned_added = []
-    # TODO: Convert cleaned_added to a dictionary. The key is the group name and the value is a dictionary with keys
-    #       Read and Write where those values are booleans of whether the read or write permission exists
-    cleaned_available = []
+    groups_with_access = {}
+    for perm in existing_perms:
+        if perm.principal not in groups_with_access:
+            groups_with_access[perm.principal] = {
+                "name": perm.principal.name,
+                "permissions": [],
+            }
+        groups_with_access[perm.principal]["permissions"].append(perm.operation._name_)
+    
+    other_groups = {}
     for group in groups_available:
-        is_added = False
-        for added in groups_added:
-            if group == added.principal:
-                is_added = True
-                break
-        if is_added:
-            perms_result = engine.get_group_permissions_for_topic(request.user, group.name, topicname)
-            if not perms_result:
-                return redirect_with_error(request, 'manage_topic', perms_result.err(), 'index')
-            ops = [op.operation for op in perms_result.ok()]
-            cleaned_added.append({'name': group.name,
-                                  'read': KafkaOperation.Read in ops,
-                                  'write': KafkaOperation.Write in ops})
-        else:
-            cleaned_available.append(group.name)
+        for op in [KafkaOperation.Read, KafkaOperation.Write]:
+            if group not in groups_with_access or op.name not in groups_with_access[group]["permissions"]:
+                if group not in other_groups:
+                    other_groups[group] = {
+                        "name": group.name,
+                        "permissions": []
+                    }
+                other_groups[group]["permissions"].append(op.name)
     short_name = topic.name[len(topic.owning_group.name)+1:] if topic.name.startswith(topic.owning_group.name+'.') else topic.name
     return render(request,
             'hopskotch_auth/manage_topic.html',
@@ -448,8 +440,8 @@ def manage_topic(request, topicname) -> HttpResponse:
             'topic_desc': topic.description,
             'is_visible': topic.publicly_readable,
             'is_archivable': topic.archivable,
-            'all_groups': cleaned_available,
-            'group_list': cleaned_added}
+            'all_groups': list(other_groups.values()),
+            'group_list': list(groups_with_access.values())}
         )
 
 @login_required
