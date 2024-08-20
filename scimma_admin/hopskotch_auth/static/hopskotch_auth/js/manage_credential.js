@@ -90,7 +90,6 @@ $(document).ready(function() {
                 let cur_row=added_table.row((idx, data) => data[0] == topic_name)
                 if(cur_row.length==0)
                     cur_row=added_table.row.add([topic_name, topic_desc, topic_access, ""]).draw(false);
-                console.log(cur_row);
                 var otherTr=cur_row.node();
                 $(otherTr).find('td.operations').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-danger remPerm objectModifier\">Remove</button></span> <br>");
                 //remove from this table, removing the whole row if empty
@@ -141,7 +140,6 @@ $(document).ready(function() {
                 let cur_row=avail_table.row((idx, data) => data[0] == topic_name)
                 if(cur_row.length==0)
                     cur_row=avail_table.row.add([topic_name, topic_desc, topic_access, ""]).draw(false);
-                console.log(cur_row);
                 var otherTr=cur_row.node();
                 $(otherTr).find('td.operations').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-primary addPerm objectModifier\">Add</button></span> <br>");
                 //remove from this table, removing the whole row if empty
