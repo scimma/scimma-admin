@@ -74,165 +74,10 @@ $(document).ready(function() {
     })
     
     progress_spinner = "<span class=\"spinner-border spinner-border-sm\" role=\"status\" aria-hidden=\"true\"></span>";
-
-    function addedGroupCallback() {
-        var trElem = $(this).closest('tr');
-        var groupname = trElem.find('td.group_name').text();
-        console.log(groupname);
-        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        bsgp_link = $('#agp_url').data().link;
-        $.ajax({
-            url: bsgp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                topicname: topicname,
-                groupname: groupname,
-                permissions: 'Read',
-            },
-            success: function (data, textStatus, jqXHR){
-                console.log('Success: ' + textStatus);
-                avail_table.row(trElem).remove().draw(false);
-                added_table.row.add([groupname, added_perm_format, '<button type="button" class="btn btn-danger removeFrom">Remove</button>']).draw(false);
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            },
-            traditional: true,
-        });
-    }
-
-    function removedGroupCallback() {
-        var trElem = $(this).closest('tr');
-        var groupname = trElem.find('td.group_name').text();
-        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        bsgp_link = $('#rgp_url').data().link;
-        $.ajax({
-            url: bsgp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                topicname: topicname,
-                groupname: groupname,
-                permissions: ['Read', 'Write'],
-            },
-            success: function (data, textStatus, jqXHR){
-                console.log('Success: ' + textStatus);
-                added_table.row(trElem).remove().draw(false);
-                avail_table.row.add(
-                    [
-                        groupname,
-                        '<button type="button" class="btn btn-primary addToCur">Add</button>'
-                    ]
-                ).draw();
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            },
-            traditional: true,
-        });
-    }
-
-    function onReadCallback() {
-        var trElem = $(this).closest('tr');
-        var isChecked = $(this).is(':checked');
-        var groupname = $(trElem).find('td.group_name').text();
-        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        var gp_link = isChecked ? $('#agp_url').data().link : $('#rgp_url').data().link;
-        $.ajax({
-            url: gp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                topicname: topicname,
-                groupname: groupname,
-                permissions: 'Read',
-            },
-            success: function (data, textStatus, jqXHR){
-                console.log('Success: ' + textStatus);
-                if (isChecked) {
-                    show_alert('Successfully gave {} Read Permission'.format(groupname), 'success');
-                }
-                else {
-                    show_alert("Successfully revoked {}'s Read Permission".format(groupname), 'success');
-                }
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-                if (isChecked) {
-                    show_alert('Failed to give {} Read Permission'.format(groupname), 'danger');
-                }
-                else {
-                    show_alert("Failed to revoke {}'s Read Permission".format(groupname), 'danger');
-                }
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            },
-            traditional: true,
-        });
-    }
-
-    function onWriteCallback() {
-        var trElem = $(this).closest('tr');
-        var isChecked = $(this).is(':checked');
-        var groupname = $(trElem).find('td.group_name').text();
-        var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
-        var gp_link = isChecked ? $('#agp_url').data().link : $('#rgp_url').data().link;
-        $.ajax({
-            url: gp_link,
-            method: "POST",
-            dataType: "json",
-            headers: {
-                "X-CSRFToken": getCookie('csrftoken')
-            },
-            data: {
-                topicname: topicname,
-                groupname: groupname,
-                permissions: 'Write',
-            },
-            success: function (data, textStatus, jqXHR){
-                console.log('Success: ' + textStatus);
-                if (isChecked) {
-                    show_alert('Successfully gave {} Write Permission'.format(groupname), 'success');
-                }
-                else {
-                    show_alert("Successfully revoked {}'s Write Permission".format(groupname), 'success');
-                }
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                console.log('Error: ' + errorThrown);
-                if (isChecked) {
-                    show_alert('Failed to give {} Write Permission'.format(groupname), 'danger');
-                }
-                else {
-                    show_alert("Failed to revoke {}'s Write Permission".format(groupname), 'danger');
-                }
-            },
-            complete: function(jqXHR, textStatus) {
-                console.log('Complete: ' + textStatus);
-            },
-            traditional: true,
-        });
-    }
     
     function addPermCallback(){
         var spanElem = $(this).closest('span');
+        var brElem = $(spanElem).next();
         var trElem = $(this).closest('tr');
         var groupname = $(trElem).find('td.group_name').text();
         var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
@@ -272,6 +117,7 @@ $(document).ready(function() {
                 $(otherTr).find('td.permissions').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-danger remPerm objectModifier\">Remove</button></span> <br>");
                 //remove from this table, removing the whole row if empty
                 spanElem.remove();
+                brElem.remove();
                 var items = $(trElem).find('td.permissions span').length;
                 if(items==0)
                     avail_table.row(trElem).remove().draw(false);
@@ -281,6 +127,7 @@ $(document).ready(function() {
     
     function remPermCallback(){
         var spanElem = $(this).closest('span');
+        var brElem = $(spanElem).next();
         var trElem = $(this).closest('tr');
         var groupname = $(trElem).find('td.group_name').text();
         var topicname = $('#id_owning_group_field').val() + '.' + $('#id_name_field').val();
@@ -320,6 +167,7 @@ $(document).ready(function() {
                 $(otherTr).find('td.permissions').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-primary addPerm objectModifier\">Add</button></span> <br>");
                 //remove from this table, removing the whole row if empty
                 spanElem.remove();
+                brElem.remove();
                 var items = $(trElem).find('td.permissions span').length;
                 if(items==0)
                     added_table.row(trElem).remove().draw(false);

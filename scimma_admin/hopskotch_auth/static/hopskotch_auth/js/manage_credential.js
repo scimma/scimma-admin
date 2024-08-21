@@ -54,6 +54,7 @@ $(document).ready(function() {
     function addPermCallback(){
         var credname = $('#idNameField').val();
         var spanElem = $(this).closest('span');
+        var brElem = $(spanElem).next();
         var trElem = $(this).closest('tr');
         var topic_name = $(trElem).find('td.topic_name').text();
         var topic_desc = $(trElem).find('td.topic_desc').text();
@@ -94,6 +95,7 @@ $(document).ready(function() {
                 $(otherTr).find('td.operations').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-danger remPerm objectModifier\">Remove</button></span> <br>");
                 //remove from this table, removing the whole row if empty
                 spanElem.remove();
+                brElem.remove();
                 var items = $(trElem).find('td.operations span').length;
                 if(items==0)
                     avail_table.row(trElem).remove().draw(false);
@@ -104,6 +106,7 @@ $(document).ready(function() {
     function remPermCallback(){
         var credname = $('#idNameField').val();
         var spanElem = $(this).closest('span');
+        var brElem = $(spanElem).next();
         var trElem = $(this).closest('tr');
         var topic_name = $(trElem).find('td.topic_name').text();
         var topic_desc = $(trElem).find('td.topic_desc').text();
@@ -144,6 +147,7 @@ $(document).ready(function() {
                 $(otherTr).find('td.operations').append("<span display=\"inline-block\">"+op_name+"&nbsp;<button role=\"button\" style=\"padding-top: 0; padding-bottom:0;\" class=\"btn btn-sm btn-primary addPerm objectModifier\">Add</button></span> <br>");
                 //remove from this table, removing the whole row if empty
                 spanElem.remove();
+                brElem.remove();
                 var items = $(trElem).find('td.operations span').length;
                 if(items==0)
                     added_table.row(trElem).remove().draw(false);
