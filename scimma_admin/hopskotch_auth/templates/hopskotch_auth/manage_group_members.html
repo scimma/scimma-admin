@@ -11,16 +11,17 @@
 <meta id="gam_url" data-link="{% url 'group_add_member' %}">
 <meta id="grm_url" data-link="{% url 'group_remove_member' %}">
     <div class="container">
-        <h2>Manage Group Members</h2>
+        <h2>Manage Members of Group {{ cur_name }}</h2>
+        <a href="{% url 'manage_group_topics' cur_name %}" class="btn btn-primary btn-sm">Manage this group's topics</a>
         <form method="POST">
             {% csrf_token %}
-            <div class="row">
+            <div class="row" style="display:none">
                 <label for="name_field" class="form-label">Name</label>
                 <input name="name_field" class="form-control" id="name_field" value="{{ cur_name }}" readonly>
             </div>
             <div class="row">
-                <label for="desc_field" class="form-label">Description</label>
-                <textarea id="desc_field" name="desc_field" class="form-field">{{ cur_description }}</textarea>
+                <label for="desc_field" class="form-label">Group Description:</label>
+                <textarea id="desc_field" name="desc_field" class="form-field" style="height: 5em;">{{ cur_description }}</textarea>
             </div>
             <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-2">
                 <button class="btn btn-primary" role="submit">Update Description</button>
