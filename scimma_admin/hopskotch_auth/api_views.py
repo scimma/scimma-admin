@@ -570,7 +570,7 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
                 owner = search[0]
 
             # non-staff users may not view other users' credentials
-            if not self.request.user.is_staff and owner!=self.request.user.id:
+            if not self.request.user.is_staff and owner!=self.request.user:
                 raise PermissionDenied
 
             queryset = queryset.filter(owner=owner)
@@ -586,7 +586,7 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         return super().get_object()
 
     def get_target_descriptor(self, kwargs):
-        return kwargs.get(self.get_lookup_field,'<missing>')
+        return kwargs.get(self.get_lookup_field(),'<missing>')
 
     def list(self, request, *args, **kwargs):
         if "user" in kwargs:
