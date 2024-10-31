@@ -40,9 +40,7 @@ def get_localdev_secret(name):
     """
     cp = configparser.ConfigParser()
     conf_file = os.path.join(os.path.dirname(BASE_DIR), "localdev.conf")
-    print(conf_file)
     cp.read(os.path.join(conf_file))
-    print(cp.sections())
     return cp["secrets"][name]
 
 # ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
@@ -219,6 +217,7 @@ else:
 if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
     fix_psycopg_binary()
 
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
