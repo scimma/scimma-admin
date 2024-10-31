@@ -1,0 +1,78 @@
+#!/bin/sh
+
+HELP="run: run scimma-admin with uwsgi, with supporting background processes
+Options:
+  -w, --website        Run the 'static' website as a sub-application
+"
+
+require_arg(){
+    if [ "$1" -eq 0 ]; then
+        echo "run_local: Missing argument after ${var} option" 1>&2; exit 1
+    fi
+}
+
+while [ "$#" -gt 0 ]; do
+    var="$1"; shift
+
+	if [ "$var" = "--help" ] || [ "$var" = "-h" ]; then
+		echo "$HELP"
+		exit 0
+	fi
+
+    if [ "$var" = "--website" ] || [ "$var" = "-w" ]; then
+        RUN_WEBSITE=1; continue
+    fi
+
+    echo "run: Unknown or malformed option '$var'" 1>&2; exit 1
+done
+
+WEBSITE_CLONE_URL="git@github.com:scimma/scimma-website.git"
+
+if [ "RUN_WEBSITE" ]; then
+	if [ ! -f /root/.ssh/scimma-admin-key ]; then
+		echo "Deploy key for scima-website not found; unable to clone website repository" 1>&2
+		exit 1
+	fi
+	chmod 600 /root/.ssh/scimma-admin-key
+	echo "
+Host github.com
+	StrictHostKeyChecking no
+	IdentityFile=/root/.ssh/scimma-admin-key
+	" > /root/.ssh/config
+
+	if command -v git > /dev/null ; then
+		git clone --depth 1 --branch 'scimma-admin-compat' "$WEBSITE_CLONE_URL" /website
+		if [ "$?" -ne 0 ]; then
+			echo "Failed to clone from $WEBSITE_CLONE_URL" 1>&2
+			exit 1
+		fi
+		# patch together the relevant portion of the website code into the main application
+		ln -s /website/scimma/home /app/scimma_admin/
+		if [ "$?" -ne 0 ]; then
+			echo "Failed to symlink website into scimma-admin" 1>&2
+			exit 1
+		fi
+	else
+		echo "git command not available; unable to clone website repository" 1>&2
+		exit 1
+	fi
+fi
+
+uwsgi --chdir=/app/scimma_admin \
+    --module=scimma_admin.wsgi:application \
+    --env DJANGO_SETTINGS_MODULE=scimma_admin.settings \
+    --master --pidfile=/tmp/project-master.pid \
+    --http :80 \
+    --processes 4 \
+    --threads 2 \
+    &
+
+SERVER_MASTER_PID=$!
+
+while true; do
+	sleep 60
+	if [ "RUN_WEBSITE" ]; then
+		python manage.py update_home
+	fi
+	python manage.py clearexpiredauthtokens
+done
