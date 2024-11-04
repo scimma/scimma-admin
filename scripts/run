@@ -70,7 +70,7 @@ uwsgi --chdir=/app/scimma_admin \
 SERVER_MASTER_PID=$!
 
 while true; do
-	sleep 60
+	sleep 600
 	if [ "RUN_WEBSITE" ]; then
 		python manage.py update_home
 	fi
