@@ -13,4 +13,6 @@ WORKDIR /app/scimma_admin
 
 RUN python manage.py collectstatic --noinput
 
+RUN mkdir /root/.ssh && chmod 700 /root/.ssh
+
 CMD /app/scripts/run --website

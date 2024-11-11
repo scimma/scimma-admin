@@ -41,7 +41,7 @@ Host github.com
 	" > /root/.ssh/config
 
 	if command -v git > /dev/null ; then
-		git clone --depth 1 --branch 'scimma-admin-compat' "$WEBSITE_CLONE_URL" /website
+		git clone --depth 1 --branch 'main' "$WEBSITE_CLONE_URL" /website
 		if [ "$?" -ne 0 ]; then
 			echo "Failed to clone from $WEBSITE_CLONE_URL" 1>&2
 			exit 1
