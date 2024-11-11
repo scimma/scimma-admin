@@ -29,6 +29,13 @@ done
 WEBSITE_CLONE_URL="git@github.com:scimma/scimma-website.git"
 
 if [ "RUN_WEBSITE" ]; then
+	if [ "$WEBSITE_DEPLOY_KEY_SECRET" ]; then
+		/app/scripts/mount_aws_secret.py --permissions 600 "$WEBSITE_DEPLOY_KEY_SECRET" "/root/.ssh/"
+		if [ "$?" -ne 0 ]; then
+			echo "Failed to mount AWS secret $WEBSITE_DEPLOY_KEY_SECRET to /root/.ssh/" 1>&2
+			exit 1
+		fi
+	fi
 	if [ ! -f /root/.ssh/scimma-admin-key ]; then
 		echo "Deploy key for scima-website not found; unable to clone website repository" 1>&2
 		exit 1
