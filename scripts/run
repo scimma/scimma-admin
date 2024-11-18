@@ -63,6 +63,11 @@ Host github.com
 		echo "git command not available; unable to clone website repository" 1>&2
 		exit 1
 	fi
+	python manage.py collectstatic --noinput
+	if [ "$?" -ne 0 ]; then
+		echo "Failed to collect static assets for website application" 1>&2
+		exit 1
+	fi
 fi
 
 uwsgi --chdir=/app/scimma_admin \
