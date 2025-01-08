@@ -75,7 +75,8 @@ class KafkaTopicAdminSerializer(serializers.ModelSerializer):
 class KafkaTopicCreationSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
-        fields = ["owning_group", "name", "publicly_readable", "description"]
+        fields = ["owning_group", "name", "publicly_readable", "description", "archivable",
+                  "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
 
     def validate(self, data):
         data = super().validate(data)
