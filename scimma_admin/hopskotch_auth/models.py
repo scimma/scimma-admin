@@ -325,8 +325,8 @@ class KafkaTopic(models.Model):
     )
     retention_ms: models.IntegerField = models.BigIntegerField(
         default=2422800000,
-        # Allow 1 second to 1 year
-        validators=[validators.MinValueValidator(1000), validators.MaxValueValidator(365*86400*1000)],
+        # Allow up to one year, or unlimited (-1)
+        validators=[validators.MinValueValidator(-1), validators.MaxValueValidator(365*86400*1000)],
     )
     retention_bytes: models.IntegerField = models.BigIntegerField(
         default=-1,
