@@ -1005,7 +1005,12 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff and not is_group_owner(self.request.user.id, group.id):
             raise PermissionDenied
 
-        serializer = serializers[self.kwargs.get("version",current_api_version)].KafkaTopicCreationSerializer(data=data)
+        # give staff users extra capabilities when creating topics, but not regular users
+        if self.request.user.is_staff:
+            serializer_class = serializers[self.kwargs.get("version",current_api_version)].KafkaTopicCreationAdminSerializer
+        else:
+            serializer_class = serializers[self.kwargs.get("version",current_api_version)].KafkaTopicCreationSerializer
+        serializer = serializer_class(data=data)
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             topic = serializer.save()

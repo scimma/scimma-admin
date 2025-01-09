@@ -57,9 +57,9 @@ class KafkaTopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
         fields = ["pk", "owning_group", "name", "publicly_readable", "description", "archivable",
-                  "max_message_bytes", "retention_ms", "retention_bytes"]
+                  "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
         read_only_fields = ["pk", "owning_group", "name",
-                            "max_message_bytes", "retention_ms", "retention_bytes"]
+                            "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
 
     def validate_publicly_readable(self, value):
         if value is not True:
@@ -72,7 +72,33 @@ class KafkaTopicAdminSerializer(serializers.ModelSerializer):
                   "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
         read_only_fields = ["pk", "owning_group", "name"]
 
+def validate_new_topic_name(data):
+	name = data["name"]
+	group = data["owning_group"]
+	
+	if not validate_topic_name(name):
+		raise serializers.ValidationError("Invalid topic name")
+
+	name = group.name + '.' + name
+	
+	if KafkaTopic.objects.filter(name=name).exists():
+		raise serializers.ValidationError("Topic name already in use")
+		
+	data["name"] = name
+
 class KafkaTopicCreationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KafkaTopic
+        fields = ["owning_group", "name", "publicly_readable", "description", "archivable"]
+
+    def validate(self, data):
+        data = super().validate(data)
+        
+        validate_new_topic_name(data)
+        
+        return data
+
+class KafkaTopicCreationAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
         fields = ["owning_group", "name", "publicly_readable", "description", "archivable",
@@ -81,18 +107,7 @@ class KafkaTopicCreationSerializer(serializers.ModelSerializer):
     def validate(self, data):
         data = super().validate(data)
         
-        name = data["name"]
-        group = data["owning_group"]
-        
-        if not validate_topic_name(name):
-            raise serializers.ValidationError("Invalid topic name")
-
-        name = group.name + '.' + name
-        
-        if KafkaTopic.objects.filter(name=name).exists():
-            raise serializers.ValidationError("Topic name already in use")
-            
-        data["name"] = name
+        validate_new_topic_name(data)
         
         return data
 
