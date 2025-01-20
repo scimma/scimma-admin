@@ -749,8 +749,13 @@ class MailingListMembership(models.Model):
 
 def sync_mailing_list_membership(user: settings.AUTH_USER_MODEL, list_addr: str):
     # find out the mailing list's opinion on whether the user is subscribed
-    subscribed = sympa_interface.check_user_list_subscription(user.email, list_addr)
-    # find out whether we havbe a record of a subscription
+    try:
+        subscribed = sympa_interface.check_user_list_subscription(user.email, list_addr)
+    except Exception as ex:
+        print(f"Sympa interface failure: {ex}")
+        # lacking information, take no further action
+        return
+    # find out whether we have a record of a subscription
     cur_membership = MailingListMembership.objects.filter(user=user, list_name=list_addr)
     if cur_membership.exists() != subscribed:
         # we have a mismatch to resolve
