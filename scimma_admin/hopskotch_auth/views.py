@@ -510,9 +510,12 @@ def manage_group_topics(request, groupname) -> HttpResponse:
                 'description': topic.description,
                 #'accessible_by': topic['accessible_by'], # not valid for a group
             }
+    # Note that we let admins act as group owners
+    user_is_owner = is_group_owner(request.user.id, group.id) or request.user.is_staff
     return render(request, 'hopskotch_auth/manage_group_topics.html',
                   {'topics': clean_topics_added.values(), 'groupname': group.name,
-                  'cur_name': group.name, 'cur_description': group.description })
+                  'cur_name': group.name, 'cur_description': group.description,
+                  'user_is_owner': user_is_owner})
 
 @admin_required
 @login_required

@@ -38,7 +38,7 @@ $(document).ready(function() {
 
     function initializeModal() {
         confirm_modal = new bootstrap.Modal($('#confirmModal'), {
-            keyboard: false
+            keyboard: true
         })
     }
 

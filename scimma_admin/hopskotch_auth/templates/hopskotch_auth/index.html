@@ -136,11 +136,13 @@
         <section class="py-1 group-list">
             <h2>
                 Groups
+                {% if request.user.is_staff %}
                 <a href="{% url 'create_group' %}" class="link-dark" data-bs-toggle="popover" data-bs-trigger="hover" data-bs-content="Creates a new group" data-bs-original-title="Help">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
                     </svg>
                 </a>
+                {% endif %}
             </h2>
             <table class="table" id="group-table">
                 <thead>
@@ -166,6 +168,7 @@
                             </form>
                         </td>
                         <td>
+                            {% if membership.status == "Owner" %}
                             <form>
                                 {% csrf_token %}
                                 <a role="submit" class="btn btn-primary" href="{% url 'manage_group_members' membership.group_name %}">
@@ -175,6 +178,7 @@
                                       </svg>
                                 </button>
                             </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -192,7 +196,7 @@
                     <p>Groups are responsible for owning topics, and granting access as appropriate to members of other groups. 
                     
                     <p>If you do not belong to any groups, you will only be able to read from topics whose owning groups have marked them public. 
-                    If you are a member of a group, you will automatically have access to all topics owned by that group, and to any topics for which the owners have granted access to yours group. 
+                    If you are a member of a group, you will automatically have access to all topics owned by that group, and to any topics belonging to other groups whose owners have granted access to your group. 
                     
                     <p>If you are an owner of a group you can create topics, manage granting access to other groups, and manage which users are members of your group. 
                     
@@ -216,8 +220,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="button" class="btn btn-primary" id="confirmDelete">Confirm</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-primary btn-danger" id="confirmDelete">Delete</button>
             </div>
           </div>
         </div>

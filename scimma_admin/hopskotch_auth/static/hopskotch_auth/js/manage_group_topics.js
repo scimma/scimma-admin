@@ -62,10 +62,10 @@ $(document).ready(function() {
     function initializeModal() {
       modalElem = $('#topicPermEditModal');
       edit_modal = new bootstrap.Modal($('#topicPermEditModal'), {
-        keyboard: false
+        keyboard: true
       });
       confirm_modal = new bootstrap.Modal($('#confirmModal'), {
-          keyboard: false
+          keyboard: true
       });
     }
 
