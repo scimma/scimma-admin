@@ -318,6 +318,13 @@ REST_FRAMEWORK = {
     ),
 }
 
+KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
+if KAFKA_BROKER_URL is None:
+    if SCIMMA_ENVIRONMENT == "dev":
+        KAFKA_BROKER_URL = "dev.hop.scimma.org"
+    elif SCIMMA_ENVIRONMENT == "prod":
+        KAFKA_BROKER_URL = "kafka.scimma.org"
+
 
 try:
     from local_settings import *
