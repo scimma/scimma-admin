@@ -65,8 +65,13 @@ def client_ip(request: HttpRequest) -> str:
 
 def download(request: AuthenticatedHttpRequest) -> HttpResponse:
     myfile = StringIO()
-    myfile.write("username,password\n")
-    myfile.write(f"{request.POST['username']},{request.POST['password']}")
+    data = {"username": request.POST["username"],
+            "password": request.POST["password"]}
+    if settings.KAFKA_BROKER_URL is not None:
+        data["hostname"] = settings.KAFKA_BROKER_URL
+    myfile.write(','.join(data.keys()))
+    myfile.write('\n')
+    myfile.write(','.join(data.values()))
     myfile.flush()
     myfile.seek(0) # move the pointer to the beginning of the buffer
     response = HttpResponse(FileWrapper(myfile), content_type='text/plain')
