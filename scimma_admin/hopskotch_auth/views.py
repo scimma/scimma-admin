@@ -433,11 +433,16 @@ def manage_topic(request, topicname) -> HttpResponse:
                     }
                 other_groups[group]["permissions"].append(op.name)
     short_name = topic.name[len(topic.owning_group.name)+1:] if topic.name.startswith(topic.owning_group.name+'.') else topic.name
+    if settings.KAFKA_BROKER_URL is not None:
+        topic_url = f"kafka://{settings.KAFKA_BROKER_URL}/{topic.owning_group.name}.{short_name}"
+    else:
+        topic_url = None
     return render(request,
             'hopskotch_auth/manage_topic.html',
             {'topic_owner': topic.owning_group.name,
             'topic_name': short_name,
             'topic_desc': topic.description,
+            'topic_url': topic_url,
             'is_visible': topic.publicly_readable,
             'is_archivable': topic.archivable,
             'all_groups': list(other_groups.values()),
