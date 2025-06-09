@@ -427,7 +427,7 @@ class TokenForOidcUser(APIView):
             }
             logger.info(f"Issuing a REST token to {request.user.username} ({request.user.email}) "
                         f"at {client_ip(request)} "
-                        f"to act on behalf of {user.username} (user.email)")
+                        f"to act on behalf of {user.username} ({user.email})")
             return Response(data=data, status=status.HTTP_200_OK)
         except ObjectDoesNotExist:
             return Response(data={"error": "Failed to issue a REST token"},
