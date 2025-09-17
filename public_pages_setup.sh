@@ -21,7 +21,7 @@ SSH_KEY="~/.ssh/id_rsa"  # Path to your SSH key
 ARCHIVE_LOCAL_PORT=54320
 ARCHIVE_REMOTE_PORT=5432
 
-ADMIN_LOCAL_PORT=54321
+ADMIN_LOCAL_PORT=54320
 ADMIN_REMOTE_PORT=5432
 
 
@@ -55,6 +55,9 @@ trap cleanup EXIT INT TERM ERR
 sleep 2
 
 # Run your program
-#echo "Running program..."
-#"$PROGRAM"
+# echo "Running program..."
+uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
+      --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
+      --pidfile=project-master.pid --http :8000 --processes 1 --threads 2
+
 
