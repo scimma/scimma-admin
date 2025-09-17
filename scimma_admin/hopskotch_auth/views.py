@@ -765,6 +765,13 @@ def add_all_credential_permission(request: AuthenticatedHttpRequest) -> JsonResp
         return json_with_error(request, "add_all_credential_permission", add_result.err())
     return JsonResponse(data={}, status=200)
 
+
+def public_topics(request):
+    context = {}
+    context['page'] = {'heading': 'Public Topics', 'lead': 'All Public Topics Anyone Can Subscribe To'}
+    #context["group_data"] = mk_recent_model.main()
+    return render(request, "home/public_topics.html", context)
+
 '''
 def get_user_available_permissions(user):
     possible_permissions = {}
