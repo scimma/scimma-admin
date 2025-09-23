@@ -20,4 +20,5 @@ db.sqlite3
 *.pem
 localdev.conf
 
-**/.DS_Store
+creds.json
+nohup.out

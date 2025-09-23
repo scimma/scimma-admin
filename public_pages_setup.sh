@@ -45,22 +45,22 @@ nohup ssh  -N -L $ADMIN_LOCAL_PORT:$ADMIN_DNS:5432 "$REMOTE_USER@$REMOTE_HOST" &
 ADMIN_TUNNEL_PID=$!
 echo ADMIN_TUNNEL_PID
 
-sleep 4
-cat nohup.cout
-sudo lsof -i -P -n | grep TCP | grep 127.0.0.1
+sleep 2
+echo take a peek at nohup.out
+cat nohup.out  
 sleep 10
 
 # Cleanup function to kill the tunnel
 cleanup() {
-#    echo "Shutting ARCHIVE down SSH tunnel..."
-#    kill $ARCHIVE_TUNNEL_PID 2>/dev/null
-#    wait $ARCHIVE_TUNNEL_PID 2>/dev/null
-#    echo "ARCHIVE Tunnel closed."
+  echo "Shutting ARCHIVE down SSH tunnel..."
+  kill $ARCHIVE_TUNNEL_PID 2>/dev/null
+  wait $ARCHIVE_TUNNEL_PID 2>/dev/null
+  echo "ARCHIVE Tunnel closed."
 
-   echo "Shutting ADMIN down SSH tunnel..."
-   kill $ADMIN_TUNNEL_PID 2>/dev/null
-   wait $ADMIN_TUNNEL_PID 2>/dev/null
-   echo "ADMIN Tunnel closed."
+  echo "Shutting ADMIN down SSH tunnel..."
+  kill $ADMIN_TUNNEL_PID 2>/dev/null
+  wait $ADMIN_TUNNEL_PID 2>/dev/null
+  echo "ADMIN Tunnel closed."
 }
 
 # Trap signals and errors to ensure cleanup
@@ -70,7 +70,6 @@ trap cleanup EXIT INT TERM ERR
 sleep 2
 
 python scimma_admin/mk_recent_model.py
-exit
 
 
 # Run your program

@@ -27,6 +27,7 @@ urlpatterns = [
     path('services', views.services, name="services"),
     path('hopauth/', include("hopskotch_auth.urls")),
     path('auth/', include('mozilla_django_oidc.urls')),
+    path("public_topics", views.public_topics, name="public_topics"),
 ]
 
 if HAVE_WEBSITE:

@@ -1,0 +1,64 @@
+{% block content %}
+
+
+<div class="container-fluid p-2 m-4">
+
+  
+<!-- Annoucement section   -->
+<!-- Explain topics and groups   -->
+<!-- Mention Public topics. -->
+
+<span class=lead>
+
+<h2> Hopskotch Topics </h2>
+
+<p>
+  In hopskotch, 
+  Public topics are topics that any registered SCiMMA user may
+  subscribe to. Private topics are used for a group's internal
+  messages. In total, SCiMMA currently supports
+  <strong> {{group_data.summary.n_private_topics}}</strong> private topics and
+  <strong>{{group_data.summary.n_public_topics}}</strong> public topics.
+
+
+<h2> What Public topics are active?</h2>
+<p> Curious about what's available to anyone in the the community?
+  Use the buttons below to see the {{group_data.summary.total_active_topics }}
+  public topics SCiMMA groups have published in in the last
+  {{ group_data.summary.active_threshold_days}} days.
+
+<p> If you are not a registered user, anyone in the community can
+  obtian a free account using the sign up button at the top of this
+  page.  Registered users may subscribe to any or all public topics.
+
+</span>
+<br> <br>
+
+<!-- Let a person see current topics so as to appreciate what's in hop   -->
+<!-- When I developed this , the list is impossibly long, so let them Navicate by topic  -->
+<!-- Use "collapse" to hide information not relevant ot the user.  -->
+
+{% for group in group_data.groups %}
+  <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{group.group_name}}" aria-expanded="false" aria-controls="{{group_data.group_name}}">
+    {{group.group_name}} ({{group.n_public}} )
+  </button>
+{% endfor %}
+
+{% for group in group_data.groups %}
+<div class="collapse" id="{{ group.group_name }}"</div>
+  <div > <!-- container needed to make collapse work  -->
+    <table class="table">
+      <thead><tr><th>Topic</th><th>Description</th><th>Last Published</th></tr></thead>
+      <tbody>
+      {% for t in group.public_topics %}
+      <tr> <td> {{ t.topic }}</td><td> {{ t.description }} </td><td> {{ t.latest }} </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div> <!-- container  -->
+</div>   <!-- collapse   -->
+{% endfor %}
+
+</div>  <!-- container-fluid   -->
+{% endblock %}
+

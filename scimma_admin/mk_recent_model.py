@@ -223,7 +223,6 @@ def get_archive_info(args):
 
 def archive_query(args, host, port, db_info):
     "Obtain  information from the archive DB"
-    breakpoint()
     password  = get_secret(args,args['archive_db_secretname'] )
     t0 = time.time()
     con = psycopg2.connect(

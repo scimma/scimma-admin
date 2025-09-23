@@ -50,7 +50,6 @@ urlpatterns = [
     path("unsubscribe_openmma", callbacks.unsubscribe_openmma, name="unsubscribe_openmma"),
     path("download", views.download, name="download"),
 
-    path("public_topics", views.public_topics, name="public_topics"),
 
     #----
 
