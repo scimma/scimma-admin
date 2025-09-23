@@ -1,36 +1,71 @@
 #!/bin/sh
 
+system=devel
+
+# Parse options
+while getopts ":vd:" opt; do
+  case $opt in
+    v)
+      set -x
+      ;;
+    d)
+      system=devel
+      ;;
+    p)
+	system=prod
+      ;;	
+    h)
+	-v verbose -p use prod databses -d use devel databases 
+      ;;
+	
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      ;;
+  esac
+done
+
+# Display parsed values
+echo "Verbose mode: $verbose"
+echo "Filename: $filename"
+
 #
 #  Assume these have been done once
 #  make localdev.conf
 #  cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
 
-#
-#  TEar down any old postgres DB, and make a new one.
-#
-set -x
-#!/bin/bash
 
 # Configuration
 #  ssh -i /Users/donaldpetravick/.ssh/id_rsa -l don.petravick scotch.dev.hop.scimma.org
 
+
 export REMOTE_TUNNEL="True"  #signal laptop development
 export REMOTE_USER="don.petravick"
-export JUMP_HOST="scotch.dev.hop.scimma.org"
-export REMOTE_HOST="scotch.dev.hop.scimma.org"
 export SSH_KEY="~/.ssh/id_rsa"  # Path to your SSH key
 
 export ARCHIVE_LOCAL_PORT=54320
 export ARCHIVE_REMOTE_PORT=5432
-export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-export ARCHIVE_DB_INSTANCE=hopdevel-archive-ingest-db
-export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
+
 
 export ADMIN_LOCAL_PORT=54321
 export ADMIN_REMOTE_PORT=5432
-export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-export ADMIN_DB_INSTANCE=scimma-admin-postgres
-export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
+
+
+if [ "$system" = "prod" ]; then
+  echo "System is production"
+else
+    echo "System using devel system "
+    export JUMP_HOST="scotch.dev.hop.scimma.org"
+    export REMOTE_HOST="scotch.dev.hop.scimma.org"
+    
+    export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
+    export ARCHIVE_DB_INSTANCE=hopdevel-archive-ingest-db
+    export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
+    
+    export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
+    export ADMIN_DB_INSTANCE=scimma-admin-postgres
+    export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
+fi
+
 
 rm -f nohup.out
 # Start Archive SSH tunnel in background
@@ -48,7 +83,7 @@ echo ADMIN_TUNNEL_PID
 sleep 2
 echo take a peek at nohup.out
 cat nohup.out  
-sleep 10
+sleep 4
 
 # Cleanup function to kill the tunnel
 cleanup() {
