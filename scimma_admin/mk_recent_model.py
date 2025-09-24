@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Draw data from
@@ -92,7 +93,7 @@ args['archive_db_instance'] = os.getenv('ARCHIVE_DB_INSTANCE')
 args['archive_db_secretname'] = os.getenv('ARCHIVE_DB_SECRET_NAME')
 
 # scimma-admin connect info
-args['admin_db_instance'] = os.getenv('ADMIN_DB_INSTANCE') # e.g 'prod-scimma-admin-postgres'
+args['admin_db_instance'] = os.getenv('ADMIN_DB_INSTANCE') 
 args['admin_db_secretname'] = os.getenv('ADMIN_DB_SECRET_NAME')
 
 
@@ -185,7 +186,7 @@ def main():
         gdata.append(g_info)
     info['groups'] = gdata
     #import pprint
-    pprint.pp(info, indent=4)
+    #pprint.pp(info, indent=4)
     return info
 
 

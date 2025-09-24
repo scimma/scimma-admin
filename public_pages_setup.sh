@@ -3,8 +3,8 @@
 system=devel
 
 # Parse options
-while getopts ":vd:" opt; do
-  case $opt in
+while getopts ":vdpj" opt; do
+  case $opt in 
     v)
       set -x
       ;;
@@ -15,18 +15,17 @@ while getopts ":vd:" opt; do
 	system=prod
       ;;	
     h)
-	-v verbose -p use prod databses -d use devel databases 
-      ;;
-	
+	-v verbose -p use prod databses -d use devel databases -j just run locally 
+	;;
+    j)
+	just_local=true
+	;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
       ;;
   esac
 done
 
-# Display parsed values
-echo "Verbose mode: $verbose"
-echo "Filename: $filename"
 
 #
 #  Assume these have been done once
@@ -49,18 +48,30 @@ export ARCHIVE_REMOTE_PORT=5432
 export ADMIN_LOCAL_PORT=54321
 export ADMIN_REMOTE_PORT=5432
 
+echo "$system"
 
 if [ "$system" = "prod" ]; then
-  echo "System is production"
+    echo "System is production"
+    
+    export ARCHIVE_HOST="scotch.prod.hop.scimma.org"
+    export ARCHIVE_DNS=hopprod-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
+    export ARCHIVE_DB_INSTANCE=hopprod-archive-ingest-db
+    export ARCHIVE_DB_SECRET_NAME=hopProd-archive-ingest-db-password
+
+    export ADMIN_HOST="scotch.prod.hop.scimma.org"
+    export ADMIN_DNS=prod-scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
+    export ADMIN_DB_INSTANCE=prod-scimma-admin-postgres
+    export ADMIN_DB_SECRET_NAME=prod-scimma-admin-db-password
+
+    
 else
     echo "System using devel system "
-    export JUMP_HOST="scotch.dev.hop.scimma.org"
-    export REMOTE_HOST="scotch.dev.hop.scimma.org"
-    
+    export ARCHIVE_HOST="scotch.dev.hop.scimma.org"
     export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ARCHIVE_DB_INSTANCE=hopdevel-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
-    
+
+    export ADMIN_HOST="scotch.dev.hop.scimma.org"
     export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE=scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
@@ -70,13 +81,13 @@ fi
 rm -f nohup.out
 # Start Archive SSH tunnel in background
 #echo "Starting ARCHIVE SSH tunnel..."
-nohup ssh  -N -L $ARCHIVE_LOCAL_PORT:$ARCHIVE_DNS:5432 "$REMOTE_USER@$REMOTE_HOST" &  
+nohup ssh  -N -L $ARCHIVE_LOCAL_PORT:$ARCHIVE_DNS:5432 "$REMOTE_USER@$ARCHIVE_HOST" &  
 ARCHIVE_TUNNEL_PID=$!
 echo ARCHIVE_TUNNEL_PID
 
 # Start ADMIN SSH tunnel in background
 echo "Starting ADMIN SSH tunnel..."
-nohup ssh  -N -L $ADMIN_LOCAL_PORT:$ADMIN_DNS:5432 "$REMOTE_USER@$REMOTE_HOST" &  
+nohup ssh  -N -L $ADMIN_LOCAL_PORT:$ADMIN_DNS:5432 "$REMOTE_USER@$ADMIN_HOST" &  
 ADMIN_TUNNEL_PID=$!
 echo ADMIN_TUNNEL_PID
 
@@ -104,13 +115,12 @@ trap cleanup EXIT INT TERM ERR
 # Wait briefly to ensure tunnels is up
 sleep 2
 
-python scimma_admin/mk_recent_model.py
+if [ "$just_local" = "true" ]; then
+       python scimma_admin/mk_recent_model.py
+else
 
-
-# Run your program
-# echo "Running program..."
-uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
+    uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
       --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
       --pidfile=project-master.pid --http :8000 --processes 1 --threads 2
-
+fi
 
