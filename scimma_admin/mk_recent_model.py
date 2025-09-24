@@ -189,7 +189,10 @@ def main():
     #pprint.pp(info, indent=4)
     return info
 
-
+def pretty():
+    info = main()
+    import pprint                                                                                                                                                                                            
+    pprint.pp(info, indent=4)   
 ##################################################
 #
 # get most recent information  from archive
@@ -304,7 +307,7 @@ def admin_query(args, host, port, db_info):
     return ret
 
 if __name__ == "__main__":
-    main()
+    pretty()
 
 
 
