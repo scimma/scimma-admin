@@ -9,10 +9,12 @@ while getopts ":vdpj" opt; do
       set -x
       ;;
     d)
-      system=devel
+	system=devel
+	export SCIMMA_ENVIRONMENT=devel
       ;;
     p)
 	system=prod
+	export SCIMMA_ENVIRONMENT=prod
       ;;	
     h)
 	-v verbose -p use prod databses -d use devel databases -j just run locally 
@@ -50,6 +52,11 @@ export ADMIN_REMOTE_PORT=5432
 
 echo "$system"
 
+get_secret () {
+    aws secretsmanager get-secret-value --secret-id $1  | jq -r .SecretString
+}
+
+
 if [ "$system" = "prod" ]; then
     echo "System is production"
     
@@ -62,7 +69,7 @@ if [ "$system" = "prod" ]; then
     export ADMIN_DNS=prod-scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE=prod-scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=prod-scimma-admin-db-password
-
+    export ADMIN_DB_PASSWD=`get_secret prod-scimma-admin-db-password`
     
 else
     echo "System using devel system "
@@ -70,11 +77,18 @@ else
     export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ARCHIVE_DB_INSTANCE=hopdevel-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
+    export ARCHIVE_DB_PASSWD=`get_secret hopDevel-archive-ingest-db-password`
+    export ARCHIVE_DB_USERNAME=archive_db
+    export ARCHIVE_DB_DBNAME=archivedb
 
     export ADMIN_HOST="scotch.dev.hop.scimma.org"
     export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE=scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
+    export ADMIN_DB_PASSWD=`get_secret scimma-admin-db-password`
+    export ADMIN_DB_USERNAME=scimma_admin
+    export ADMIN_DB_DBNAME=scimma_admin_db
+
 fi
 
 
