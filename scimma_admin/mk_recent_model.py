@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Draw data from
 - Scmma-admin  (topics, groups, topic descripton)
@@ -97,20 +96,14 @@ args['aws_region'] = 'us-west-2'
 args['remote_tunnel']  = os.getenv('REMOTE_TUNNEL')
 
 if args['remote_tunnel'] :
-    args['tunnel_admin_local_port'] = os.getenv('ADMIN_LOCAL_PORT')
     args['tunnel_archive_local_port'] = os.getenv('ARCHIVE_LOCAL_PORT')
     args['tunnel_ssh_username'] = os.getenv('REMOTE_USER')
     args['tunnel_ssh_pkey'] = '/Users/donaldp/.ssh/id_rsa'
-    args['tunnel_ssh_archive_host'] =  os.getenv('ARCHIVE_HOST')
     args['tunnel_ssh_admin_host'] = os.getenv('ADMIN_HOST')
 
 # Archive connect info #
 args['archive_db_instance'] = os.getenv('ARCHIVE_DB_INSTANCE') 
 args['archive_db_secretname'] = os.getenv('ARCHIVE_DB_SECRET_NAME')
-
-# scimma-admin connect info
-args['admin_db_instance'] = os.getenv('ADMIN_DB_INSTANCE') 
-args['admin_db_secretname'] = os.getenv('ADMIN_DB_SECRET_NAME')
 
 
 # Provide for type conversion/casting
@@ -291,53 +284,7 @@ def get_admin_info2(args):
         item = [topic.name, topic.description, topic.publicly_readable]
         items.append(item)
     return items
-    
-def get_admin_info2k(args):
-    """
-    Access scimma-admin db via tunnel or directly
 
-    - Tunnel path for development
-    - Direct path for deployment
-    """
-    db_info = get_rds_db(args['admin_db_instance'])
-    if args['remote_tunnel']:
-        return admin_query(
-            args,
-            '127.0.0.1',
-            args['tunnel_admin_local_port'],
-            db_info)
-    else:
-        return admin_query(
-            args,
-            db_info['Endpoint']['Address'],
-            db_info['Endpoint']['Port'],
-            db_info
-                    )
-
-def admin_query(args, host, port, db_info):
-    "obtain model info from acimma-admin database"
-    
-    password  = get_secret(args,args['admin_db_secretname'] )
-    con = psycopg2.connect(
-        dbname = db_info['DBName'],
-        user = db_info['MasterUsername'],
-        password = password,
-        port = port,
-        host = host
-    )
-    breakpoint()
-    model = hopskotch_auth.models.CredentialKafkaPermission()
-    t0 = time.time()
-    cur = con.cursor()
-    sql = '''select name, description, publicly_readable  from hopskotch_auth_kafkatopic; '''
-    cur.execute(sql)
-    ret = [item for item in cur.fetchall()]
-    logger.info( f"get admin SELECT) info: {time.time()-t0}")
-    logger.info(f"found{len(ret)} items in scimma-admin db")
-    return ret
-
-if __name__ == "__main__":
-    pretty()
 
 
 
