@@ -19,52 +19,18 @@ import os
 import time
 import pprint
 import django
+from functools import wraps
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 stream_handler = logging.StreamHandler()
 logger.addHandler(stream_handler)
 log_format='[%(asctime)s] %(name)s %(levelname)s %(message)s'
 formatter = logging.Formatter(log_format, datefmt='%d/%B/%Y %H:%M:%S,%3d')
 stream_handler.setFormatter(formatter)
 
-
-print ('1****')
 from django.apps import apps
-#User = apps.get_model(app_label='auth', model_name='')
-#print(User)
-#<class 'django.contrib.auth.models.User'>
 
-"""
-print ('2****')
-model = apps.get_model(app_label='hopskotch_auth', model_name='CredentialKafkaPermission')
-print ('3****')
-model = apps.get_model(app_label='hopskotch_auth', model_name='KafkaTopic')
-print ('4****')
-pprint.pp(dir(model), indent = 4)
-print ('5****')
-resp = model.objects.all()
-print ('6****')
-print(resp)
-exit()
-#<class 'django.contrib.auth.models.User'>
-#<clases 'hopskotch_auth.models.GroupKafkaPermission'>
-#<class 'hopskotch_auth.models.CredentialKafkaPermission'>
-print ('7****')
-mm = django.apps.apps.get_models()
-print ('8****')
-pprint.pp(mm, indent=4)
-print ('9****')
-"""
-KafkaTopic = apps.get_model(app_label='hopskotch_auth', model_name='KafkaTopic')
-pprint.pp (KafkaTopic.__dict__)
-print ('10****')
-pprint.pp (KafkaTopic.objects.__dict__)
-print ('11****')
-all_topics = KafkaTopic.objects.all()
-print ('12****')
-print (all_topics[0].__dict__)
-print(13)
 ##################################################
 #
 # Utilities
@@ -87,15 +53,24 @@ def get_secret(args, secret_name):
 
 
 def get_rds_db(db_instance_id):
-    logger.info( f"1*********")
 #    rds = boto3.client("rds", region_name="us-west-2")
     rds = boto3.client("rds")
-    logger.info( f"2*********")
     resp = rds.describe_db_instances(Filters=[
         {"Name": "db-instance-id", "Values": [db_instance_id]},
     ])
-    logger.info( f"3*********")
     return resp['DBInstances'][0]
+
+
+def time_me(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        elapsed = end_time - start_time
+        logging.info(f"Function '{func.__name__}' executed in {elapsed:.6f} seconds")
+        return result
+    return wrapper
 
 ###
 ### Configuration section
@@ -154,7 +129,7 @@ for item in args.keys():
         env_val = caster(env_val) 
         args[item] = env_val
         source = env_var
-    logger.info(f"{item} set from {source}:value={args[item]}")
+    logger.debug(f"{item} set from {source}:value={args[item]}")
 
 
 #########################
@@ -162,7 +137,7 @@ for item in args.keys():
 # make the model
 #
 #########################
-    
+@time_me    
 def main():
     
     # Get more or less raw information from  underlying sources.
@@ -173,7 +148,6 @@ def main():
     admini_descrip = admini_topic + 1
     admini_public  = admini_descrip + 1
     topic_descriptions  = { t[ admini_topic]: t[admini_descrip]  for t in admin_topics }
-    logger.info( f"get admin info: {time.time()-t0}")
     
     archive_info = get_archive_info(args)
     # symbolic offsets within a list  
@@ -181,7 +155,6 @@ def main():
     archi_group   = archi_topic + 1
     archi_time    = archi_group + 1
     archi_isoday  = archi_time  + 1
-    logger.info( f"get archive_info: {time.time()-t0}")
 
     all_public_topics = [i for i in admin_topics if i[admini_public] ]
     all_private_topics = [i for i in admin_topics  if not i[admini_public] ]
@@ -243,7 +216,7 @@ def pretty():
 #
 ##################################################
 
-
+@time_me
 def get_archive_info(args):
 
     """
@@ -252,13 +225,13 @@ def get_archive_info(args):
     - Tunnel path for development
     - Direct path for deployment
     """
-    logger.info( f"archive_info1 args['remote_tunnel' = {args['remote_tunnel']}")
-    #db_info = get_rds_db(args['archive_db_instance'])
+    db_info = get_rds_db(args['archive_db_instance'])
+    """
     db_info = {
         'DBName' : os.getenv('ARCHIVE_DB_DBNAME'),
         'MasterUsername':  os.getenv('ARCHIVE_DB_USERNAME')
         }
-    logger.info( f"archive_info3 *************************")
+    """
     if args['remote_tunnel']:
         logger.info("about to use tunnel")
         return archive_query(args,
@@ -275,9 +248,8 @@ def get_archive_info(args):
 
 def archive_query(args, host, port, db_info):
     "Obtain  information from the archive DB"
-    #password  = get_secret(args,args['archive_db_secretname'] )
-    password  = os.getenv('ARCHIVE_DB_PASSWD')
-    t0 = time.time()
+    password  = get_secret(args,args['archive_db_secretname'] )
+    #password  = os.getenv('ARCHIVE_DB_PASSWD')
     con = psycopg2.connect(
         dbname = db_info['DBName'],
         user = db_info['MasterUsername'],
@@ -300,7 +272,6 @@ def archive_query(args, host, port, db_info):
     '''
     cur.execute(sql)
     ret = [item for item in cur.fetchall()]
-    logger.info( f"get ARCHIVE info: {time.time()-t0}")        
     logger.info(f"found{len(ret)} items in archive db")
     return ret
 
@@ -311,15 +282,13 @@ def archive_query(args, host, port, db_info):
 #   Withing AWS connect directly.
 #
 ##################################################
-
+@time_me
 def get_admin_info2(args):
     items = []
     KafkaTopic = apps.get_model(app_label='hopskotch_auth', model_name='KafkaTopic')
     all_topics = KafkaTopic.objects.all()
     for topic in all_topics:
-        print (type(topic.name))
         item = [topic.name, topic.description, topic.publicly_readable]
-        print(item)
         items.append(item)
     return items
     
@@ -332,7 +301,6 @@ def get_admin_info2k(args):
     """
     db_info = get_rds_db(args['admin_db_instance'])
     if args['remote_tunnel']:
-        logger.info("about to open ssh tunnel")
         return admin_query(
             args,
             '127.0.0.1',
