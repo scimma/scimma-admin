@@ -10,11 +10,11 @@ while getopts ":vdpj" opt; do
       ;;
     d)
 	system=devel
-	export SCIMMA_ENVIRONMENT=devel
+	#export SCIMMA_ENVIRONMENT=devel
       ;;
     p)
 	system=prod
-	export SCIMMA_ENVIRONMENT=prod
+	#export SCIMMA_ENVIRONMENT=prod
       ;;	
     h)
 	-v verbose -p use prod databses -d use devel databases -j just run locally 
@@ -57,6 +57,7 @@ get_secret () {
 }
 
 
+
 if [ "$system" = "prod" ]; then
     echo "System is production"
     
@@ -64,12 +65,17 @@ if [ "$system" = "prod" ]; then
     export ARCHIVE_DNS=hopprod-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ARCHIVE_DB_INSTANCE=hopprod-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopProd-archive-ingest-db-password
+    export ARCHIVE_DB_PASSWD=`get_secret hopProd-archive-ingest-db-password`
+    export ARCHIVE_DB_USERNAME=archive_db
+    export ARCHIVE_DB_DBNAME=archivedb
 
     export ADMIN_HOST="scotch.prod.hop.scimma.org"
     export ADMIN_DNS=prod-scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE=prod-scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=prod-scimma-admin-db-password
     export ADMIN_DB_PASSWD=`get_secret prod-scimma-admin-db-password`
+    export ADMIN_DB_USERNAME=scimma_admin
+    export ADMIN_DB_DBNAME=prod_scimma_admin_db
     
 else
     echo "System using devel system "
@@ -95,13 +101,13 @@ fi
 rm -f nohup.out
 # Start Archive SSH tunnel in background
 #echo "Starting ARCHIVE SSH tunnel..."
-nohup ssh  -N -L $ARCHIVE_LOCAL_PORT:$ARCHIVE_DNS:5432 "$REMOTE_USER@$ARCHIVE_HOST" &  
+nohup ssh  -i $SSH_KEY -N -L $ARCHIVE_LOCAL_PORT:$ARCHIVE_DNS:5432 "$REMOTE_USER@$ARCHIVE_HOST" &  
 ARCHIVE_TUNNEL_PID=$!
 echo ARCHIVE_TUNNEL_PID
 
 # Start ADMIN SSH tunnel in background
 echo "Starting ADMIN SSH tunnel..."
-nohup ssh  -N -L $ADMIN_LOCAL_PORT:$ADMIN_DNS:5432 "$REMOTE_USER@$ADMIN_HOST" &  
+nohup ssh  -i $SSH_KEY -N -L $ADMIN_LOCAL_PORT:$ADMIN_DNS:5432 "$REMOTE_USER@$ADMIN_HOST" &  
 ADMIN_TUNNEL_PID=$!
 echo ADMIN_TUNNEL_PID
 
