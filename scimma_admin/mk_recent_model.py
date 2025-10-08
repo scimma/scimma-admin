@@ -242,8 +242,10 @@ def get_archive_info(args):
 @time_me
 def archive_query(args, host, port, db_info):
     "Obtain  information from the archive DB"
+    print('begin' ,time.process_time())
     password  = get_secret(args,args['archive_db_secretname'] )
     #password  = os.getenv('ARCHIVE_DB_PASSWD')
+    print('got secret' ,time.process_time())
     con = psycopg2.connect(
         dbname = db_info['DBName'],
         user = db_info['MasterUsername'],
@@ -252,6 +254,7 @@ def archive_query(args, host, port, db_info):
         host = host
     )
     
+    print('connected' ,time.process_time())
     cur = con.cursor()
     sql = '''
        SELECT
@@ -275,6 +278,8 @@ def archive_query(args, host, port, db_info):
           topic;
     """
     cur.execute(sql)
+    print('queried' ,time.process_time())
+
     ret = [item for item in cur.fetchall()]
     logger.info(f"found{len(ret)} items in archive db")
     return ret
