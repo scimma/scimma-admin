@@ -36,6 +36,19 @@ from django.apps import apps
 #
 ##################################################
 
+
+def time_me(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        elapsed = end_time - start_time
+        logging.info(f"Function '{func.__name__}' executed in {elapsed:.6f} seconds")
+        return result
+    return wrapper
+
+@time_me
 def get_secret(args, secret_name):
     region_name = args["aws_region"]
     # Create a Secrets Manager client
@@ -51,6 +64,7 @@ def get_secret(args, secret_name):
     return secret_value_response["SecretString"]
 
 
+@time_me
 def get_rds_db(db_instance_id):
 #    rds = boto3.client("rds", region_name="us-west-2")
     rds = boto3.client("rds")
@@ -58,18 +72,6 @@ def get_rds_db(db_instance_id):
         {"Name": "db-instance-id", "Values": [db_instance_id]},
     ])
     return resp['DBInstances'][0]
-
-
-def time_me(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        elapsed = end_time - start_time
-        logging.info(f"Function '{func.__name__}' executed in {elapsed:.6f} seconds")
-        return result
-    return wrapper
 
 ###
 ### Configuration section
@@ -104,7 +106,6 @@ if args['remote_tunnel'] :
 # Archive connect info #
 args['archive_db_instance'] = os.getenv('ARCHIVE_DB_INSTANCE') 
 args['archive_db_secretname'] = os.getenv('ARCHIVE_DB_SECRET_NAME')
-
 
 # Provide for type conversion/casting
 def bool_caster(text: str) -> bool :
@@ -238,7 +239,7 @@ def get_archive_info(args):
                              db_info['Endpoint']['Port'],
                              db_info)
 
-
+@time_me
 def archive_query(args, host, port, db_info):
     "Obtain  information from the archive DB"
     password  = get_secret(args,args['archive_db_secretname'] )
@@ -258,11 +259,21 @@ def archive_query(args, host, port, db_info):
          split_part(topic, '.',1) grp,
          max(timestamp) 
          FROM
-           messages
+           recent_messages
          WHERE  public = 't' 
           GROUP BY  topic
     ;
     '''
+    sql = """
+       SELECT
+          topic AS t,
+          split_part(topic, '.', 1) AS grp,
+          max(timestamp) AS latest_time
+       FROM
+          recent_messages
+       GROUP BY
+          topic;
+    """
     cur.execute(sql)
     ret = [item for item in cur.fetchall()]
     logger.info(f"found{len(ret)} items in archive db")

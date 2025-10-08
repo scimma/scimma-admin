@@ -13,6 +13,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS recent_messages AS
 SELECT DISTINCT ON (topic) topic, max(timestamp) timestamp 
 FROM messages
+where public = 't'
 group by topic  ORDER BY topic;
 
 DO $$
