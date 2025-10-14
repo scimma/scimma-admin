@@ -217,7 +217,9 @@ def get_archive_info(args):
     all_topics = messages.objects.using('archive').all()
     print ('***************' , all_topics, dir(all_topics))
     for topic in all_topics:
-        item = [topic.topic, topic.topic.split('.',1), topic.timestamp]
+        print ("XXXX")
+        print ('****', type(topic.topic), type(topic.timestamp))
+        item = [topic.topic, topic.topic.split('.',1)[0], topic.timestamp]
         print (item)
         items.append(item)
     return items
