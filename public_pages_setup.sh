@@ -19,8 +19,8 @@ while getopts ":vdpj" opt; do
     h)
 	-v verbose -p use prod databses -d use devel databases -j just run locally 
 	;;
-    j)
-	just_local=true
+    x)
+	set -x
 	;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -134,6 +134,10 @@ trap cleanup EXIT INT TERM ERR
 
 # Wait briefly to ensure tunnels is up
 sleep 2
+# just do this so as to not think abou tit.
+(cd scimma_admin ; python manage.py makemigrations)
+(cd scimma_admin l python manage.py migrate)
+
 uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
       --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
       --pidfile=project-master.pid --http :8000 --processes 1 --threads 2

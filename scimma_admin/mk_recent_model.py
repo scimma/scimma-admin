@@ -212,6 +212,18 @@ def pretty():
 
 @time_me
 def get_archive_info(args):
+    items = []
+    messages = apps.get_model(app_label='hopskotch_auth', model_name='RecentMessages')
+    all_topics = messages.objects.using('archive').all()
+    print ('***************' , all_topics, dir(all_topics))
+    for topic in all_topics:
+        item = [topic.topic, topic.topic.split('.',1), topic.timestamp]
+        print (item)
+        items.append(item)
+    return items
+
+@time_me
+def get_archive_infox(args):
 
     """
     Access arcbive  db via tunnel or directly
