@@ -63,7 +63,7 @@ if [ "$system" = "prod" ]; then
     
     export ARCHIVE_HOST="scotch.prod.hop.scimma.org"
     export ARCHIVE_DNS=hopprod-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-    export ARCHIVE_DB_INSTANCE=hopprod-archive-ingest-db
+    export ARCHIVE_DB_INSTANCE_NAME=hopprod-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopProd-archive-ingest-db-password
     export ARCHIVE_DB_PASSWD=`get_secret hopProd-archive-ingest-db-password`
     export ARCHIVE_DB_USERNAME=archive_db
@@ -71,7 +71,7 @@ if [ "$system" = "prod" ]; then
 
     export ADMIN_HOST="scotch.prod.hop.scimma.org"
     export ADMIN_DNS=prod-scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-    export ADMIN_DB_INSTANCE=prod-scimma-admin-postgres
+    export ADMIN_DB_INSTANCE_NAME=prod-scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=prod-scimma-admin-db-password
     export ADMIN_DB_PASSWD=`get_secret prod-scimma-admin-db-password`
     export ADMIN_DB_USERNAME=scimma_admin
@@ -134,13 +134,8 @@ trap cleanup EXIT INT TERM ERR
 
 # Wait briefly to ensure tunnels is up
 sleep 2
-
-if [ "$just_local" = "true" ]; then
-       python scimma_admin/mk_recent_model.py
-else
-
-    uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
+uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
       --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
       --pidfile=project-master.pid --http :8000 --processes 1 --threads 2
-fi
+
 

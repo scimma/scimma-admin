@@ -54,6 +54,8 @@ def set_redirect_headers(get_response):
         return response
     return middleware
 
+
+
 SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 
 _aws_name_prefixes = {
@@ -192,7 +194,7 @@ def fix_psycopg_binary():
 
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
-
+"""
 DATABASES = {'default': {}}
 if not LOCAL_TESTING:
     rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-postgres")
@@ -205,7 +207,7 @@ if not LOCAL_TESTING:
         'PORT': str(rds_db['Endpoint']['Port']),
     }
 else:
-    DATABASES['default'] = {
+    DATABASES['archive'] = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'postgres',
         'USER': 'postgres',
@@ -214,6 +216,74 @@ else:
         'PORT': 5432,
     }
 
+"""
+###
+###   environments of running 
+###
+## localdev Environment - Purpose: evolve the  DB schema or schema related  web pages.
+## Local Postgress admin DB,  does not use archive DB, may use scimma_website.
+## SCIMMA_ENVIRONMENT=localdev
+## external drive script set up the environment.
+## all hard-coded no depence of env variables.
+
+DATABASES={"default" :
+          { 'NAME': 'postgres',
+            'ENGINE' :"django.db.backends.postgresql",
+            'USER': 'postgres',
+            'PASSWORD': 'postgres',
+            'HOST': 'localhost',
+            'PORT': 5432},
+          'archive': {
+              'ENGINE' :"django.db.backends.postgresql"
+          }
+          }
+
+## Devel Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment
+## Prod  Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment  
+## ENVIRONMENT VARIABLES
+## external drive script sets up the tunnels environment, chose prod or devel environment.
+## SCIMMA_ENVIRONMENT=[devel|prod]
+## ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME 
+## ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME 
+
+if SCIMMA_ENVIRONMENT in ["devl","prod"]:
+    DATABASES['default']['PASSWORD'] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
+    DATABASES['default']['NAME'] = rds_db['DBName']
+    DATABASES['default']['USER'] = rds_db['MasterUsername']
+    DATABASES['default']['HOST'] = rds_db['Endpoint']['Address']
+    DATABASES['default']['PORT'] = rds_db['Endpoint']['Port']
+    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
+    DATABASES['archive']['NAME'] = rds_db['DBName']
+    DATABASES['archive']['USER'] = rds_db['MasterUsername']
+    DATABASES['archive']['HOST'] = rds_db['Endpoint']['Address']
+    DATABASES['archive']['PORT'] = rds_db['Endpoint']['Port']
+
+
+## Tunnel Environment - Purpose: develop dynamic web content based on reading databases 
+## - Uses read only access to live postgres and  admin DBS  via tunnels
+## ENVIRONMENT VARIABLES
+## SCIMMA_ENVIRONMENT=Tunnel
+## ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME, ADMIN_LOCAL_PORT 
+## ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME, ARCHIVE_LOCAL_PORT 
+
+if SCIMMA_ENVIRONMENT in ['tunnel']:
+    DATABASES['default']['PASSWORD'] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
+    DATABASES['default']['NAME'] = rds_db['DBName']
+    DATABASES['default']['USER'] = rds_db['MasterUsername']
+    DATABASES['default']['HOST'] = 'loclhost'
+    DATABASES['default']['PORT'] = int(os.getenv('ADMIN_LOCAL_PORT'))
+                                      
+    DATABASES['archive']['PASSWORD'] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
+    DATABASES['archive']['NAME'] = rds_db['DBName']
+    DATABASES['archive']['USER'] = rds_db['MasterUsername']
+    DATABASES['archive']['HOST'] = 'localhost'
+    DATABASES['archive']['PORT'] = int(os.getenv('ARCHIVE_LOCAL_PORT'))
+
+
+    
 if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
     fix_psycopg_binary()
 
