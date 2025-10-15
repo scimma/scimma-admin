@@ -8,8 +8,6 @@ Combine and arrange into a model for a web page.
 
 import logging
 import datetime
-import boto3
-from botocore.exceptions import ClientError
 import os
 import time
 from functools import wraps
@@ -22,6 +20,9 @@ logger.addHandler(stream_handler)
 log_format = "[%(asctime)s] %(name)s %(levelname)s %(message)s"
 formatter = logging.Formatter(log_format, datefmt="%d/%B/%Y %H:%M:%S,%3d")
 stream_handler.setFormatter(formatter)
+
+
+DAYS_RECENT = os.getenv("DAYS_RECENT",90) 
 
 
 ##################################################
@@ -44,76 +45,6 @@ def time_me(func):
     return wrapper
 
 
-@time_me
-def get_secret(args, secret_name):
-    region_name = args["aws_region"]
-    # Create a Secrets Manager client
-    session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=region_name)
-
-    secret_value_response = client.get_secret_value(SecretId=secret_name)
-    return secret_value_response["SecretString"]
-
-
-@time_me
-def get_rds_db(db_instance_id):
-    #    rds = boto3.client("rds", region_name="us-west-2")
-    rds = boto3.client("rds")
-    resp = rds.describe_db_instances(
-        Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
-    )
-    return resp["DBInstances"][0]
-
-
-#########################
-###
-### Configuration Section
-###
-#########################
-
-args = {}
-prefix = "RECENT_"  # environment vars begin with this
-args["loglevel"] = "INFO"  #
-args["days_recent"] = 90  # Recent if within the past few days
-args["aws_region"] = "us-west-2"
-
-
-# Tunnel specific parameteter
-args["remote_tunnel"] = os.getenv("REMOTE_TUNNEL")
-
-if args["remote_tunnel"]:
-    args["tunnel_archive_local_port"] = os.getenv("ARCHIVE_LOCAL_PORT")
-    args["tunnel_ssh_username"] = os.getenv("REMOTE_USER")
-    args["tunnel_ssh_pkey"] = "/Users/donaldp/.ssh/id_rsa"
-    args["tunnel_ssh_admin_host"] = os.getenv("ADMIN_HOST")
-
-# Archive connect info #
-args["archive_db_instance"] = os.getenv("ARCHIVE_DB_INSTANCE")
-args["archive_db_secretname"] = os.getenv("ARCHIVE_DB_SECRET_NAME")
-
-# Provide for type conversion/casting
-
-def bool_caster(text: str) -> bool:
-    if text == "True":
-        return True
-    if text == "False":
-        return False
-    raise(f"value must be exactly True of False, got {text}")
-
-
-casters = {type("a"): str, type(1): int, type(1.0): float, type(True): bool_caster}
-
-for item in args.keys():
-    source = "default"
-    caster = casters[type(item)]
-    env_var = f"{prefix}{item}".upper()
-    if env_val := os.environ.get(env_var, None):
-        env_val = caster(env_val)
-        args[item] = env_val
-        source = env_var
-    logger.debug(f"{item} set from {source}:value={args[item]}")
-
-
 #########################
 #
 # make the model
@@ -124,14 +55,13 @@ def main():
 
     # Get more or less raw information from  underlying sources.
     # Create symbolic offsets to the tuple/lists
-    t0 = time.time()
-    admin_topics = get_admin_info2(args)
+    admin_topics = get_admin_info()
     admini_topic = 0
     admini_descrip = admini_topic + 1
     admini_public = admini_descrip + 1
     topic_descriptions = {t[admini_topic]: t[admini_descrip] for t in admin_topics}
 
-    archive_info = get_archive_info(args)
+    archive_info = get_archive_info()
     # symbolic offsets within a list
     archi_topic = 0
     archi_group = archi_topic + 1
@@ -147,7 +77,7 @@ def main():
     #  Per-active-group information
 
     # filter off times later than cutoff time, add human readable iso date
-    cutoff_time = time.time() - 3600 * 24 * args["days_recent"]
+    cutoff_time = time.time() - 3600 * 24 * DAYS_RECENT
     archive_info = [list(a) for a in archive_info if a[archi_time] / 1000 > cutoff_time]
     for a in archive_info:
         isoday = datetime.date.fromtimestamp(a[archi_time] / 1000).isoformat()
@@ -161,7 +91,7 @@ def main():
     info["summary"] = {
         "n_public_topics": len(all_public_topics),
         "n_private_topics": len(all_private_topics),
-        "active_threshold_days": args["days_recent"],
+        "active_threshold_days": DAYS_RECENT,
         "total_active_topics": len(archive_info),
     }
 
@@ -170,7 +100,6 @@ def main():
     for g in groups:
         g_info = {}
         g_info["group_name"] = g
-        #public_topics = [ai for ai in archive_info if a[archi_group] == g]
         g_info["public_topics"] = []
         for ai in archive_info:
             if ai[archi_group] != g:
@@ -187,42 +116,20 @@ def main():
     info["groups"] = gdata
     return info
 
-
-##################################################
-#
-# get most recent information  from archive
-#   Create a ssh tunnel to support development fromoutside AWS.
-#   Withing AWS connect directly.
-#
-##################################################
-
-
 @time_me
-def get_archive_info(args):
+def get_archive_info():
     items = []
-    messages = apps.get_model(app_label="hopskotch_auth",
-                              model_name="RecentMessages")
+    messages = apps.get_model(app_label="hopskotch_auth", model_name="RecentMessages")
     all_topics = messages.objects.using("archive").all()
     for topic in all_topics:
         item = [topic.topic, topic.topic.split(".", 1)[0], topic.timestamp]
         items.append(item)
     return items
 
-
-##################################################
-#
-# get most recent information  from archive
-#   Create a ssh tunnel to support development fromoutside AWS.
-#   Withing AWS connect directly.
-#
-##################################################
-
-
 @time_me
-def get_admin_info2(args):
+def get_admin_info():
     items = []
-    KafkaTopic = apps.get_model(app_label="hopskotch_auth",
-                                model_name="KafkaTopic")
+    KafkaTopic = apps.get_model(app_label="hopskotch_auth", model_name="KafkaTopic")
     all_topics = KafkaTopic.objects.all()
     for topic in all_topics:
         item = [topic.name, topic.description, topic.publicly_readable]
