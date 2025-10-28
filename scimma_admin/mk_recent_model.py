@@ -52,7 +52,6 @@ def time_me(func):
 #########################
 @time_me
 def main():
-
     # Get more or less raw information from  underlying sources.
     # Create symbolic offsets to the tuple/lists
     admin_topics = get_admin_info()

@@ -3,7 +3,7 @@
 system=devel
 
 # Parse options
-while getopts ":vdpj" opt; do
+while getopts ":xvdpj" opt; do
   case $opt in 
     v)
       set -x
@@ -36,7 +36,9 @@ done
 
 
 # Configuration
-#  ssh -i /Users/donaldpetravick/.ssh/id_rsa -l don.petravick scotch.dev.hop.scimma.org
+# export SSL_CERT_FILE=/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/certifi/cacert.pem
+export SSL_CERT_FILE=/usr/local/etc/openssl/cert.pem
+
 
 
 export REMOTE_TUNNEL="True"  #signal laptop development
@@ -46,9 +48,10 @@ export SSH_KEY="~/.ssh/id_rsa"  # Path to your SSH key
 export ARCHIVE_LOCAL_PORT=54320
 export ARCHIVE_REMOTE_PORT=5432
 
-
 export ADMIN_LOCAL_PORT=54321
 export ADMIN_REMOTE_PORT=5432
+
+export SCIMMA_ENVIRONMENT=dev
 
 echo "$system"
 
@@ -81,7 +84,7 @@ else
     echo "System using devel system "
     export ARCHIVE_HOST="scotch.dev.hop.scimma.org"
     export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-    export ARCHIVE_DB_INSTANCE=hopdevel-archive-ingest-db
+    export ARCHIVE_DB_INSTANCE_NAME=hopdevel-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
     export ARCHIVE_DB_PASSWD=`get_secret hopDevel-archive-ingest-db-password`
     export ARCHIVE_DB_USERNAME=archive_db
@@ -89,7 +92,7 @@ else
 
     export ADMIN_HOST="scotch.dev.hop.scimma.org"
     export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-    export ADMIN_DB_INSTANCE=scimma-admin-postgres
+    export ADMIN_DB_INSTANCE_NAME=scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
     export ADMIN_DB_PASSWD=`get_secret scimma-admin-db-password`
     export ADMIN_DB_USERNAME=scimma_admin
@@ -134,12 +137,28 @@ trap cleanup EXIT INT TERM ERR
 
 # Wait briefly to ensure tunnels is up
 sleep 2
-# just do this so as to not think abou tit.
-(cd scimma_admin ; python manage.py makemigrations)
-(cd scimma_admin l python manage.py migrate)
 
-uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
-      --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
-      --pidfile=project-master.pid --http :8000 --processes 1 --threads 2
+#admin
+#psql -h localhost -p 54321 -U scimma_admin -d scimma_admin_db -c '\dt' -e
+#psql -h localhost -p 54320 -U scimma_admin -d scimma_admin_db -c '\dt' -e
+
+# just do this so as to not think abou it.
+(cd scimma_admin ; python manage.py makemigrations)
+(cd scimma_admin ; python manage.py migrate)
+
+#./scimma_admin/manage.py runserver === n.b. https not supported. 
+
+#uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
+#      --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
+#      --pidfile=project-master.pid --http :8000 --processes 1 --threads 2 
+echo uwsgi --version `uwsgi --version`
+uwsgi --chdir=scimma_admin --show-config --module=scimma_admin.wsgi:application \
+       --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
+      --pidfile=project-master.pid --http-socket 127.0.0.1:8010 --processes 1 --threads 2
+
+
+
+
+
 
 

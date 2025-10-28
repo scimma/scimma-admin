@@ -26,10 +26,10 @@ def get_secret(name):
 
 def get_rds_db(db_instance_id):
     rds = boto3.client("rds", region_name="us-west-2")
-    resp = rds.describe_db_instances(Filters=[
-        {"Name": "db-instance-id", "Values": [db_instance_id]},
-    ])
-    return resp['DBInstances'][0]
+    resp = rds.describe_db_instances(
+        Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
+    )
+    return resp["DBInstances"][0]
 
 
 def get_localdev_secret(name):
@@ -43,15 +43,18 @@ def get_localdev_secret(name):
     cp.read(os.path.join(conf_file))
     return cp["secrets"][name]
 
+
 # ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
 # back to the client. This custom middleware tries to keep it happy.
 def set_redirect_headers(get_response):
     def middleware(request):
         response = get_response(request)
         if response.status_code == 301:
-            response['Content-Type'] = '*/*; charset="UTF-8"'
-            response['Content-Length'] = 0
+            response["who"] = 'don-test-301'
+            response["Content-Type"] = '*/*; charset="UTF-8"'
+            response["Content-Length"] = 0
         return response
+
     return middleware
 
 
@@ -59,21 +62,22 @@ def set_redirect_headers(get_response):
 SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 
 _aws_name_prefixes = {
-    "local": None, # AWS variables are not used for local testing
-    "dev": "", # this is empty for historical reasons, it should probably be renamed in future
+    "local": None,  # AWS variables are not used for local testing
+    "dev": "",  # this is empty for historical reasons, it should probably be renamed in future
     "demo": "demo-",
     "prod": "prod-",
+    "tunnel" : "",
 }
 
 if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
     raise RuntimeError(f"Specified environment ({SCIMMA_ENVIRONMENT}) is not known")
 
 AWS_NAME_PREFIX = _aws_name_prefixes[SCIMMA_ENVIRONMENT]
-LOCAL_TESTING = SCIMMA_ENVIRONMENT=="local"
+LOCAL_TESTING = SCIMMA_ENVIRONMENT == "local"
 
-print("SCIMMA_ENVIRONMENT:",SCIMMA_ENVIRONMENT)
-print("AWS_NAME_PREFIX:",AWS_NAME_PREFIX)
-print("LOCAL_TESTING:",LOCAL_TESTING)
+print("SCIMMA_ENVIRONMENT:", SCIMMA_ENVIRONMENT)
+print("AWS_NAME_PREFIX:", AWS_NAME_PREFIX)
+print("LOCAL_TESTING:", LOCAL_TESTING)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -84,14 +88,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if not LOCAL_TESTING:
-    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
-    SYMPA_CREDS = json.loads(get_secret(AWS_NAME_PREFIX+"scimma-admin-sympa-secret"))
+    SECRET_KEY = get_secret(AWS_NAME_PREFIX + "scimma-admin-django-secret")
+    SYMPA_CREDS = json.loads(get_secret(AWS_NAME_PREFIX + "scimma-admin-sympa-secret"))
 else:
     SECRET_KEY = "zzzlocal"
     SYMPA_CREDS = {}
-
 if not LOCAL_TESTING:
     SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False ## DLP TESTING
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SCIMMA_ENVIRONMENT != "prod"
@@ -105,65 +109,65 @@ ALLOWED_HOSTS = ["*"]
 
 try:
     os.stat(os.path.join(BASE_DIR, "home"))
-    HAVE_WEBSITE=True
+    HAVE_WEBSITE = True
 except FileNotFoundError:
-    HAVE_WEBSITE=False
+    HAVE_WEBSITE = False
 
 INSTALLED_APPS = [
-    'hopskotch_auth',
-    'whitenoise.runserver_nostatic',
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'mozilla_django_oidc',
-    'django_bootstrap5',
+    "hopskotch_auth",
+    "whitenoise.runserver_nostatic",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "mozilla_django_oidc",
+    "django_bootstrap5",
     "crispy_forms",
     "crispy_bootstrap5",
-    'rest_framework',
-    'rest_authtoken',
+    "rest_framework",
+    "rest_authtoken",
 ]
 if HAVE_WEBSITE:
-    INSTALLED_APPS.insert(0, 'home.apps.HomeConfig')
+    INSTALLED_APPS.insert(0, "home.apps.HomeConfig")
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
-    'scimma_admin.settings.set_redirect_headers', # must be placed before SecurityMiddleware to modify redirects
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Placement after SecurityMiddleware needed as per whitenoise docs
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'hopskotch_auth.api_views.set_scram_auth_info_header',
+    "scimma_admin.settings.set_redirect_headers",  # must be placed before SecurityMiddleware to modify redirects
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Placement after SecurityMiddleware needed as per whitenoise docs
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "hopskotch_auth.api_views.set_scram_auth_info_header",
 ]
 
-ROOT_URLCONF = 'scimma_admin.urls'
+ROOT_URLCONF = "scimma_admin.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'scimma_admin.wsgi.application'
+WSGI_APPLICATION = "scimma_admin.wsgi.application"
 
 # Magic to work around https://code.djangoproject.com/ticket/27813#comment:7
 # Fix courtesy of Daniele Varrazzo via
@@ -177,150 +181,142 @@ def fix_psycopg_binary():
     except ImportError:
         # Fall back to psycopg2cffi
         from psycopg2cffi import compat
+
         compat.register()
         import psycopg2
 
     def bytea2bytes(value, cur):
         if value is None:
             return None
-        buf = psycopg2.BINARY(value.encode('utf-8'), cur)
+        buf = psycopg2.BINARY(value.encode("utf-8"), cur)
         if buf is not None:
             return buf.tobytes()
 
     BYTEA2BYTES = psycopg2.extensions.new_type(
-        psycopg2.BINARY.values, 'BYTEA2BYTES', bytea2bytes
+        psycopg2.BINARY.values, "BYTEA2BYTES", bytea2bytes
     )
     psycopg2.extensions.register_type(BYTEA2BYTES)
 
+
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
-"""
-DATABASES = {'default': {}}
-if not LOCAL_TESTING:
-    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-postgres")
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': rds_db['DBName'],
-        'USER': rds_db['MasterUsername'],
-        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-db-password"),
-        'HOST': rds_db['Endpoint']['Address'],
-        'PORT': str(rds_db['Endpoint']['Port']),
-    }
-else:
-    DATABASES['archive'] = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'postgres',
-        'HOST': 'localhost',
-        'PORT': 5432,
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql'},
+    'archive' : {
+        'ENGINE': 'django.db.backends.postgresql'}
     }
 
-"""
-###
-###   environments of running 
-###
-## localdev Environment - Purpose: evolve the  DB schema or schema related  web pages.
-## Local Postgress admin DB,  does not use archive DB, may use scimma_website.
-## SCIMMA_ENVIRONMENT=localdev
-## external drive script set up the environment.
-## all hard-coded no depence of env variables.
-
-DATABASES={"default" :
-          { 'NAME': 'postgres',
-            'ENGINE' :"django.db.backends.postgresql",
-            'USER': 'postgres',
-            'PASSWORD': 'postgres',
-            'HOST': 'localhost',
-            'PORT': 5432},
-          'archive': {
-              'ENGINE' :"django.db.backends.postgresql"
-          }
-          }
-
-## Devel Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment
-## Prod  Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment  
-## ENVIRONMENT VARIABLES
-## external drive script sets up the tunnels environment, chose prod or devel environment.
-## SCIMMA_ENVIRONMENT=[devel|prod]
-## ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME 
-## ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME 
-
-if SCIMMA_ENVIRONMENT in ["devl","prod"]:
-    DATABASES['default']['PASSWORD'] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
-    DATABASES['default']['NAME'] = rds_db['DBName']
-    DATABASES['default']['USER'] = rds_db['MasterUsername']
-    DATABASES['default']['HOST'] = rds_db['Endpoint']['Address']
-    DATABASES['default']['PORT'] = rds_db['Endpoint']['Port']
-    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
-    DATABASES['archive']['NAME'] = rds_db['DBName']
-    DATABASES['archive']['USER'] = rds_db['MasterUsername']
-    DATABASES['archive']['HOST'] = rds_db['Endpoint']['Address']
-    DATABASES['archive']['PORT'] = rds_db['Endpoint']['Port']
 
 
-## Tunnel Environment - Purpose: develop dynamic web content based on reading databases 
-## - Uses read only access to live postgres and  admin DBS  via tunnels
-## ENVIRONMENT VARIABLES
-## SCIMMA_ENVIRONMENT=Tunnel
-## ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME, ADMIN_LOCAL_PORT 
-## ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME, ARCHIVE_LOCAL_PORT 
+# localdev Environment - Purpose: evolve the  DB schema or schema related  web pages.
+# Local Postgress admin DB,  does not use archive DB, may use scimma_website.
+# SCIMMA_ENVIRONMENT=localdev
+# external drive script set up the environment.
+# all hard-coded no depence of env variables.
 
-if SCIMMA_ENVIRONMENT in ['tunnel']:
-    DATABASES['default']['PASSWORD'] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
-    DATABASES['default']['NAME'] = rds_db['DBName']
-    DATABASES['default']['USER'] = rds_db['MasterUsername']
-    DATABASES['default']['HOST'] = 'loclhost'
-    DATABASES['default']['PORT'] = int(os.getenv('ADMIN_LOCAL_PORT'))
-                                      
-    DATABASES['archive']['PASSWORD'] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
-    DATABASES['archive']['NAME'] = rds_db['DBName']
-    DATABASES['archive']['USER'] = rds_db['MasterUsername']
-    DATABASES['archive']['HOST'] = 'localhost'
-    DATABASES['archive']['PORT'] = int(os.getenv('ARCHIVE_LOCAL_PORT'))
-
-
+if LOCAL_TESTING :
+    DATABASES["default"]["PASSWORD"] = "postgres"
+    DATABASES["default"]["NAME"] = "postgres"
+    DATABASES["default"]["USER"] = "postgres"
+    DATABASES["default"]["HOST"] = "localhost"
+    DATABASES["default"]["PORT"] = 5432
     
-if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
+# Devl Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment
+# Prod  Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment
+# ENVIRONMENT VARIABLES
+# external drive script sets up the tunnels environment, chose prod or devel environment.
+# SCIMMA_ENVIRONMENT=[devel|prod]
+# ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME
+# ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME
+
+if SCIMMA_ENVIRONMENT in ["dev", "prod"]:
+    DATABASES["default"]["PASSWORD"] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
+    DATABASES["default"]["NAME"] = rds_db["DBName"]
+    DATABASES["default"]["USER"] = rds_db["MasterUsername"]
+    DATABASES["default"]["HOST"] = rds_db["Endpoint"]["Address"]
+    DATABASES["default"]["PORT"] = rds_db["Endpoint"]["Port"]
+    
+    DATABASES["archive"]["PASSWORD"] = get_secret(os.getenv("ARCHIVE_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
+    DATABASES["archive"]["NAME"] = rds_db["DBName"]
+    DATABASES["archive"]["USER"] = rds_db["MasterUsername"]
+    DATABASES["archive"]["HOST"] = rds_db["Endpoint"]["Address"]
+    DATABASES["archive"]["PORT"] = rds_db["Endpoint"]["Port"]
+
+
+# Tunnel Environment - Purpose: develop dynamic web content based on reading databases
+# - Uses read only access to live postgres and  admin DBS  via tunnels
+# ENVIRONMENT VARIABLES
+# SCIMMA_ENVIRONMENT=Tunnel
+# ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME, ADMIN_LOCAL_PORT
+# ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME, ARCHIVE_LOCAL_PORT
+
+if SCIMMA_ENVIRONMENT in ["tunnel", "dev", "prod"]:
+    DATABASES["default"]["PASSWORD"] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
+    DATABASES["default"]["NAME"] = rds_db["DBName"]
+    DATABASES["default"]["USER"] = rds_db["MasterUsername"]
+    DATABASES["default"]["HOST"] = "localhost"
+    DATABASES["default"]["PORT"] = int(os.getenv("ADMIN_LOCAL_PORT"))
+
+    DATABASES["archive"]["PASSWORD"] = get_secret(os.getenv("ARCHIVE_DB_SECRET_NAME"))
+    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
+    DATABASES["archive"]["NAME"] = rds_db["DBName"]
+    DATABASES["archive"]["USER"] = rds_db["MasterUsername"]
+    DATABASES["archive"]["HOST"] = "localhost"
+    DATABASES["archive"]["PORT"] = int(os.getenv("ARCHIVE_LOCAL_PORT"))
+
+#import pprint
+#pprint.pp(DATABASES)
+
+if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     fix_psycopg_binary()
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
-OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
-OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
-OIDC_OP_USER_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
-OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_OP_JWKS_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
-AUTHENTICATION_BACKENDS = (
-    'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
+OIDC_OP_AUTHORIZATION_ENDPOINT = (
+    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth"
 )
+OIDC_OP_TOKEN_ENDPOINT = (
+    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token"
+)
+OIDC_OP_USER_ENDPOINT = (
+    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
+)
+OIDC_RP_SIGN_ALGO = "RS256"
+OIDC_OP_JWKS_ENDPOINT = (
+    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
+)
+AUTHENTICATION_BACKENDS = ("hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend",)
 if not LOCAL_TESTING:
-    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-id")
-    OIDC_RP_CLIENT_SECRET = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-secret")
+    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX + "scimma-admin-keycloak-client-id")
+    OIDC_RP_CLIENT_SECRET = get_secret(
+        AWS_NAME_PREFIX + "scimma-admin-keycloak-client-secret"
+    )
 else:
-    OIDC_RP_CLIENT_ID = 'cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
+    OIDC_RP_CLIENT_ID = "cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
     OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
 
 
-LOGIN_URL ='/hopauth/login'
-LOGIN_REDIRECT_URL = '/services'
+LOGIN_URL = "/hopauth/login"
+LOGIN_REDIRECT_URL = "/services"
 if HAVE_WEBSITE:
-    LOGOUT_REDIRECT_URL = '/'
+    LOGOUT_REDIRECT_URL = "/"
 else:
-    LOGOUT_REDIRECT_URL = '/hopauth/logout'
-LOGIN_REDIRECT_URL_FAILURE = '/hopauth/login_failure'
+    LOGOUT_REDIRECT_URL = "/hopauth/logout"
+LOGIN_REDIRECT_URL_FAILURE = "/hopauth/login_failure"
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'America/Los_Angeles'
+TIME_ZONE = "America/Los_Angeles"
 
 USE_I18N = True
 
@@ -332,45 +328,41 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATIC_URL = '/static/'
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STATIC_URL = "/static/"
 
+DEBUG = True 
 # Logging
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'console',
-        },
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "console",},
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': "DEBUG" if DEBUG else "INFO",
-            'propagate': False,
+    "root": {"handlers": ["console"], "level": "INFO",},
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
         },
-        'django.db.backends': {
-            'level': "INFO",
-        },
+        "django.db.backends": {"level": "INFO",},
     },
-    'formatters': {
-        'console': {
-            'format': '%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(module)s %(process)d %(thread)d %(message)s',
+    "formatters": {
+        "console": {
+            "format": "%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(module)s %(process)d %(thread)d %(message)s",
         },
     },
 }
 
+
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="/Hopskotch Users")
+KAFKA_USER_AUTH_GROUP = os.environ.get(
+    "KAFKA_USER_AUTH_GROUP", default="/Hopskotch Users"
+)
 
 # For now we work with just one mailing list, so it gets to be a setting by itself
 OPENMMA_MAILINGLIST = "openmma@lists.scimma.org"
@@ -380,12 +372,8 @@ SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
 REST_TOKEN_TTL = AUTH_TOKEN_VALIDITY
 
 REST_FRAMEWORK = {
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_authtoken.auth.AuthTokenAuthentication',
-    ),
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser",],
+    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_authtoken.auth.AuthTokenAuthentication",),
 }
 
 KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
