@@ -68,17 +68,17 @@ if [ "$system" = "prod" ]; then
     export ARCHIVE_DNS=hopprod-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ARCHIVE_DB_INSTANCE_NAME=hopprod-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopProd-archive-ingest-db-password
-    export ARCHIVE_DB_PASSWD=`get_secret hopProd-archive-ingest-db-password`
-    export ARCHIVE_DB_USERNAME=archive_db
-    export ARCHIVE_DB_DBNAME=archivedb
+#    export ARCHIVE_DB_PASSWD=`get_secret hopProd-archive-ingest-db-password`
+#    export ARCHIVE_DB_USERNAME=archive_db
+#    export ARCHIVE_DB_DBNAME=archivedb
 
     export ADMIN_HOST="scotch.prod.hop.scimma.org"
     export ADMIN_DNS=prod-scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE_NAME=prod-scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=prod-scimma-admin-db-password
-    export ADMIN_DB_PASSWD=`get_secret prod-scimma-admin-db-password`
-    export ADMIN_DB_USERNAME=scimma_admin
-    export ADMIN_DB_DBNAME=prod_scimma_admin_db
+#    export ADMIN_DB_PASSWD=`get_secret prod-scimma-admin-db-password`
+#    export ADMIN_DB_USERNAME=scimma_admin
+#    export ADMIN_DB_DBNAME=prod_scimma_admin_db
     
 else
     echo "System using devel system "
@@ -86,17 +86,17 @@ else
     export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ARCHIVE_DB_INSTANCE_NAME=hopdevel-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
-    export ARCHIVE_DB_PASSWD=`get_secret hopDevel-archive-ingest-db-password`
-    export ARCHIVE_DB_USERNAME=archive_db
-    export ARCHIVE_DB_DBNAME=archivedb
+#    export ARCHIVE_DB_PASSWD=`get_secret hopDevel-archive-ingest-db-password`
+#    export ARCHIVE_DB_USERNAME=archive_db
+#    export ARCHIVE_DB_DBNAME=archivedb
 
     export ADMIN_HOST="scotch.dev.hop.scimma.org"
     export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE_NAME=scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
-    export ADMIN_DB_PASSWD=`get_secret scimma-admin-db-password`
-    export ADMIN_DB_USERNAME=scimma_admin
-    export ADMIN_DB_DBNAME=scimma_admin_db
+#    export ADMIN_DB_PASSWD=`get_secret scimma-admin-db-password`
+#    export ADMIN_DB_USERNAME=scimma_admin
+#    export ADMIN_DB_DBNAME=scimma_admin_db
 
 fi
 
