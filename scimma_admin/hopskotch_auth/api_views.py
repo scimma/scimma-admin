@@ -432,6 +432,75 @@ class TokenForOidcUser(APIView):
         except ObjectDoesNotExist:
             return Response(data={"error": "Failed to issue a REST token"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class IssueToken(APIView):
+    """Issue a token derived from the authenticated user's SCRAM credential"""
+    authentication_classes = [ScramAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, version):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested a REST token be issued for the current SCRAM credential "
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        cred = find_current_credential(request)
+        if not cred:
+            raise BadRequest("No SCRAM credential associated with this request")
+        
+        try:
+            token = RESTAuthToken.create_token_for_user(cred.owner, held_by=cred.owner,
+                                                        derived_from=cred)
+
+            # Return to the client the the issued token and expiration time of the token
+            expire_time = RESTAuthToken.get_token(token).created \
+                        + settings.REST_TOKEN_TTL
+            data = {
+                "token": base64.urlsafe_b64encode(token),
+                "token_expires": expire_time
+            }
+            print(data["token"])
+            logger.info(f"Issuing REST token {RESTAuthToken.redacted_token(token)} to {client_ip(request)}")
+            return Response(data=data, status=status.HTTP_200_OK)
+        except ObjectDoesNotExist:
+            return Response(data={"error": "Failed to issue a REST token"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ReplaceToken(APIView):
+    """Issue a new token to replace the authenticated user's current token"""
+    authentication_classes = [rest_authtoken.auth.AuthTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, version):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to replace a current REST token with a new token "
+                    f"from {client_ip(request)}; {describe_auth(request)}")
+        auth = getattr(request, "auth", None)
+        cur_token = None
+        if auth:
+            if isinstance(auth, bytes):
+                cur_token = RESTAuthToken.get_token(auth)
+        if cur_token is None:
+            return Response(data={"error": "Not able to identify current token"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token = RESTAuthToken.create_token_for_user(cur_token.user, held_by=cur_token.held_by,
+                                                        derived_from=cur_token.derived_from)
+            # Return to the client the the issued token and expiration time of the token
+            expire_time = RESTAuthToken.get_token(token).created \
+                        + settings.REST_TOKEN_TTL
+            data = {
+                "token": base64.urlsafe_b64encode(token),
+                "token_expires": expire_time
+            }
+            logger.info(f"Issuing REST token {RESTAuthToken.redacted_token(token)} to {client_ip(request)}")
+            logger.info(f"Deleting REST token {RESTAuthToken.redacted_token(auth)}")
+            cur_token.delete()
+            return Response(data=data, status=status.HTTP_200_OK)
+        except ObjectDoesNotExist:
+            return Response(data={"error": "Failed to issue a REST token"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 class UserViewSet(viewsets.ModelViewSet):

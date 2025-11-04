@@ -61,6 +61,9 @@ urlpatterns = [
 
     path("api/v<int:version>/oidc/token_for_user", api_views.TokenForOidcUser.as_view(), name="token_for_user"),
 
+    path("api/v<int:version>/token/issue", api_views.IssueToken.as_view(), name="issue_token"),
+    path("api/v<int:version>/token/replace", api_views.ReplaceToken.as_view(), name="replace_token"),
+
 	# v0, for backwards compatibility
 
 	path("api/v0/users", api_views.UserViewSet.as_view({"get": "list", "post": "create"}), {"name":"users", "version":0}),
@@ -112,8 +115,9 @@ urlpatterns = [
     path("api/v<int:version>/current_credential/permissions/topic/<str:topic>", api_views.CurrentCredentialPermissionsForTopic.as_view(), name="current_credential_topic_permissions"),
 
     path("api/v<int:version>/topics", api_views.KafkaTopicViewSet.as_view({"get": "list"}), name="topics"),
-    path("api/v<int:version>/topics/<str:name>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="topic_detail"),
-    path("api/v<int:version>/topics/<str:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="topic_permissions"),
+    path("api/v<int:version>/topics/<str:name>", api_views.KafkaTopicViewSet.as_view({"get": "retrieve", "delete": "destroy", "patch": "partial_update"}), name="topic_detail"),
+    path("api/v<int:version>/topics/<str:topic>/permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="topic_permissions"),
+    path("api/v<int:version>/topics/<str:topic>/permissions/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="topic_permission_detail"),
 
     path("api/v<int:version>/groups", api_views.GroupViewSet.as_view({"get": "list", "post": "create"}), name="groups"),
     path("api/v<int:version>/groups/<str:name>", api_views.GroupViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="group_detail"),
