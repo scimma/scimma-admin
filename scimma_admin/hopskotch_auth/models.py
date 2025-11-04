@@ -738,6 +738,10 @@ class RESTAuthToken(rest_authtoken.models.AuthToken):
             return 'for user {}, held by user {}'.format(self.user, self.held_by)
         return '{}: {}'.format(self.user, self.hashed_token)
 
+    def redacted_token(token) -> str:
+        raw = base64.urlsafe_b64encode(token).decode("utf-8")
+        return raw[0:len(raw)//4]+"..."
+
 class MailingListMembership(models.Model):
     user: models.ForeignKey = models.ForeignKey(
         settings.AUTH_USER_MODEL,
