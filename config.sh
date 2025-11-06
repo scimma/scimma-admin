@@ -17,6 +17,13 @@ Help() {
     return 1
 }
 
+get_tunnel_info() {
+    #Return the RDS json structure for DB instance passed in as $1
+    aws rds describe-db-instances --db-instance-identifier "$1"  \
+	       --query 'DBInstances[0]' \
+	       --output json
+    }
+	  
 # purge local variables.
 cleanup () { unset system }
 trap cleanup  EXIT INT TERM ERR
@@ -43,6 +50,9 @@ if [ $# -gt 0 ]; then
     Help
     return 1
 fi
+
+# thsi might be a shim for integration.
+export SCIMMA_ENVIRONMENT=system
 
 ##
 ## Core DJANGO
@@ -93,35 +103,56 @@ echo "$system"
 
 if [ "$system" = "prod" ]; then
     echo "environment configured for tunneling to prod databases"
-    export ARCHIVE_HOST="scotch.prod.hop.scimma.org"
+    # settings.oy CIs (recall these are also terraform CIs)
     export ARCHIVE_DB_INSTANCE_NAME=hopprod-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopProd-archive-ingest-db-password
-    export ARCHIVE_DNS=hopprod-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
-    
-    export ADMIN_HOST="scotch.prod.hop.scimma.org"
-    export ADMIN_DNS=prod-scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE_NAME=prod-scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=prod-scimma-admin-db-password
+
+    #tunnel support CIs (Nothing to do with terraform) 
+    tunnel_info=$(get_tunnel_info $ARCHIVE_DB_INSTANCE_NAME)
+    export ARCHIVE_TUNNEL_BASTION="scotch.prod.hop.scimma.org"
+    export ARCHIVE_TUNNEL_REMOTE_HOST=$(echo $tunnel_info | jq -r '.Endpoint.Address')
+    export ARCHIVE_TUNNEL_REMOTE_PORT=$(echo $tunnel_info | jq -r '.Endpoint.Port')
+    export ARCHIVE_TUNNEL_LOCAL_PORT=54361
+    tunnel_info=$(get_tunnel_info $ADMIN_DB_INSTANCE_NAME)
+    export ADMIN_TUNNEL_BASTION="scotch.prod.hop.scimma.org"
+    export ADMIN_TUNNEL_REMOTE_HOST=$(echo $tunnel_info | jq -r '.Endpoint.Address')
+    export ADMIN_TUNNEL_REMOTE_PORT=$(echo $tunnel_info | jq -r '.Endpoint.Port')
+    export ADMIN_TUNNEL_LOCAL_PORT=54361
+    export ADMIN_DB_LOCAL_PORT=54360
+
 elif [ "$system" = "dev" ]; then
     echo "environment configured for tunneling to dev databases"
-    export ARCHIVE_HOST="scotch.dev.hop.scimma.org"
-    export ARCHIVE_DNS=hopdevel-archive-ingest-db.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
+    # settings.oy CIs (recall these are also terraform CIs)
     export ARCHIVE_DB_INSTANCE_NAME=hopdevel-archive-ingest-db
     export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
-
-    export ADMIN_HOST="scotch.dev.hop.scimma.org"
-    export ADMIN_DNS=scimma-admin-postgres.cgaf3c8se1sj.us-west-2.rds.amazonaws.com
     export ADMIN_DB_INSTANCE_NAME=scimma-admin-postgres
     export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
+
+    #tunnel support CIs (Nothing to do with terraform) 
+    tunnel_info=$(get_tunnel_info $ARCHIVE_DB_INSTANCE_NAME)
+    export ARCHIVE_TUNNEL_BASTION="scotch.dev.hop.scimma.org"
+    export ARCHIVE_TUNNEL_REMOTE_HOST=$(echo $tunnel_info | jq -r '.Endpoint.Address')
+    export ARCHIVE_TUNNEL_REMOTE_PORT=$(echo $tunnel_info | jq -r '.Endpoint.Port')
+    export ARCHIVE_TUNNEL_LOCAL_PORT=54361
+    tunnel_info=$(get_tunnel_info $ADMIN_DB_INSTANCE_NAME)
+    export ADMIN_TUNNEL_BASTION="scotch.dev.hop.scimma.org"
+    export ADMIN_TUNNEL_REMOTE_HOST=$(echo $tunnel_info | jq -r '.Endpoint.Address')
+    export ADMIN_TUNNEL_REMOTE_PORT=$(echo $tunnel_info | jq -r '.Endpoint.Port')
+    export ADMIN_TUNNEL_LOCAL_PORT=54361
 else
-    export ARCHIVE_DNS="127.0.0.1"
-    export ARCHIVE_DB_INSTANCE_NAME=pastgres
-    export ARCHIVE_DB_SECRET_NAME=hopDevel-archive-ingest-db-password
-
-    export ADMIN_DNS="127.0.0.1"
-    export ADMIN_DB_INSTANCE_NAME=scimma-admin-postgres
-    export ADMIN_DB_SECRET_NAME=scimma-admin-db-password
-
+    export ARCHIVE_DB__NAME=postgres
+    export ARCHIVE_DB__USER=postgres
+    export ARCHIVE_DB_PASSWORD=postgres
+    export ARCHIVE_HOST="127.0.0.1"
+    export ARCHIVE_DB_PORT=5436
+    
+    export ADMIN_DB__NAME=postgres
+    export ADMIN_DB__USER=postgres
+    export ADMIN_DB_PASSWORD=postgres
+    export ADMIN_HOST="127.0.0.1"
+    export ADMIN_DB_PORT=5435
 fi
 
 
