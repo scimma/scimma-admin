@@ -25,7 +25,11 @@ get_tunnel_info() {
     }
 	  
 # purge local variables.
-cleanup () { unset system }
+cleanup () {
+    unset system
+    unset tunnel_info
+    unset get_tunnel_into
+}
 trap cleanup  EXIT INT TERM ERR
 
 # require argments
