@@ -149,6 +149,7 @@ SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
 # DLP waht can we do with this?
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SCIMMA_ENVIRONMENT != "prod"
+DEBUG = truth(get_literal_ci("DJANGO_DEBUG"))
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -253,6 +254,7 @@ import pprint
 #
 #  
 #
+DATABASES = {}
 DATABASES["archive"] = get_aws_db_ci("ARCHIVE_DB_INSTANCE_NAME")
 if ci := get_literal_ci("ARCHIVE_DB_NAME") : DATABASES["archive"]["NAME"] = ci
 if ci := get_literal_ci("ARCHIVE_DB_USER") : DATABASES["archive"]["USER"] = ci
@@ -296,6 +298,7 @@ OIDC_OP_JWKS_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
 )
 AUTHENTICATION_BACKENDS = ("hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend",)
+"""
 if not LOCAL_TESTING:
     OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX + "scimma-admin-keycloak-client-id")
     OIDC_RP_CLIENT_SECRET = get_secret(
@@ -304,7 +307,11 @@ if not LOCAL_TESTING:
 else:
     OIDC_RP_CLIENT_ID = "cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
     OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
+"""
 
+OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
+OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
+if ci := get_localdev_secret("cilogon_client_secret") : OIDC_RP_CLIENT_SECRET = ci
 
 LOGIN_URL = "/hopauth/login"
 LOGIN_REDIRECT_URL = "/services"
