@@ -72,11 +72,11 @@ echo export SECRET_KEY=zzzlocal
 #What is it       : credentials to access SYMPA.
 #What is it       : ALSO  flag indicating to not activate ...
 #What is it       : sympa access IF SET TO {}
-#terraform?       : scimma_admin.tf "scimma_admin_sympa_secret"
+#terraform?       : scimma_admin.tf "[prod-]scimma-admin-sympa-secret"
 #Why Config       : to indeicate whther to access SYMPA.
-#Overrride        : use  SYMPA_SECRET_KEY_SECRET_NAME from env populate
-echo export SYMPA_CREDS={}
-
+#Overrride        : use  SYMPA_CREDS_SECRET_NAME from env populate
+#echo export SYMPA_CREDS_SECRET_NAME=scimma-admin-sympa-secret
+echo export SYMPA_CREDS="{}"
 ##
 ## Databases 
 ##

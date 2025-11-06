@@ -134,18 +134,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = get_aws_secret_ci("SECRET_KEY_SECRET_NAME")
 if key := get_literal_ci("SECRET_KEY") : SECRET_KEY = key
-print("xxxxx", SECRET_KEY)
+print("SECRET_KEY", SECRET_KEY)
+SYMPA_CREDS = get_aws_secret_ci("SYMPA_CREDS_SECRET_NAME")
+if key := get_literal_ci("SYMPA_CREDS") : SYMPA_CREDS = json.loads(key)
+print("SYMPA_CREDS", SYMPA_CREDS)
 
-if not LOCAL_TESTING:
-    SECRET_KEY = get_secret(AWS_NAME_PREFIX + "scimma-admin-django-secret")
-    SYMPA_CREDS = json.loads(get_secret(AWS_NAME_PREFIX + "scimma-admin-sympa-secret"))
-else:
-    SECRET_KEY = "zzzlocal"
-    SYMPA_CREDS = {}
-if not LOCAL_TESTING:
-    SECURE_SSL_REDIRECT = True
-SECURE_SSL_REDIRECT = False ## DLP TESTING
+def truth(str):
+    if str ==  "true" : return True
+    if str ==  "false" : return False
+    raise f"bad truth string:  {str}"
 
+SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
+
+# DLP waht can we do with this?
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SCIMMA_ENVIRONMENT != "prod"
 
@@ -248,17 +249,6 @@ def fix_psycopg_binary():
 
 
 # Database
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql'},
-    'archive' : {
-        'ENGINE': 'django.db.backends.postgresql'}
-    }
-
-
-
-
 import pprint
 #
 #  
