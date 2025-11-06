@@ -429,8 +429,8 @@ class TokenForOidcUser(APIView):
                         f"at {client_ip(request)} "
                         f"to act on behalf of {user.username} ({user.email})")
             return Response(data=data, status=status.HTTP_200_OK)
-        except ObjectDoesNotExist:
-            return Response(data={"error": "Failed to issue a REST token"},
+        except ObjectDoesNotExist as dne:
+            return Response(data={"error": f"Failed to issue a REST token: {dne}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -460,10 +460,11 @@ class IssueToken(APIView):
                 "token_expires": expire_time
             }
             print(data["token"])
-            logger.info(f"Issuing REST token {RESTAuthToken.redacted_token(token)} to {client_ip(request)}")
+            logger.info(f"Issuing REST token {RESTAuthToken.redacted_token(token)} to user "
+                        f"{request.user.username} ({request.user.email}) at {client_ip(request)}")
             return Response(data=data, status=status.HTTP_200_OK)
-        except ObjectDoesNotExist:
-            return Response(data={"error": "Failed to issue a REST token"},
+        except ObjectDoesNotExist as dne:
+            return Response(data={"error": f"Failed to issue a REST token: {dne}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -494,12 +495,13 @@ class ReplaceToken(APIView):
                 "token": base64.urlsafe_b64encode(token),
                 "token_expires": expire_time
             }
-            logger.info(f"Issuing REST token {RESTAuthToken.redacted_token(token)} to {client_ip(request)}")
+            logger.info(f"Issuing REST token {RESTAuthToken.redacted_token(token)} to user "
+                        f"{request.user.username} ({request.user.email}) at {client_ip(request)}")
             logger.info(f"Deleting REST token {RESTAuthToken.redacted_token(auth)}")
             cur_token.delete()
             return Response(data=data, status=status.HTTP_200_OK)
-        except ObjectDoesNotExist:
-            return Response(data={"error": "Failed to issue a REST token"},
+        except ObjectDoesNotExist as dne:
+            return Response(data={"error": f"Failed to issue a REST token: {dne}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
