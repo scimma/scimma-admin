@@ -31,6 +31,53 @@ def get_rds_db(db_instance_id):
     )
     return resp["DBInstances"][0]
 
+def get_literal_ci(item_name):
+    return os.getenv(item_name)
+
+def get_aws_db_ci(item_name):
+    """
+    Return a dictionary with database info in the format
+    DJANGO expects.
+
+    IF item_name is is in the environment, populate the structure
+    with information from AWS.
+    IF item_name  not in the environmemt, return an strcture  where
+    the AWS information is null. Later config staps must fill it out.
+
+    https://docs.djangoproject.com/en/3.0/ref/settings/#databases
+    """
+    # make an (motly) empty template
+    database_ci  = {
+        "ENGINE" : "django.db.backends.postgresql",
+        "PASSWORD" : None,
+        "NAME" : None,
+        "USER" : None, 
+        "HOST" : None,
+        "PORT" : None
+    }
+    
+    # fillout from AWS if the item_name is a defined environment variable
+    db_instance_id = os.getenv(item_name)
+    if db_instance_id:
+        rds = boto3.client("rds", region_name="us-west-2")
+        rds_db = rds.describe_db_instances(
+        Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
+        )
+        rds_db = rds_db["DBInstances"][0]
+        database_ci["NAME"] = rds_db["DBName"]
+        database_ci["USER"] = rds_db["MasterUsername"]
+        database_ci["HOST"] = rds_db["Endpoint"]["Address"]
+        database_ci["PORT"] = rds_db["Endpoint"]["Port"]
+    return database_ci
+
+def get_aws_secret_ci(item_name):
+    secret_ci = None
+    name = os.getenv(item_name)
+    if name:
+        sm = boto3.client("secretsmanager", region_name="us-west-2")
+        secret_ci = sm.get_secret_value(SecretId=name)["SecretString"]
+    return secret_ci
+
 
 def get_localdev_secret(name):
     """Load a secret which has been stored in the localdev.conf INI file at the root
@@ -64,9 +111,7 @@ SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 _aws_name_prefixes = {
     "local": None,  # AWS variables are not used for local testing
     "dev": "",  # this is empty for historical reasons, it should probably be renamed in future
-    "demo": "demo-",
     "prod": "prod-",
-    "tunnel" : "",
 }
 
 if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
@@ -87,6 +132,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = get_aws_secret_ci("SECRET_KEY_SECRET_NAME")
+if key := get_literal_ci("SECRET_KEY") : SECRET_KEY = key
+print("xxxxx", SECRET_KEY)
+
 if not LOCAL_TESTING:
     SECRET_KEY = get_secret(AWS_NAME_PREFIX + "scimma-admin-django-secret")
     SYMPA_CREDS = json.loads(get_secret(AWS_NAME_PREFIX + "scimma-admin-sympa-secret"))
@@ -199,7 +248,6 @@ def fix_psycopg_binary():
 
 
 # Database
-# https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
 DATABASES = {
     'default': {
@@ -210,67 +258,32 @@ DATABASES = {
 
 
 
-# localdev Environment - Purpose: evolve the  DB schema or schema related  web pages.
-# Local Postgress admin DB,  does not use archive DB, may use scimma_website.
-# SCIMMA_ENVIRONMENT=localdev
-# external drive script set up the environment.
-# all hard-coded no depence of env variables.
 
-if LOCAL_TESTING :
-    DATABASES["default"]["PASSWORD"] = "postgres"
-    DATABASES["default"]["NAME"] = "postgres"
-    DATABASES["default"]["USER"] = "postgres"
-    DATABASES["default"]["HOST"] = "localhost"
-    DATABASES["default"]["PORT"] = 5432
-    
-# Devl Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment
-# Prod  Environment - purpose: fill role of scimma admin in the AWS devel environment --Uses github deployment
-# ENVIRONMENT VARIABLES
-# external drive script sets up the tunnels environment, chose prod or devel environment.
-# SCIMMA_ENVIRONMENT=[devel|prod]
-# ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME
-# ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME
+import pprint
+#
+#  
+#
+DATABASES["archive"] = get_aws_db_ci("ARCHIVE_DB_INSTANCE_NAME")
+if ci := get_literal_ci("ARCHIVE_DB_NAME") : DATABASES["archive"]["NAME"] = ci
+if ci := get_literal_ci("ARCHIVE_DB_USER") : DATABASES["archive"]["USER"] = ci
+if ci := get_literal_ci("ARCHIVE_DB_HOST") : DATABASES["archive"]["HOST"] = ci
+if ci := get_literal_ci("ARCHIVE_DB_PORT") : DATABASES["archive"]["PORT"] = ci
+if ci := get_literal_ci("ARCHIVE_TUNNEL_LOCAL_PORT") : DATABASES["archive"]["PORT"] = ci
+if ci := get_literal_ci("ARCHIVE_TUNNEL_LOCAL_HOST") : DATABASES["archive"]["HOST"] = ci
+DATABASES["archive"]["PASSWORD"] = get_aws_secret_ci("ARCHIVE_DB_PASSWORD_SECRET_NAME")
+if ci := get_literal_ci("ARCHIVE_DB_PASSWORD") : DATABASES["archive"]["PASSWORD"] = ci
 
-if SCIMMA_ENVIRONMENT in ["dev", "prod"]:
-    DATABASES["default"]["PASSWORD"] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
-    DATABASES["default"]["NAME"] = rds_db["DBName"]
-    DATABASES["default"]["USER"] = rds_db["MasterUsername"]
-    DATABASES["default"]["HOST"] = rds_db["Endpoint"]["Address"]
-    DATABASES["default"]["PORT"] = rds_db["Endpoint"]["Port"]
-    
-    DATABASES["archive"]["PASSWORD"] = get_secret(os.getenv("ARCHIVE_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
-    DATABASES["archive"]["NAME"] = rds_db["DBName"]
-    DATABASES["archive"]["USER"] = rds_db["MasterUsername"]
-    DATABASES["archive"]["HOST"] = rds_db["Endpoint"]["Address"]
-    DATABASES["archive"]["PORT"] = rds_db["Endpoint"]["Port"]
+DATABASES["default"] = get_aws_db_ci("ADMIN_DB_INSTANCE_NAME")
+if ci := get_literal_ci("ADMIN_DB_NAME") : DATABASES["default"]["NAME"] = ci
+if ci := get_literal_ci("ADMIN_DB_USER") : DATABASES["default"]["USER"] = ci
+if ci := get_literal_ci("ADMIN_DB_HOST") : DATABASES["default"]["HOST"] = ci
+if ci := get_literal_ci("ADMIN_DB_PORT") : DATABASES["default"]["PORT"] = ci
+if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_PORT") : DATABASES["default"]["PORT"] = ci
+if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_HOST") : DATABASES["default"]["HOST"] = ci
+DATABASES["default"]["PASSWORD"] = get_aws_secret_ci("ADMIN_DB_PASSWORD_SECRET_NAME")
+if ci := get_literal_ci("ADMIN_DB_PASSWORD") : DATABASES["default"]["PASSWORD"] = ci
 
-
-# Tunnel Environment - Purpose: develop dynamic web content based on reading databases
-# - Uses read only access to live postgres and  admin DBS  via tunnels
-# ENVIRONMENT VARIABLES
-# SCIMMA_ENVIRONMENT=Tunnel
-# ADMIN_DB_INSTANCE, ADMIN_DB_SECRET_NAME, ADMIN_LOCAL_PORT
-# ARCHIVE_DB_INSTANCE, ARCHIVE_DB_SECRET_NAME, ARCHIVE_LOCAL_PORT
-
-if SCIMMA_ENVIRONMENT in ["tunnel", "dev", "prod"]:
-    DATABASES["default"]["PASSWORD"] = get_secret(os.getenv("ADMIN_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ADMIN_DB_INSTANCE_NAME"))
-    DATABASES["default"]["NAME"] = rds_db["DBName"]
-    DATABASES["default"]["USER"] = rds_db["MasterUsername"]
-    DATABASES["default"]["HOST"] = "localhost"
-    DATABASES["default"]["PORT"] = int(os.getenv("ADMIN_LOCAL_PORT"))
-
-    DATABASES["archive"]["PASSWORD"] = get_secret(os.getenv("ARCHIVE_DB_SECRET_NAME"))
-    rds_db = get_rds_db(os.getenv("ARCHIVE_DB_INSTANCE_NAME"))
-    DATABASES["archive"]["NAME"] = rds_db["DBName"]
-    DATABASES["archive"]["USER"] = rds_db["MasterUsername"]
-    DATABASES["archive"]["HOST"] = "localhost"
-    DATABASES["archive"]["PORT"] = int(os.getenv("ARCHIVE_LOCAL_PORT"))
-
-#import pprint
-#pprint.pp(DATABASES)
+pprint.pp(DATABASES)
 
 if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     fix_psycopg_binary()
