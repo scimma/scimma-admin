@@ -306,12 +306,13 @@ if not LOCAL_TESTING:
     )
 else:
     OIDC_RP_CLIENT_ID = "cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
-    OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
+    #get_localdev_secret("cilogon_client_secret")
 """
 
 OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
 OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
-if ci := get_localdev_secret("cilogon_client_secret") : OIDC_RP_CLIENT_SECRET = ci
+if ci := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = ci
+
 
 LOGIN_URL = "/hopauth/login"
 LOGIN_REDIRECT_URL = "/services"

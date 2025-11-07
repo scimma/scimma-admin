@@ -195,7 +195,7 @@ echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5
 # Why Config : TBD
 # terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
 # terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
-#echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME=scimma-admin-keycloak-client-secret
+echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-client-secret"
 
 
 
