@@ -1,15 +1,19 @@
 #!/bin/bash
 
-container=scimma-admin-postgres
+clean_docker () {
+    container = $1
+    output=$(docker ps -a -f name=$container | grep $container  2> /dev/null)
+    if [ -n "$output" ]; then
+	docker stop $container
+	docker rm  $container
+    fi
+}
 
 cleanup () {
     webpid=$(pgrep -f 'user_web_server.py')
-    if [ -n "$webpid" ] ; then kill $webpid ; fi 
-    output=$(docker ps -a -f name=$container | grep $container  2> /dev/null)
-      if [ -n "$output" ]; then
-       docker stop $container
-       docker rm  $container
-    fi
+    if [ -n "$webpid" ] ; then kill $webpid ; fi
+    clean_docker scimma-admin-postgres
+    clean_docker scimma-archive-postgres
 }
 
 trap cleanup EXIT
