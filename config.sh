@@ -1,4 +1,3 @@
-
 #!/bin/bash
 ##
 ## This file is an overall configuration file for scimmma_admin development
@@ -89,7 +88,55 @@ echo export SYMPA_CREDS="{}"
 # Why Config      : Advancement of the scimma_admin schema is done on local postgress schema.
 # Default         : None Must be set via command line
 
-# I want to make tjhis work, but I want to complete integration loops even more
+##
+## Auth related
+##
+
+# Settings.py name: SECURE_SSL_REDIRECT
+#CI_Name          : SECURE_SSL_REDIRECT 
+#What is it : causes django re redirecet http to https automaticalls. 
+#Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
+echo export SECURE_SSL_REDIRECT=false
+
+# Settings.py name : :KAFKA_USER_AUTH_GROUP
+# CI_Name          : KAFKA_USER_AUTH_GROUP
+# What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
+# Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
+# Override         : Value of env variable KAFKA_USER_AUTH_GROUP 
+#Assert            : None
+#echo export KAFKA_USER_AUTH_GROUP="/Hopskotch Users"
+fixme
+
+# Settings.py name : KAFKA_BROKER_URL
+# CI_Name          : KAFKA_BROKER_URL
+# What is it : The URL to a kafka Broker 
+# Why Config : dev and prod use different instances (what about Localdev??)
+# Override   : Value of env variable KAFKA_BROKER_URL 
+# Assert     : is not None in Prod, dev.
+echo export KAFKA_BROKER_URL=dog
+
+# Settings.py name : OIDC_RP_CLIENT_ID
+# CI_Name          : OIDC_RP_CLIENT_ID
+# What is it : A client provided by the OIDC Provider
+#terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
+echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
+
+#CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
+#CI_Name(literal)) : OIDC_RP_CLIENT_SECRET
+# What is it : A secret to access the OIDC provider, given a CLIENT_ID
+# Why Config : TBD
+# terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
+# terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
+echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-client-secret"
+
+# Settings.py name : OIDC_OP_USER_ENDPOINT
+#  CI_NAME         : OIDC_OP_USER_ENDPOINT
+# What is it       :
+# Why config      :  we want production database for AWS scutt
+# Why config      :  we eant to simulate this in local for developement flexablity.
+echo export OIDC_OP_USER_ENDPOINT="https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
+
+# I want to make this work, but I want to complete integration loops even more
 get_tunnel_info() {
     #Return the RDS json structure for DB instance passed in as $1
     echo "$1"  and  "$*" all 
@@ -100,6 +147,7 @@ get_tunnel_info() {
 	  
 echo MARK "$system"  >&2
 set -x
+
 
 if [ "$system" = "prod" ]; then
     echo "environment configured for tunneling to prod databases" >&2
@@ -145,57 +193,22 @@ else
     echo export ARCHIVE_DB_NAME=postgres
     echo export ARCHIVE_DB_USER=postgres
     echo export ARCHIVE_DB_PASSWORD=postgres
-    echo export ARCHIVE_HOST="127.0.0.1"
+    echo export ARCHIVE_DB_HOST="127.0.0.1"
     echo export ARCHIVE_DB_PORT=5433
     
-    echo export ADMIN_DB__NAME=postgres
-    echo export ADMIN_DB__USER=postgres
+    echo export ADMIN_DB_NAME=postgres
+    echo export ADMIN_DB_USER=postgres
     echo export ADMIN_DB_PASSWORD=postgres
-    echo export ADMIN_HOST="127.0.0.1"
+    echo export ADMIN_DB_HOST="127.0.0.1"
     echo export ADMIN_DB_PORT=5432
+
+    #integreate me  belos 
+    echo export SECURE_SSL_REDIRECT=false
+    echo export OIDC_OP_USER_ENDPOINT='http://localhost:8001'
+    echo export OIDC_RP_CLIENT_ID=dev-scimma-admin
 fi
 
 
-##
-## Auth related
-##
-
-# Settings.py name: SECURE_SSL_REDIRECT
-#CI_Name          : SECURE_SSL_REDIRECT 
-#What is it : causes django re redirecet http to https automaticalls. 
-#Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
-echo export SECURE_SSL_REDIRECT=false
-
-# Settings.py name : :KAFKA_USER_AUTH_GROUP
-# CI_Name          : KAFKA_USER_AUTH_GROUP
-# What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
-# Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
-# Override         : Value of env variable KAFKA_USER_AUTH_GROUP 
-#Assert            : None
-echo export KAFKA_USER_AUTH_GROUP="/Hopskotch Users"
-
-# Settings.py name : KAFKA_BROKER_URL
-# CI_Name          : KAFKA_BROKER_URL
-# What is it : The URL to a kafka Broker 
-# Why Config : dev and prod use different instances (what about Localdev??)
-# Override   : Value of env variable KAFKA_BROKER_URL 
-# Assert     : is not None in Prod, dev.
-echo export KAFKA_BROKER_URL=dog
-
-# Settings.py name : OIDC_RP_CLIENT_ID
-# CI_Name          : OIDC_RP_CLIENT_ID
-# What is it : A client provided by the OIDC Provider
-#terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
-echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
-
-# Settings.py name : OIDC_RP_CLIENT_SECRET
-#CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
-#CI_Name(literal)) : OIDC_RP_CLIENT_SECRET
-# What is it : A secret to access the OIDC provider, given a CLIENT_ID
-# Why Config : TBD
-# terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
-# terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
-echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-client-secret"
 
 
 

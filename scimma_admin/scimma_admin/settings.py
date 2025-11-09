@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
+import pprint
 import os
 import boto3
 import requests
@@ -31,8 +32,12 @@ def get_rds_db(db_instance_id):
     )
     return resp["DBInstances"][0]
 
+CI_LOG={}  
+
 def get_literal_ci(item_name):
-    return os.getenv(item_name)
+    value  = os.getenv(item_name)
+    CI_LOG[item_name] = value
+    return value
 
 def get_aws_db_ci(item_name):
     """
@@ -76,7 +81,14 @@ def get_aws_secret_ci(item_name):
     if name:
         sm = boto3.client("secretsmanager", region_name="us-west-2")
         secret_ci = sm.get_secret_value(SecretId=name)["SecretString"]
+    CI_LOG[item_name] = secret_ci
     return secret_ci
+
+def truth(str):
+    print ("XXXXXXXXXXXXX", str)
+    if str ==  "true" : return True
+    if str ==  "false" : return False
+    raise RuntimeError(f"bad truth string:  {str}")
 
 
 def get_localdev_secret(name):
@@ -139,10 +151,6 @@ SYMPA_CREDS = get_aws_secret_ci("SYMPA_CREDS_SECRET_NAME")
 if key := get_literal_ci("SYMPA_CREDS") : SYMPA_CREDS = json.loads(key)
 print("SYMPA_CREDS", SYMPA_CREDS)
 
-def truth(str):
-    if str ==  "true" : return True
-    if str ==  "false" : return False
-    raise f"bad truth string:  {str}"
 
 SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
 
@@ -250,9 +258,6 @@ def fix_psycopg_binary():
 
 
 # Database
-import pprint
-#
-#  
 #
 DATABASES = {}
 DATABASES["archive"] = get_aws_db_ci("ARCHIVE_DB_INSTANCE_NAME")
@@ -275,7 +280,6 @@ if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_HOST") : DATABASES["default"]["HOST"
 DATABASES["default"]["PASSWORD"] = get_aws_secret_ci("ADMIN_DB_PASSWORD_SECRET_NAME")
 if ci := get_literal_ci("ADMIN_DB_PASSWORD") : DATABASES["default"]["PASSWORD"] = ci
 
-pprint.pp(DATABASES)
 
 if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     fix_psycopg_binary()
@@ -289,10 +293,15 @@ OIDC_OP_AUTHORIZATION_ENDPOINT = (
 )
 OIDC_OP_TOKEN_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token"
+
 )
 OIDC_OP_USER_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 )
+
+OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
+OIDC_OP_USER_ENDPOINT = 'http://localhost:8001'
+
 OIDC_RP_SIGN_ALGO = "RS256"
 OIDC_OP_JWKS_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
@@ -312,7 +321,7 @@ else:
 OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
 OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
 if ci := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = ci
-
+OIDC_RP_CLIENT_SECRET="mr0mHzmuQBWGjubaXdHHTShu4eLXBqqw"  # fixme 
 
 LOGIN_URL = "/hopauth/login"
 LOGIN_REDIRECT_URL = "/services"
@@ -395,7 +404,14 @@ if KAFKA_BROKER_URL is None:
         KAFKA_BROKER_URL = "kafka.scimma.org"
 
 
-try:
-    from local_settings import *
-except ImportError:
-    pass
+import pprint
+print('************************  Configuration report ****************')
+pprint.pp(DATABASES)
+pprint.pp(CI_LOG)
+print('************************  Configuration report ****************')
+
+
+#try:
+#    from local_settings import *
+#except ImportError:
+#    pass
