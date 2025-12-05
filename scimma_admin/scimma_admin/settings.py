@@ -20,19 +20,9 @@ import json
 from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
-def get_secret(name):
-    sm = boto3.client("secretsmanager", region_name="us-west-2")
-    return sm.get_secret_value(SecretId=name)["SecretString"]
 
+CI_LOG={}  # log config actions here
 
-def get_rds_db(db_instance_id):
-    rds = boto3.client("rds", region_name="us-west-2")
-    resp = rds.describe_db_instances(
-        Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
-    )
-    return resp["DBInstances"][0]
-
-CI_LOG={}  
 
 def get_literal_ci(item_name):
     value  = os.getenv(item_name)
@@ -89,17 +79,6 @@ def truth(str):
     if str ==  "false" : return False
     raise RuntimeError(f"bad truth string:  {str}")
 
-
-def get_localdev_secret(name):
-    """Load a secret which has been stored in the localdev.conf INI file at the root
-    of the repo. This file's contents are set with 'make localdev-setup', using
-    the scripts/setup_localdev_secrets.py script.
-
-    """
-    cp = configparser.ConfigParser()
-    conf_file = os.path.join(os.path.dirname(BASE_DIR), "localdev.conf")
-    cp.read(os.path.join(conf_file))
-    return cp["secrets"][name]
 
 
 # ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
