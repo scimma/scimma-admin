@@ -85,7 +85,6 @@ def get_aws_secret_ci(item_name):
     return secret_ci
 
 def truth(str):
-    print ("XXXXXXXXXXXXX", str)
     if str ==  "true" : return True
     if str ==  "false" : return False
     raise RuntimeError(f"bad truth string:  {str}")
@@ -143,19 +142,45 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+### settings.py name : SECRET_KEY
+### CI_Name(aws)     : SECRET_KEY_SECRET_NAME
+### CI_Name(literal)): SECRET_KEY
+### What is it       : A secret used internally by django to encrypt things.
+### Why Config       : prod and dev deployment get the secret key  from AWS
+### Why Config       : LOCAL_DEV just makes one up ("zzzlocal") as its' transient.
+### SECURITY WARNING: keep the secret key used in production secret!
+
 SECRET_KEY = get_aws_secret_ci("SECRET_KEY_SECRET_NAME")
 if key := get_literal_ci("SECRET_KEY") : SECRET_KEY = key
 print("SECRET_KEY", SECRET_KEY)
+
+
+###settings.py Name : SYMPA_CREDS
+###CI_Name(aws)     : SYMPA_CREDS_SECRET_NAME
+###CI_Name(literal) : SYMPA_CREDS
+####What is it      : credentials to access SYMPA.
+###What is it       : ALSO  flag indicating to not activate ...
+###What is it       : sympa access IF SET TO {}
+### Why Config      : to indicate whther to access SYMPA.
+### WHy Config      : To authenticate to Symps 
+
 SYMPA_CREDS = get_aws_secret_ci("SYMPA_CREDS_SECRET_NAME")
 if key := get_literal_ci("SYMPA_CREDS") : SYMPA_CREDS = json.loads(key)
 print("SYMPA_CREDS", SYMPA_CREDS)
 
-
+### Settings.py name: SECURE_SSL_REDIRECT
+### CI_Name          : SECURE_SSL_REDIRECT 
+### What is it : causes django re redirect http to https automatically if true. 
+### Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
 SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
 
-# DLP waht can we do with this?
-# SECURITY WARNING: don't run with debug turned on in production!
+
+### settings.py Name : DEBUG
+### CI_Name          : DJANGO_DEBUG
+### What is it       : true-> DEBUG  false -> INFO
+### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
+### Normal Default   : INFO
+### SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SCIMMA_ENVIRONMENT != "prod"
 DEBUG = truth(get_literal_ci("DJANGO_DEBUG"))
 
@@ -258,25 +283,53 @@ def fix_psycopg_binary():
 
 
 # Database
-#
+
+
 DATABASES = {}
+#### CI_Name(literal) : ARCHIVE_DB__NAME
+### What is it : The Name of the archive DB instance
+### Why Config : Different DB's are used in proc, dev, and elocal dev seneraio
 DATABASES["archive"] = get_aws_db_ci("ARCHIVE_DB_INSTANCE_NAME")
+
+#### CI_Name(literal) : ADMIN_DB__overrides (many)
+### What is it : Parameters to allow stand alone local development....
+### What is it : or r/o access via a tunnel for local development....
+### Why Config : Support multiple use scenarios.
 if ci := get_literal_ci("ARCHIVE_DB_NAME") : DATABASES["archive"]["NAME"] = ci
 if ci := get_literal_ci("ARCHIVE_DB_USER") : DATABASES["archive"]["USER"] = ci
 if ci := get_literal_ci("ARCHIVE_DB_HOST") : DATABASES["archive"]["HOST"] = ci
 if ci := get_literal_ci("ARCHIVE_DB_PORT") : DATABASES["archive"]["PORT"] = ci
 if ci := get_literal_ci("ARCHIVE_TUNNEL_LOCAL_PORT") : DATABASES["archive"]["PORT"] = ci
 if ci := get_literal_ci("ARCHIVE_TUNNEL_LOCAL_HOST") : DATABASES["archive"]["HOST"] = ci
+
+###CI_Name(aws)     : ARCHIVE_DB_PASSWORD_SECRET_NAME 
+###CI_Name(literal) : ARCHIVE_DB_PASSWORD
+####What is it      : password to the database 
+### Why Config      : each DB has a distinct password
 DATABASES["archive"]["PASSWORD"] = get_aws_secret_ci("ARCHIVE_DB_PASSWORD_SECRET_NAME")
 if ci := get_literal_ci("ARCHIVE_DB_PASSWORD") : DATABASES["archive"]["PASSWORD"] = ci
 
+
+### CI_Name(literal) : ADMIN_DB__NAME
+### What is it : The Name of the admin DB instance
+### Why Config : Different DB's are used in proc, dev, and elocal dev seneraio
 DATABASES["default"] = get_aws_db_ci("ADMIN_DB_INSTANCE_NAME")
+
+#### CI_Name(literal) : ADMIN_DB__overrides (many)
+### What is it : Parameters to allow stand alone local development....
+### What is it : or r/o access via a tunnel for local development....
+### Why Config : Support multiple use scenarios.
 if ci := get_literal_ci("ADMIN_DB_NAME") : DATABASES["default"]["NAME"] = ci
 if ci := get_literal_ci("ADMIN_DB_USER") : DATABASES["default"]["USER"] = ci
 if ci := get_literal_ci("ADMIN_DB_HOST") : DATABASES["default"]["HOST"] = ci
 if ci := get_literal_ci("ADMIN_DB_PORT") : DATABASES["default"]["PORT"] = ci
 if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_PORT") : DATABASES["default"]["PORT"] = ci
 if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_HOST") : DATABASES["default"]["HOST"] = ci
+
+###CI_Name(aws)     : ADMIN_DB_PASSWORD_SECRET_NAME 
+###CI_Name(literal) : ADMIN_DB_PASSWORD
+####What is it      : password to the database 
+### Why Config      : each DB has a distinct password
 DATABASES["default"]["PASSWORD"] = get_aws_secret_ci("ADMIN_DB_PASSWORD_SECRET_NAME")
 if ci := get_literal_ci("ADMIN_DB_PASSWORD") : DATABASES["default"]["PASSWORD"] = ci
 
@@ -299,6 +352,13 @@ OIDC_OP_USER_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 )
 
+
+### Settings.py name : OIDC_OP_USER_ENDPOINT
+### CI_NAME         : OIDC_OP_USER_ENDPOINT
+### What is it       :
+### Why config      :  we want production database for AWS scutt
+### Why config      :  we eant to simulate this in local for developement flexablity.
+
 OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
 OIDC_OP_USER_ENDPOINT = 'http://localhost:8001'
 
@@ -307,6 +367,7 @@ OIDC_OP_JWKS_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
 )
 AUTHENTICATION_BACKENDS = ("hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend",)
+
 """
 if not LOCAL_TESTING:
     OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX + "scimma-admin-keycloak-client-id")
@@ -318,10 +379,27 @@ else:
     #get_localdev_secret("cilogon_client_secret")
 """
 
+### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
+### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
+### What is it : A secret to access the OIDC provider, given a CLIENT_ID
+### Why Config : differnt  oroviders for differnt user cases.
+OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
+if key := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = key
+
+
+### Settings.py name : OIDC_RP_CLIENT_ID
+### CI_Name          : OIDC_RP_CLIENT_ID
+### What is it : A client provided by the OIDC Provider
 OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
+
+# CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
+# CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
+# What is it : A secret to access the OIDC provider, given a CLIENT_ID
+# Why Config : TBD
 OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
 if ci := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = ci
 OIDC_RP_CLIENT_SECRET="mr0mHzmuQBWGjubaXdHHTShu4eLXBqqw"  # fixme 
+
 
 LOGIN_URL = "/hopauth/login"
 LOGIN_REDIRECT_URL = "/services"
@@ -380,9 +458,11 @@ LOGGING = {
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-KAFKA_USER_AUTH_GROUP = os.environ.get(
-    "KAFKA_USER_AUTH_GROUP", default="/Hopskotch Users"
-)
+### Settings.py name : KAFKA_USER_AUTH_GROUP
+### CI_Name          : KAFKA_USER_AUTH_GROUP
+### What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
+### Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
+KAFKA_USER_AUTH_GROUP=get_literal_ci("KAFKA_USER_AUTH_GROUP")
 
 # For now we work with just one mailing list, so it gets to be a setting by itself
 OPENMMA_MAILINGLIST = "openmma@lists.scimma.org"
@@ -396,13 +476,20 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_authtoken.auth.AuthTokenAuthentication",),
 }
 
+### Settings.py name : KAFKA_BROKER_URL
+### CI_Name          : KAFKA_BROKER_URL
+### What is it : The URL to a kafka Broker 
+### Why Config : dev and prod use different instances (what about Localdev??)
+KAFKA_BROKER_URL=get_literal_ci("KAFKA_BROKER_URL")
+
+"""
 KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
 if KAFKA_BROKER_URL is None:
     if SCIMMA_ENVIRONMENT == "dev":
         KAFKA_BROKER_URL = "dev.hop.scimma.org"
     elif SCIMMA_ENVIRONMENT == "prod":
         KAFKA_BROKER_URL = "kafka.scimma.org"
-
+"""
 
 import pprint
 print('************************  Configuration report ****************')

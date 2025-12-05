@@ -22,24 +22,25 @@ set -x
 
 python user_web_server.py &
 
+eval $(./config.sh local)
+
 docker create --name scimma-admin-postgres \
-       -e POSTGRES_DB=postgres \
-       -e POSTGRES_PASSWORD=postgres \
-       -e POSTGRES_USER=postgres \
-       -p 5432:5432 postgres
+       -e POSTGRES_DB=$ADMIN_DB_NAME \
+       -e POSTGRES_PASSWORD=$ARCHIVE_DB_PASSWORD \
+       -e POSTGRES_USER=$ADMIN_DB_USER \
+       -p $ADMIN_DB_PORT:$ADMIN_DB_PORT
 docker start scimma-admin-postgres
 docker create --name scimma-archive-postgres \
-       -e POSTGRES_DB=postgres \
-       -e POSTGRES_PASSWORD=postgres \
-       -e POSTGRES_USER=postgres \
-       -p 5432:5433 postgres
+       -e POSTGRES_DB=$ARCHIVE_DB_NAME \
+       -e POSTGRES_PASSWORD=$ARCHIVE_DB_PASSWORD \
+       -e POSTGRES_USER=$ARCHIVE_DB_USER \ \
+       -p $ARCHIVE_DB_PORT:$ARCHIVE_DB_PORT
 docker start scimma-admin-postgres
 
-eval $(./config.sh local)
+sleep 4
 
 cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
 
-sleep 4
 
 python scimma_admin/manage.py migrate
 

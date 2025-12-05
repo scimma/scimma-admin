@@ -1,3 +1,10 @@
+"""
+CLima =  this is called by CILOGIN to get a set of claims as if they came
+form keyclaoak.  this list is then presented to the syste which hels them against
+keyclak truth?   I don;t thisn I really grok if.
+"""
+
+
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 

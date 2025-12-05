@@ -45,19 +45,19 @@ echo export SCIMMA_ENVIRONMENT=system  >&2
 ## Core DJANGO
 ##
 
-#settings.py Name : DEBUG
-#CI_Name          : DJANGO_DEBUG
-#What is it       : true-> DEBUG  false -> INFO
-#Why Config       : debug can be useful in development, DEBUG must not be used in prod.
-#normal Default   : INFO
+### settings.py Name : DEBUG
+### CI_Name          : DJANGO_DEBUG
+### What is it       : true-> DEBUG  false -> INFO
+### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
+### normal Default   : INFO
 echo export DJANGO_DEBUG=false
 
-#aettings.py name : SECRET_KEY
-#CI_Name(aws)     : SECRET_KEY_SECRET_NAME
-#CI_Name(literal)): SECRET_KEY
-#What is it       : A secret used internally by django to encrypt things.
-#Why Config       : prod and dev deployment get the secret key  from AWS
-#Why Config       : LOCAL_DEV just makes one up ("zzzlocal") as its' transient.
+### settings.py name : SECRET_KEY
+### CI_Name(aws)     : SECRET_KEY_SECRET_NAME
+### CI_Name(literal)): SECRET_KEY
+### What is it       : A secret used internally by django to encrypt things.
+### Why Config       : prod and dev deployment get the secret key  from AWS
+### Why Config       : LOCAL_DEV just makes one up ("zzzlocal") as its' transient.
 echo export SECRET_KEY=zzzlocal
 
 
@@ -65,75 +65,63 @@ echo export SECRET_KEY=zzzlocal
 ## Sympa Related
 ##
 
-#settings.py Name : SYMPA_CREDS
-#CI_Name(aws)     : SYMPA_CREDS_SECRET_NAME
-#CI_Name(literal)): SYMPA_CREDS
-#What is it       : credentials to access SYMPA.
-#What is it       : ALSO  flag indicating to not activate ...
-#What is it       : sympa access IF SET TO {}
-#terraform?       : scimma_admin.tf "[prod-]scimma-admin-sympa-secret"
-#Why Config       : to indeicate whther to access SYMPA.
-#Overrride        : use  SYMPA_CREDS_SECRET_NAME from env populate
+###settings.py Name : SYMPA_CREDS
+###CI_Name(aws)     : SYMPA_CREDS_SECRET_NAME
+###CI_Name(literal) : SYMPA_CREDS
+####What is it      : credentials to access SYMPA.
+###What is it       : ALSO  flag indicating to not activate ...
+###What is it       : sympa access IF SET TO {}
+### Why Config      : to indicate whther to access SYMPA.
+### WHy Config      : To authenticate to Symps 
 #echo export SYMPA_CREDS_SECRET_NAME=scimma-admin-sympa-secret
 echo export SYMPA_CREDS="{}"
-##
-## Databases 
-##
 
-#settings.py Name : DATABASES
-#CI_Name          : as below
-# What is it      : information needed to connect to scimma_admin and archive databases.
-# Why Config      : dev and prod deployments require differnet databases.
-# Why Config      : Tunnel based development needs to access the prod and devel DBS.
-# Why Config      : Advancement of the scimma_admin schema is done on local postgress schema.
-# Default         : None Must be set via command line
 
 ##
 ## Auth related
 ##
 
-# Settings.py name: SECURE_SSL_REDIRECT
-#CI_Name          : SECURE_SSL_REDIRECT 
-#What is it : causes django re redirecet http to https automaticalls. 
-#Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
+### Settings.py name: SECURE_SSL_REDIRECT
+### CI_Name          : SECURE_SSL_REDIRECT 
+### What is it : causes django re redirect http to https automatically if true. 
+### Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
 echo export SECURE_SSL_REDIRECT=false
 
-# Settings.py name : :KAFKA_USER_AUTH_GROUP
-# CI_Name          : KAFKA_USER_AUTH_GROUP
-# What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
-# Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
-# Override         : Value of env variable KAFKA_USER_AUTH_GROUP 
+### Settings.py name : :KAFKA_USER_AUTH_GROUP
+### CI_Name          : KAFKA_USER_AUTH_GROUP
+### What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
+### Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
 #Assert            : None
 #echo export KAFKA_USER_AUTH_GROUP="/Hopskotch Users"
 fixme
 
-# Settings.py name : KAFKA_BROKER_URL
-# CI_Name          : KAFKA_BROKER_URL
-# What is it : The URL to a kafka Broker 
-# Why Config : dev and prod use different instances (what about Localdev??)
-# Override   : Value of env variable KAFKA_BROKER_URL 
-# Assert     : is not None in Prod, dev.
+### Settings.py name : KAFKA_BROKER_URL
+### CI_Name          : KAFKA_BROKER_URL
+### What is it : The URL to a kafka Broker 
+### Why Config : dev and prod use different instances (what about Localdev??)
+### Override   : Value of env variable KAFKA_BROKER_URL 
+### Assert     : is not None in Prod, dev.
 echo export KAFKA_BROKER_URL=dog
 
-# Settings.py name : OIDC_RP_CLIENT_ID
-# CI_Name          : OIDC_RP_CLIENT_ID
-# What is it : A client provided by the OIDC Provider
-#terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
+### Settings.py name : OIDC_RP_CLIENT_ID
+### CI_Name          : OIDC_RP_CLIENT_ID
+### What is it : A client provided by the OIDC Provider
+###terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
 echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
 
-#CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
-#CI_Name(literal)) : OIDC_RP_CLIENT_SECRET
-# What is it : A secret to access the OIDC provider, given a CLIENT_ID
-# Why Config : TBD
-# terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
-# terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
+### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
+### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
+### What is it : A secret to access the OIDC provider, given a CLIENT_ID
+### Why Config : TBD
+### terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
+### terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
 echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-client-secret"
 
-# Settings.py name : OIDC_OP_USER_ENDPOINT
-#  CI_NAME         : OIDC_OP_USER_ENDPOINT
-# What is it       :
-# Why config      :  we want production database for AWS scutt
-# Why config      :  we eant to simulate this in local for developement flexablity.
+### Settings.py name : OIDC_OP_USER_ENDPOINT
+###  CI_NAME         : OIDC_OP_USER_ENDPOINT
+### What is it       :
+### Why config      :  we want production database for AWS scutt
+### Why config      :  we eant to simulate this in local for developement flexablity.
 echo export OIDC_OP_USER_ENDPOINT="https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 
 # I want to make this work, but I want to complete integration loops even more
