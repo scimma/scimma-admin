@@ -52,6 +52,7 @@ echo export SCIMMA_ENVIRONMENT=system  >&2
 ### normal Default   : INFO
 echo export DJANGO_DEBUG=false
 
+
 ### settings.py name : SECRET_KEY
 ### CI_Name(aws)     : SECRET_KEY_SECRET_NAME
 ### CI_Name(literal)): SECRET_KEY
@@ -92,8 +93,8 @@ echo export SECURE_SSL_REDIRECT=false
 ### What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
 ### Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
 #Assert            : None
-#echo export KAFKA_USER_AUTH_GROUP="/Hopskotch Users"
-fixme
+echo export KAFKA_USER_AUTH_GROUP='"/Hopskotch Users"'
+
 
 ### Settings.py name : KAFKA_BROKER_URL
 ### CI_Name          : KAFKA_BROKER_URL
@@ -116,6 +117,7 @@ echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5
 ### terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
 ### terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
 echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-client-secret"
+###echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-keycloak-client-secret"
 
 ### Settings.py name : OIDC_OP_USER_ENDPOINT
 ###  CI_NAME         : OIDC_OP_USER_ENDPOINT
@@ -123,6 +125,7 @@ echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-cli
 ### Why config      :  we want production database for AWS scutt
 ### Why config      :  we eant to simulate this in local for developement flexablity.
 echo export OIDC_OP_USER_ENDPOINT="https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
+
 
 # I want to make this work, but I want to complete integration loops even more
 get_tunnel_info() {

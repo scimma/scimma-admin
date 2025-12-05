@@ -10,9 +10,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 body = '''
 {
-          "sub": "http://cilogon.org/serverE/users/337266",
+          "sub": "http://cilogon.org/serverA/users/51448796",
           "email_list": [
-            "dpetravick@gmail.com"
+            "cnweaver@gmail.com"
           ],
           "iss": "https://cilogon.org",
           "vo_person_id": "SCiMMA1000005",
@@ -25,8 +25,8 @@ body = '''
             "kafkaUsers",
             "/Hopskotch Users"
           ],
-          "email": "dpetravick@gmail.com",
-          "vo_display_name": "dpetravick@gmail.com"
+          "email": "cnweaver@gmail.com",
+          "vo_display_name": "cnweaver@gmail.com"
         }
 '''
 
