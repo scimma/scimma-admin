@@ -41,7 +41,7 @@ def get_aws_db_ci(item_name):
 
     https://docs.djangoproject.com/en/3.0/ref/settings/#databases
     """
-    # make an (motly) empty template
+    # make an (mostly) empty template
     database_ci  = {
         "ENGINE" : "django.db.backends.postgresql",
         "PASSWORD" : None,
@@ -64,17 +64,20 @@ def get_aws_db_ci(item_name):
         database_ci["HOST"] = rds_db["Endpoint"]["Address"]
         database_ci["PORT"] = rds_db["Endpoint"]["Port"]
     return database_ci
-
+         
 def get_aws_secret_ci(item_name):
     secret_ci = None
     name = os.getenv(item_name)
     if name:
         sm = boto3.client("secretsmanager", region_name="us-west-2")
         secret_ci = sm.get_secret_value(SecretId=name)["SecretString"]
-    CI_LOG[item_name] = secret_ci
+        CI_LOG[item_name] = f"from {item_name}={name} obtained {secret_ci}"
+    else :
+        CI_LOG[item_name] = f"{item_name} not in configuration"
     return secret_ci
-
+    
 def truth(str):
+    "convert ascii value to python boolean"
     if str ==  "true" : return True
     if str ==  "false" : return False
     raise RuntimeError(f"bad truth string:  {str}")
