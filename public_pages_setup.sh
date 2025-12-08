@@ -86,7 +86,7 @@ fi
 echo uwsgi --version `uwsgi --version`
 uwsgi --chdir=scimma_admin --show-config --module=scimma_admin.wsgi:application \
        --env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
-      --pidfile=project-master.pid --http-socket 127.0.0.1:8010 --processes 1 --threads 2
+      --pidfile=project-master.pid --http-socket 127.0.0.1:8000 --processes 1 --threads 2
 
 
 

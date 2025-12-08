@@ -163,7 +163,6 @@ SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
 ### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
 ### Normal Default   : INFO
 ### SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = SCIMMA_ENVIRONMENT != "prod"
 DEBUG = truth(get_literal_ci("DJANGO_DEBUG"))
 
 # This looks scary, but it's OK because we always run behind a load balancer
@@ -334,21 +333,38 @@ OIDC_OP_USER_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 )
 
-
-### Settings.py name : OIDC_OP_USER_ENDPOINT
-### CI_NAME         : OIDC_OP_USER_ENDPOINT
-### What is it       :
-### Why config      :  we want production database for AWS scutt
-### Why config      :  we eant to simulate this in local for developement flexablity.
-
-OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
-OIDC_OP_USER_ENDPOINT = 'http://localhost:8001'
-
 OIDC_RP_SIGN_ALGO = "RS256"
 OIDC_OP_JWKS_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
 )
 AUTHENTICATION_BACKENDS = ("hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend",)
+
+
+### Settings.py name : OIDC_OP_USER_ENDPOINT
+### CI_NAME          : OIDC_OP_USER_ENDPOINT
+### What is it       : WHere Djano goes to fetch "CLAIMS" about a user to compare...
+### What is it       : to compare what the "cilogon" is saying  ...
+### Why config       : we want production database for AWS  but...
+### Why config       : we want to simulate this in local for developement flex...
+### Why config       : e.g spoof uses, invistiagate new claims etc.  e.g. poor man's dev keycloak.
+### Example setting  : 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
+### Example setting  : (bypass keycloak for local dev) http://localhost:8001'
+
+OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
+
+### Settings.py name : OIDC_OP_CLIENT_ID
+### CI_NAME          : OIDC_OP_CLIENT_ID_SECRET_NAME
+### CI_NAME          : OIDC_OP_CLIENT_ID_SECRET_NAME
+### What is it       : Identifies acimmm-admin app to the identity provider.
+### Why config       : In produtction we use Keycloak (which then invokes CILOGON
+### Why config       : For develeopment purposes just get OIDC claims from cilogin...
+### Why config       : ...Since we are using out poor man's hack, lacking a dev keycloak.
+### Example setting  : AWS dev instance valse of scimma-admin-keycloak-client-id
+### Example setting  : (bypass keycloak for local dev  cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
+OIDC_OP_CLIENT_ID = get_aws_secret_ci('OIDC_OP_CLIENT_ID_SECRET_NAME')
+if ci := get_literal_ci("OIDC_OP_CLIENT_ID") : OIDC_OP_CLIENT_ID = ci
+
+
 
 """
 if not LOCAL_TESTING:
@@ -365,6 +381,9 @@ else:
 ### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
 ### What is it : A secret to access the OIDC provider, given a CLIENT_ID
 ### Why Config : differnt  oroviders for differnt user cases.
+### Example setting  : AWS dev instance -- egt "scimma-admin-keycloak-client-secret"
+### Eaxmple setting  : (bypass keycloak for local dev) get "cilogon_client_secret"
+
 OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
 if key := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = key
 
@@ -373,6 +392,7 @@ if key := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = key
 ### CI_Name          : OIDC_RP_CLIENT_ID
 ### What is it : A client provided by the OIDC Provider
 OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
+
 
 # CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
 # CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
@@ -383,7 +403,9 @@ if ci := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = ci
 OIDC_RP_CLIENT_SECRET="mr0mHzmuQBWGjubaXdHHTShu4eLXBqqw"  # fixme 
 
 
+
 LOGIN_URL = "/hopauth/login"
+
 LOGIN_REDIRECT_URL = "/services"
 if HAVE_WEBSITE:
     LOGOUT_REDIRECT_URL = "/"
@@ -412,7 +434,6 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATIC_URL = "/static/"
 
-DEBUG = True 
 # Logging
 LOGGING = {
     "version": 1,
@@ -461,17 +482,10 @@ REST_FRAMEWORK = {
 ### Settings.py name : KAFKA_BROKER_URL
 ### CI_Name          : KAFKA_BROKER_URL
 ### What is it : The URL to a kafka Broker 
-### Why Config : dev and prod use different instances (what about Localdev??)
-KAFKA_BROKER_URL=get_literal_ci("KAFKA_BROKER_URL")
+### Why Config : dev and prod use different instances
+### dev.hop.scimma.org or kafka.scimma.org for the AWS versions
 
-"""
-KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
-if KAFKA_BROKER_URL is None:
-    if SCIMMA_ENVIRONMENT == "dev":
-        KAFKA_BROKER_URL = "dev.hop.scimma.org"
-    elif SCIMMA_ENVIRONMENT == "prod":
-        KAFKA_BROKER_URL = "kafka.scimma.org"
-"""
+KAFKA_BROKER_URL=get_literal_ci("KAFKA_BROKER_URL")
 
 import pprint
 print('************************  Configuration report ****************')

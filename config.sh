@@ -50,7 +50,7 @@ echo export SCIMMA_ENVIRONMENT=system  >&2
 ### What is it       : true-> DEBUG  false -> INFO
 ### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
 ### normal Default   : INFO
-echo export DJANGO_DEBUG=false
+echo export DJANGO_DEBUG=true
 
 
 ### settings.py name : SECRET_KEY
@@ -104,11 +104,6 @@ echo export KAFKA_USER_AUTH_GROUP='"/Hopskotch Users"'
 ### Assert     : is not None in Prod, dev.
 echo export KAFKA_BROKER_URL=dog
 
-### Settings.py name : OIDC_RP_CLIENT_ID
-### CI_Name          : OIDC_RP_CLIENT_ID
-### What is it : A client provided by the OIDC Provider
-###terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
-echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
 
 ### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
 ### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
@@ -125,6 +120,13 @@ echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-cli
 ### Why config      :  we want production database for AWS scutt
 ### Why config      :  we eant to simulate this in local for developement flexablity.
 echo export OIDC_OP_USER_ENDPOINT="https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
+echo export OIDC_OP_USER_ENDPOINT=http://localhost:8001
+
+### Settings.py name : OIDC_RP_CLIENT_ID
+### CI_Name          : OIDC_RP_CLIENT_ID
+### What is it : A client provided by the OIDC Provider
+###terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
+echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
 
 
 # I want to make this work, but I want to complete integration loops even more
