@@ -50,7 +50,7 @@ echo export SCIMMA_ENVIRONMENT=system  >&2
 ### What is it       : true-> DEBUG  false -> INFO
 ### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
 ### normal Default   : INFO
-echo export DJANGO_DEBUG=true
+echo export DJANGO_DEBUG=false
 
 
 ### settings.py name : SECRET_KEY
@@ -96,23 +96,16 @@ echo export SECURE_SSL_REDIRECT=false
 echo export KAFKA_USER_AUTH_GROUP='"/Hopskotch Users"'
 
 
-### Settings.py name : KAFKA_BROKER_URL
-### CI_Name          : KAFKA_BROKER_URL
-### What is it : The URL to a kafka Broker 
-### Why Config : dev and prod use different instances (what about Localdev??)
-### Override   : Value of env variable KAFKA_BROKER_URL 
-### Assert     : is not None in Prod, dev.
 echo export KAFKA_BROKER_URL=dog
 
 
 ### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
 ### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
-### What is it : A secret to access the OIDC provider, given a CLIENT_ID
-### Why Config : TBD
-### terraform? : scimma_admin.tf "scimma_admin_keycloak_client_secret"
-### terraform? : scimma_admin.tf "cilogon_localdev_client_secret"
-echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-client-secret"
-###echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-keycloak-client-secret"
+echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-keycloak-client-secret"
+### Settings.py name : OIDC_RP_CLIENT_ID
+### CI_Name          : OIDC_RP_CLIENT_ID
+echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
+
 
 ### Settings.py name : OIDC_OP_USER_ENDPOINT
 ###  CI_NAME         : OIDC_OP_USER_ENDPOINT
@@ -122,11 +115,6 @@ echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-cilogon-localdev-cli
 echo export OIDC_OP_USER_ENDPOINT="https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 echo export OIDC_OP_USER_ENDPOINT=http://localhost:8001
 
-### Settings.py name : OIDC_RP_CLIENT_ID
-### CI_Name          : OIDC_RP_CLIENT_ID
-### What is it : A client provided by the OIDC Provider
-###terraform? : scimma_admin.tf: "scimma_admin_keycloak_client_id"
-echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
 
 
 # I want to make this work, but I want to complete integration loops even more

@@ -39,9 +39,9 @@ docker start scimma-admin-postgres
 
 sleep 4
 
-cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
+# cp scimma_admin/sample_local_settings.py scimma_admin/local_settings.py
 
-
+echo yes | python scimma_admin/manage.py collectstatic
 python scimma_admin/manage.py migrate
 
 uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \

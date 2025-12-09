@@ -63,6 +63,7 @@ def get_aws_db_ci(item_name):
         database_ci["USER"] = rds_db["MasterUsername"]
         database_ci["HOST"] = rds_db["Endpoint"]["Address"]
         database_ci["PORT"] = rds_db["Endpoint"]["Port"]
+    CI_LOG[item_name] = f"{item_name} yelds {database_ci}"
     return database_ci
          
 def get_aws_secret_ci(item_name):
@@ -71,7 +72,7 @@ def get_aws_secret_ci(item_name):
     if name:
         sm = boto3.client("secretsmanager", region_name="us-west-2")
         secret_ci = sm.get_secret_value(SecretId=name)["SecretString"]
-        CI_LOG[item_name] = f"from {item_name}={name} obtained {secret_ci}"
+        CI_LOG[item_name] = f"from {item_name}={name} obtained {'*'*len(secret_ci)}"
     else :
         CI_LOG[item_name] = f"{item_name} not in configuration"
     return secret_ci
@@ -97,8 +98,7 @@ def set_redirect_headers(get_response):
 
     return middleware
 
-
-
+"""
 SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
 
 _aws_name_prefixes = {
@@ -110,12 +110,14 @@ _aws_name_prefixes = {
 if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
     raise RuntimeError(f"Specified environment ({SCIMMA_ENVIRONMENT}) is not known")
 
+
 AWS_NAME_PREFIX = _aws_name_prefixes[SCIMMA_ENVIRONMENT]
 LOCAL_TESTING = SCIMMA_ENVIRONMENT == "local"
 
 print("SCIMMA_ENVIRONMENT:", SCIMMA_ENVIRONMENT)
 print("AWS_NAME_PREFIX:", AWS_NAME_PREFIX)
 print("LOCAL_TESTING:", LOCAL_TESTING)
+"""
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -142,7 +144,7 @@ print("SECRET_KEY", SECRET_KEY)
 ###CI_Name(literal) : SYMPA_CREDS
 ####What is it      : credentials to access SYMPA.
 ###What is it       : ALSO  flag indicating to not activate ...
-###What is it       : sympa access IF SET TO {}
+###What is it       : ... sympa access IF SET TO {}
 ### Why Config      : to indicate whther to access SYMPA.
 ### WHy Config      : To authenticate to Symps 
 
@@ -163,7 +165,7 @@ SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
 ### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
 ### Normal Default   : INFO
 ### SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = truth(get_literal_ci("DJANGO_DEBUG"))
+DJANGO_DEBUG = truth(get_literal_ci("DJANGO_DEBUG"))
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -265,7 +267,6 @@ def fix_psycopg_binary():
 
 # Database
 
-
 DATABASES = {}
 #### CI_Name(literal) : ARCHIVE_DB__NAME
 ### What is it : The Name of the archive DB instance
@@ -333,38 +334,31 @@ OIDC_OP_USER_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 )
 
-OIDC_RP_SIGN_ALGO = "RS256"
 OIDC_OP_JWKS_ENDPOINT = (
     "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
 )
 AUTHENTICATION_BACKENDS = ("hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend",)
 
-
 ### Settings.py name : OIDC_OP_USER_ENDPOINT
 ### CI_NAME          : OIDC_OP_USER_ENDPOINT
-### What is it       : WHere Djano goes to fetch "CLAIMS" about a user to compare...
-### What is it       : to compare what the "cilogon" is saying  ...
+### What is it       : WHere Django goes to fetch "CLAIMS" about a user to compare...
+### What is it       : given the "identiy" provided when it was a Op_CLIENT..
 ### Why config       : we want production database for AWS  but...
 ### Why config       : we want to simulate this in local for developement flex...
 ### Why config       : e.g spoof uses, invistiagate new claims etc.  e.g. poor man's dev keycloak.
 ### Example setting  : 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
 ### Example setting  : (bypass keycloak for local dev) http://localhost:8001'
-
 OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
 
 ### Settings.py name : OIDC_OP_CLIENT_ID
 ### CI_NAME          : OIDC_OP_CLIENT_ID_SECRET_NAME
 ### CI_NAME          : OIDC_OP_CLIENT_ID_SECRET_NAME
 ### What is it       : Identifies acimmm-admin app to the identity provider.
-### Why config       : In produtction we use Keycloak (which then invokes CILOGON
-### Why config       : For develeopment purposes just get OIDC claims from cilogin...
-### Why config       : ...Since we are using out poor man's hack, lacking a dev keycloak.
-### Example setting  : AWS dev instance valse of scimma-admin-keycloak-client-id
-### Example setting  : (bypass keycloak for local dev  cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
+### Why config       : AWS inscalletion use keycloak 
+### Why config       : For local devlepoemt no authentication is needed..
+### Example setting  : 
 OIDC_OP_CLIENT_ID = get_aws_secret_ci('OIDC_OP_CLIENT_ID_SECRET_NAME')
 if ci := get_literal_ci("OIDC_OP_CLIENT_ID") : OIDC_OP_CLIENT_ID = ci
-
-
 
 """
 if not LOCAL_TESTING:
@@ -376,32 +370,23 @@ else:
     OIDC_RP_CLIENT_ID = "cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
     #get_localdev_secret("cilogon_client_secret")
 """
-
-### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
-### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
-### What is it : A secret to access the OIDC provider, given a CLIENT_ID
-### Why Config : differnt  oroviders for differnt user cases.
-### Example setting  : AWS dev instance -- egt "scimma-admin-keycloak-client-secret"
-### Eaxmple setting  : (bypass keycloak for local dev) get "cilogon_client_secret"
-
-OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
-if key := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = key
-
+OIDC_RP_SIGN_ALGO = "RS256"
 
 ### Settings.py name : OIDC_RP_CLIENT_ID
 ### CI_Name          : OIDC_RP_CLIENT_ID
-### What is it : A client provided by the OIDC Provider
+### What is it : scimma-admin  app is a client to  OIDC provider...
+### Example setting  : scimma-admin-keycloak-client-id"
+### Example setting  : cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
 OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
 
 
-# CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
-# CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
-# What is it : A secret to access the OIDC provider, given a CLIENT_ID
-# Why Config : TBD
+### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
+### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
+### What is it : A secret to access the OIDC provider specifed in client_id.
+### Example setting  : scimma-admin-keycloak-client-secret
+### Example setting  : scimma-admin-cilogon-localdev-client-secret
 OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
-if ci := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = ci
-OIDC_RP_CLIENT_SECRET="mr0mHzmuQBWGjubaXdHHTShu4eLXBqqw"  # fixme 
-
+if key := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = key # talk to Chris.
 
 
 LOGIN_URL = "/hopauth/login"
@@ -445,7 +430,7 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": ["console"],
-            "level": "DEBUG" if DEBUG else "INFO",
+            "level": "DEBUG" if DJANGO_DEBUG else "INFO",
             "propagate": False,
         },
         "django.db.backends": {"level": "INFO",},

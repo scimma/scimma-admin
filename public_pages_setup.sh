@@ -72,6 +72,8 @@ echo cat-ing nohup.out -- it should be emptysleep 4
 cat nohup.out
 Echo moving on from looking at nohup.com
 
+(cd scimma_admin ; echo yes | python manage.py collectstatic)
+
 # just do this so as to not think about it.
 if [ $migrate = true  ] ; then
     echo migrating
