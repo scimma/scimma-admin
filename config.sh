@@ -39,80 +39,21 @@ if [ $# -gt 0 ]; then
 fi
 
 # thie might be a shim for integration.
-echo export SCIMMA_ENVIRONMENT=system  >&2
+# echo export SCIMMA_ENVIRONMENT=system  >&2
 
-##
-## Core DJANGO
-##
-
-### settings.py Name : DEBUG
-### CI_Name          : DJANGO_DEBUG
-### What is it       : true-> DEBUG  false -> INFO
-### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
-### normal Default   : INFO
+echo export PRINT_CONFIG=true
 echo export DJANGO_DEBUG=false
-
-
-### settings.py name : SECRET_KEY
-### CI_Name(aws)     : SECRET_KEY_SECRET_NAME
-### CI_Name(literal)): SECRET_KEY
-### What is it       : A secret used internally by django to encrypt things.
-### Why Config       : prod and dev deployment get the secret key  from AWS
-### Why Config       : LOCAL_DEV just makes one up ("zzzlocal") as its' transient.
 echo export SECRET_KEY=zzzlocal
-
-
-##
-## Sympa Related
-##
-
-###settings.py Name : SYMPA_CREDS
-###CI_Name(aws)     : SYMPA_CREDS_SECRET_NAME
-###CI_Name(literal) : SYMPA_CREDS
-####What is it      : credentials to access SYMPA.
-###What is it       : ALSO  flag indicating to not activate ...
-###What is it       : sympa access IF SET TO {}
-### Why Config      : to indicate whther to access SYMPA.
-### WHy Config      : To authenticate to Symps 
-#echo export SYMPA_CREDS_SECRET_NAME=scimma-admin-sympa-secret
 echo export SYMPA_CREDS="{}"
 
 
-##
-## Auth related
-##
-
-### Settings.py name: SECURE_SSL_REDIRECT
-### CI_Name          : SECURE_SSL_REDIRECT 
-### What is it : causes django re redirect http to https automatically if true. 
-### Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
 echo export SECURE_SSL_REDIRECT=false
-
-### Settings.py name : :KAFKA_USER_AUTH_GROUP
-### CI_Name          : KAFKA_USER_AUTH_GROUP
-### What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
-### Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
-#Assert            : None
 echo export KAFKA_USER_AUTH_GROUP='"/Hopskotch Users"'
+echo export KAFKA_BROKER_URL=dev.hop.scimma.org
 
-
-echo export KAFKA_BROKER_URL=dog
-
-
-### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
-### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
 echo export OIDC_RP_CLIENT_SECRET_SECRET_NAME="scimma-admin-keycloak-client-secret"
-### Settings.py name : OIDC_RP_CLIENT_ID
-### CI_Name          : OIDC_RP_CLIENT_ID
 echo export OIDC_RP_CLIENT_ID="cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
 
-
-### Settings.py name : OIDC_OP_USER_ENDPOINT
-###  CI_NAME         : OIDC_OP_USER_ENDPOINT
-### What is it       :
-### Why config      :  we want production database for AWS scutt
-### Why config      :  we eant to simulate this in local for developement flexablity.
-echo export OIDC_OP_USER_ENDPOINT="https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
 echo export OIDC_OP_USER_ENDPOINT=http://localhost:8001
 
 

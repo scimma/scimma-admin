@@ -20,6 +20,9 @@ import json
 from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
+##
+## Configuration suppport section 
+##
 
 CI_LOG={}  # log config actions here
 
@@ -76,13 +79,18 @@ def get_aws_secret_ci(item_name):
     else :
         CI_LOG[item_name] = f"{item_name} not in configuration"
     return secret_ci
-    
-def truth(str):
-    "convert ascii value to python boolean"
+
+def get_boolean_ci(item_name):
+    str  = os.getenv(item_name)
     if str ==  "true" : return True
     if str ==  "false" : return False
-    raise RuntimeError(f"bad truth string:  {str}")
+    raise RuntimeError(f"bad truth string: {str} for CI {item_name}")    
+    CI_LOG[item_name] = value
 
+
+##
+##  settings section suppport section 
+##
 
 
 # ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
@@ -97,27 +105,6 @@ def set_redirect_headers(get_response):
         return response
 
     return middleware
-
-"""
-SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
-
-_aws_name_prefixes = {
-    "local": None,  # AWS variables are not used for local testing
-    "dev": "",  # this is empty for historical reasons, it should probably be renamed in future
-    "prod": "prod-",
-}
-
-if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
-    raise RuntimeError(f"Specified environment ({SCIMMA_ENVIRONMENT}) is not known")
-
-
-AWS_NAME_PREFIX = _aws_name_prefixes[SCIMMA_ENVIRONMENT]
-LOCAL_TESTING = SCIMMA_ENVIRONMENT == "local"
-
-print("SCIMMA_ENVIRONMENT:", SCIMMA_ENVIRONMENT)
-print("AWS_NAME_PREFIX:", AWS_NAME_PREFIX)
-print("LOCAL_TESTING:", LOCAL_TESTING)
-"""
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -136,7 +123,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SECRET_KEY = get_aws_secret_ci("SECRET_KEY_SECRET_NAME")
 if key := get_literal_ci("SECRET_KEY") : SECRET_KEY = key
-print("SECRET_KEY", SECRET_KEY)
 
 
 ###settings.py Name : SYMPA_CREDS
@@ -150,13 +136,12 @@ print("SECRET_KEY", SECRET_KEY)
 
 SYMPA_CREDS = get_aws_secret_ci("SYMPA_CREDS_SECRET_NAME")
 if key := get_literal_ci("SYMPA_CREDS") : SYMPA_CREDS = json.loads(key)
-print("SYMPA_CREDS", SYMPA_CREDS)
 
 ### Settings.py name: SECURE_SSL_REDIRECT
 ### CI_Name          : SECURE_SSL_REDIRECT 
-### What is it : causes django re redirect http to https automatically if true. 
-### Why Config : Some development is simpler of done on http, to avoind the work of setting u  https stuff.
-SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
+### What is it : causes django to redirect http to https automatically if true. 
+### Why Config : Some development is simpler if done on http, to avoind the work of setting https stuff.
+SECURE_SSL_REDIRECT = get_boolean_ci("SECURE_SSL_REDIRECT")
 
 
 ### settings.py Name : DEBUG
@@ -165,7 +150,7 @@ SECURE_SSL_REDIRECT = truth(get_literal_ci("SECURE_SSL_REDIRECT"))
 ### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
 ### Normal Default   : INFO
 ### SECURITY WARNING: don't run with debug turned on in production!
-DJANGO_DEBUG = truth(get_literal_ci("DJANGO_DEBUG"))
+DJANGO_DEBUG = get_boolean_ci("DJANGO_DEBUG")
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -269,8 +254,8 @@ def fix_psycopg_binary():
 
 DATABASES = {}
 #### CI_Name(literal) : ARCHIVE_DB__NAME
-### What is it : The Name of the archive DB instance
-### Why Config : Different DB's are used in proc, dev, and elocal dev seneraio
+### What is it : The Name of the archive DB instance withing AWS.
+### Why Config : Different DB's are used in proc, dev, and local dev scenario
 DATABASES["archive"] = get_aws_db_ci("ARCHIVE_DB_INSTANCE_NAME")
 
 #### CI_Name(literal) : ADMIN_DB__overrides (many)
@@ -293,7 +278,7 @@ if ci := get_literal_ci("ARCHIVE_DB_PASSWORD") : DATABASES["archive"]["PASSWORD"
 
 
 ### CI_Name(literal) : ADMIN_DB__NAME
-### What is it : The Name of the admin DB instance
+### What is it : The Name of the admin DB instance in AWS
 ### Why Config : Different DB's are used in proc, dev, and elocal dev seneraio
 DATABASES["default"] = get_aws_db_ci("ADMIN_DB_INSTANCE_NAME")
 
@@ -360,16 +345,6 @@ OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
 OIDC_OP_CLIENT_ID = get_aws_secret_ci('OIDC_OP_CLIENT_ID_SECRET_NAME')
 if ci := get_literal_ci("OIDC_OP_CLIENT_ID") : OIDC_OP_CLIENT_ID = ci
 
-"""
-if not LOCAL_TESTING:
-    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX + "scimma-admin-keycloak-client-id")
-    OIDC_RP_CLIENT_SECRET = get_secret(
-        AWS_NAME_PREFIX + "scimma-admin-keycloak-client-secret"
-    )
-else:
-    OIDC_RP_CLIENT_ID = "cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd"
-    #get_localdev_secret("cilogon_client_secret")
-"""
 OIDC_RP_SIGN_ALGO = "RS256"
 
 ### Settings.py name : OIDC_RP_CLIENT_ID
@@ -472,12 +447,18 @@ REST_FRAMEWORK = {
 
 KAFKA_BROKER_URL=get_literal_ci("KAFKA_BROKER_URL")
 
-import pprint
-print('************************  Configuration report ****************')
-pprint.pp(DATABASES)
-pprint.pp(CI_LOG)
-print('************************  Configuration report ****************')
 
+### Settings.py name::  PRINT_CONFIG
+### CI_Name          :  PRINT_CONFIG 
+### What is it : Print all the CI's out  
+### Why Config : control verbosity.
+PRINT_CONFIG = get_boolean_ci("PRINT_CONFIG")
+if PRINT_CONFIG :
+    import pprint
+    print('************************  Configuration report ****************')
+    pprint.pp(DATABASES)
+    pprint.pp(CI_LOG)
+    print('************************  Configuration report ****************')
 
 #try:
 #    from local_settings import *
