@@ -1210,6 +1210,15 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         logger.info(msg)
         return super().list(request, *args, **kwargs)
 
+    def list_for_current_user(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list all group permissions available to them "
+                    f"from {client_ip(request)}")
+        version = self.kwargs.get("version",current_api_version)
+        perms = all_permissions_for_user(request.user)
+        serializer = self.get_serializer(perms, many=True)
+        return Response(serializer.data)
+
     def retrieve(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested the details of group permission {kwargs.get('pk','<missing>')} "

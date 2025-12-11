@@ -232,9 +232,6 @@ AUTHENTICATION_BACKENDS = (
 if not LOCAL_TESTING:
     OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-id")
     OIDC_RP_CLIENT_SECRET = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-secret")
-else:
-    OIDC_RP_CLIENT_ID = 'cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
-    OIDC_RP_CLIENT_SECRET = get_localdev_secret("cilogon_client_secret")
 
 
 LOGIN_URL ='/hopauth/login'

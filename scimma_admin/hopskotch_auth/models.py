@@ -396,7 +396,7 @@ def add_kafka_permission_for_group(group: Group, topic: KafkaTopic, operation: K
         if any(same_permission(p, new_record) for p in existing):
             # the exact permission we're trying to create already exists,
             # so we can do nothing and declare success
-            return GroupKafkaPermission.objects.get(principal=group_id, topic=topic.id, operation=operation)
+            return GroupKafkaPermission.objects.get(principal=group.id, topic=topic.id, operation=operation)
         if len(existing)==1 and existing[0].operation==KafkaOperation.All:
             # the existing permission is broader than the one being added,
             # so we do not need to actually add it
@@ -519,28 +519,24 @@ def supporting_permission(group_perm: GroupKafkaPermission, cred_perm: Credentia
       or cred_perm.operation == group_perm.operation
 
 
-# returns tuples of (parent ID, topic ID, topic name, perm type)
-def all_permissions_for_user(user: User) -> List[Tuple[int, int, str, KafkaOperation]]:
+def all_permissions_for_user(user: User) -> List[GroupKafkaPermission]:
     possible_permissions = []
     for membership in user.groupmembership_set.all():
         group = membership.group
-        group_permissions = GroupKafkaPermission.objects.filter(principal=group).select_related('topic')
+        group_permissions = GroupKafkaPermission.objects.filter(principal=group)\
+                                                        .select_related('principal', 'topic')
         for permission in group_permissions:
-            if permission.operation==KafkaOperation.All:
-                for subpermission in KafkaOperation.__members__.items():
-                    possible_permissions.append((permission.id,permission.topic.id,permission.topic.name,subpermission[1]))
-            else:
-                possible_permissions.append((permission.id,permission.topic.id,permission.topic.name,permission.operation))
+            possible_permissions.append(permission)
     # sort and eliminate duplicates
     # sort on operation
-    possible_permissions.sort(key=lambda p: p[3])
+    possible_permissions.sort(key=lambda p: p.operation)
     # sort on topic names, because that looks nice for users, but since there is a bijection
     # between topic names and IDs this will place all matching topic IDs together in blocks
     # in some order
-    possible_permissions.sort(key=lambda p: p[2])
+    possible_permissions.sort(key=lambda p: p.topic.name)
 
-    def equivalent(p1: Tuple[int, int, str, KafkaOperation], p2: Tuple[int, int, str, KafkaOperation]) -> bool:
-        return p1[1] == p2[1] and p1[3]==p2[3];
+    def equivalent(p1: GroupKafkaPermission, p2: GroupKafkaPermission) -> bool:
+        return p1.topic == p2.topic and p1.operation==p2.operation;
 
     # remove adjacent (practical) duplicates which have different permission IDs
     dedup = []
