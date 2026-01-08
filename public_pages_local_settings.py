@@ -25,7 +25,6 @@ def get_aws_db_info_ci(db_instance_ci):
     https://docs.djangoproject.com/en/3.0/ref/settings/#databases
     """
     db_instance_id  = os.getenv(db_instance_ci)
-    print ("************************", db_instance_ci, db_instance_id, "****************")
 
     # make an (mostly) empty template
     database_cv  = {
@@ -48,7 +47,6 @@ def get_aws_db_info_ci(db_instance_ci):
 def get_aws_secret_ci(secret_ci):
     name = os.getenv(secret_ci)
     if not name : return name
-    print ("************************", secret_ci, name, "****************")
     sm = boto3.client("secretsmanager", region_name="us-west-2")
     secret_cv = sm.get_secret_value(SecretId=name)["SecretString"]
     return secret_cv
