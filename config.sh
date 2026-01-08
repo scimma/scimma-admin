@@ -38,6 +38,7 @@ if [ $# -gt 0 ]; then
     Help
 fi
 
+echo export LOCAL_TESTING=True
 # thie might be a shim for integration.
 # echo export SCIMMA_ENVIRONMENT=system  >&2
 

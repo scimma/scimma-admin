@@ -1,20 +1,25 @@
 # scimma-admin
 
-This is a web tool for managing access to SCIMMA's Hopskotch system. The main
-deployment of it is at
-[https://admin.dev.hop.scimma.org/hopauth/](https://admin.dev.hop.scimma.org/hopauth/).
-At that URL, you can create, list, and revoke credentials which are used to
-access Hopskotch's Kafka system. For more information on usage, see [the
-guide](./doc/hopauth_guide.md).
+This is a web tool for managing access to SCIMMA's Hopskotch system. Developement
+and producion versions are availabel as follows:
+
+- Production  [https://my.hop.scimma.org/hopauth/](https://my.hop.scimma.org/hopauth/)
+- Development [https://admin.dev.hop.scimma.org/hopauth/](https://admin.dev.hop.scimma.org/hopauth/)
+
+Scimma_admin enbles you to create, list, and revoke credentials which are used with the scimma system. 
+For more information on usage, see [the guide](./doc/hopauth_guide.md).
 
 ## Design
 
 The original design document is [on Google
 Docs](https://docs.google.com/document/d/108v71YY9JJmfnY74IKPgHV5LXB6cxlKsTMdBq6zAJSs/edit).
 
-At a high level: users authenticate against [the SCIMMA COManage
-Registry](https://registry.scimma.org/registry/co_dashboards/dashboard/co:2) to
-prove their identity. They can then generate credentials, which are held only in
+At a high level: users authenticate using [CIlogin](https://www.cilogon.org/home) to
+prove their identity. 
+
+Having been authenticated,  users can see a list of services, whicah use authenications.
+
+For Hopskothch, users can then generate or mofify thier credentials, which are held only in
 memory; a hash of the credentials is stored in a Postgres database.
 Asynchronously, these hashes are loaded into Kafka's backend so they can be used
 by clients. Here's a diagram:
@@ -29,12 +34,10 @@ flow. The details of this are mostly handled by the third-party
 plugin. However, a few details get custom behavior, which is implemented in a
 [HopskotchOIDCAuthenticationBackend
 class](./scimma_admin/hopskotch_auth/auth.py):
-  - Users must be connected to LDAP (if this is not the case, it's probably a
-    bug in COManage)
-  - Users must be in the `SCiMMA Institute Active Members` COManage group
-  - Users must be in the `kafkaUsers` COManage group
-
-User uniqueness is maintained by using their `vo_person_id` value from COManage.
+  - Users must be in the `/Hopskotch Users` keycloak group
+  
+User uniqueness is maintained by using their `original email address` supplied 
+when they first log in. 
 
 ### Design: Credential Generation
 
@@ -67,10 +70,9 @@ is managed with Django's ORM.
 ### Design: Infrastructure
 
 scimma-admin is deployed on SCIMMA's Kubernetes cluster on AWS. Its
-infrastructure is managed with Terraform through the
-[aws-dev](https://github.com/scimma/aws-dev/blob/master/tf/eksDeployments/scimma-admin.tf)
-repository. It relies on the presence of a Postgres database for storing
-credentials.
+infrastructure is managed with Terraform through in the tf/eksDeployments/scimma-admin.tf 
+files the eks-prod or dek-dev github repositories. These .tf files create suppporting infrastructure,
+such as Postgres databases, secret repositores, etc.
 
 Most of the machinery for the Kubernetes deployment is handled with the
 [terraform-kubernetes-service](https://github.com/scimma/terraform-kubernetes-httpservice/)

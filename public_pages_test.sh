@@ -25,7 +25,7 @@ if [ $# -gt 0 ]; then
 fi
 
 eval $(./config.sh $system)
-
+cp public_pages_local_settings.py scimma_admin/local_settings.py
 #
 #  Assume these have been done once
 #  make localdev.conf
@@ -62,6 +62,9 @@ cleanup() {
   kill $ADMIN_TUNNEL_PID 2>/dev/null
   wait $ADMIN_TUNNEL_PID 2>/dev/null
   echo "ADMIN Tunnel closed."
+
+  #rm -f scimma_admin/local_settings.py
+
 }
 
 # Trap signals and errors to ensure cleanup
@@ -73,6 +76,7 @@ cat nohup.out
 Echo moving on from looking at nohup.com
 
 (cd scimma_admin ; echo yes | python manage.py collectstatic)
+
 
 # just do this so as to not think about it.
 if [ $migrate = true  ] ; then

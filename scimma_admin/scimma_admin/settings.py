@@ -10,87 +10,57 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
-import pprint
 import os
 import boto3
 import requests
-import configparser
 import datetime
 import json
 from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
-##
-## Configuration suppport section 
-##
+AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION"))
+         
+def get_aws_secret(item_name):
+    name = os.getenv(item_name)
+    if name:
+        sm = boto3.client("secretsmanager", region_name=AWS_REGION)
+        return sm.get_secret_value(SecretId=name)["SecretString"]
+    else:
+        return None
 
-CI_LOG={}  # log config actions here
 
-
-def get_literal_ci(item_name):
-    value  = os.getenv(item_name)
-    CI_LOG[item_name] = value
-    return value
-
-def get_aws_db_ci(item_name):
+def get_rds_db(item_name):
     """
-    Return a dictionary with database info in the format
-    DJANGO expects.
-
-    IF item_name is is in the environment, populate the structure
-    with information from AWS.
-    IF item_name  not in the environmemt, return an strcture  where
-    the AWS information is null. Later config staps must fill it out.
+    Return a dictionary with RDS database info in the format Django expects.
 
     https://docs.djangoproject.com/en/3.0/ref/settings/#databases
     """
     # make an (mostly) empty template
-    database_ci  = {
-        "ENGINE" : "django.db.backends.postgresql",
-        "PASSWORD" : None,
-        "NAME" : None,
-        "USER" : None, 
-        "HOST" : None,
-        "PORT" : None
-    }
+    database  = {"ENGINE" : "django.db.backends.postgresql"}
     
-    # fillout from AWS if the item_name is a defined environment variable
+    # fill out from AWS if the item_name is a defined environment variable
     db_instance_id = os.getenv(item_name)
     if db_instance_id:
-        rds = boto3.client("rds", region_name="us-west-2")
+        rds = boto3.client("rds", region_name=AWS_REGION)
         rds_db = rds.describe_db_instances(
-        Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
-        )
-        rds_db = rds_db["DBInstances"][0]
-        database_ci["NAME"] = rds_db["DBName"]
-        database_ci["USER"] = rds_db["MasterUsername"]
-        database_ci["HOST"] = rds_db["Endpoint"]["Address"]
-        database_ci["PORT"] = rds_db["Endpoint"]["Port"]
-    CI_LOG[item_name] = f"{item_name} yelds {database_ci}"
-    return database_ci
-         
-def get_aws_secret_ci(item_name):
-    secret_ci = None
-    name = os.getenv(item_name)
-    if name:
-        sm = boto3.client("secretsmanager", region_name="us-west-2")
-        secret_ci = sm.get_secret_value(SecretId=name)["SecretString"]
-        CI_LOG[item_name] = f"from {item_name}={name} obtained {'*'*len(secret_ci)}"
-    else :
-        CI_LOG[item_name] = f"{item_name} not in configuration"
-    return secret_ci
+                   Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
+                 )["DBInstances"][0]
+        database["NAME"] = rds_db["DBName"]
+        database["USER"] = rds_db["MasterUsername"]
+        database["HOST"] = rds_db["Endpoint"]["Address"]
+        database["PORT"] = rds_db["Endpoint"]["Port"]
+    return database
 
-def get_boolean_ci(item_name):
-    str  = os.getenv(item_name)
-    if str ==  "true" : return True
-    if str ==  "false" : return False
-    raise RuntimeError(f"bad truth string: {str} for CI {item_name}")    
-    CI_LOG[item_name] = value
-
-
-##
-##  settings section suppport section 
-##
+def get_setting_bool(name, default_val=None):
+    value  = os.getenv(name, default_val)
+    if value is None:
+        raise RuntimeError(f"{name} not configured and has no default value")
+    if value.lower() in ["true", "yes", "on", "1"]:
+        return True
+    if value.lower() in ["false", "yes", "on", "1"]:
+        return False
+    raise RuntimeError(f"bad value for {name}: {str}")
+    CI_LOG[name] = value
 
 
 # ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
@@ -99,12 +69,12 @@ def set_redirect_headers(get_response):
     def middleware(request):
         response = get_response(request)
         if response.status_code == 301:
-            response["who"] = 'don-test-301'
-            response["Content-Type"] = '*/*; charset="UTF-8"'
-            response["Content-Length"] = 0
+            response['Content-Type'] = '*/*; charset="UTF-8"'
+            response['Content-Length'] = 0
         return response
-
     return middleware
+
+LOCAL_TESTING = get_setting_bool("LOCAL_TESTING", False)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -113,44 +83,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
-### settings.py name : SECRET_KEY
-### CI_Name(aws)     : SECRET_KEY_SECRET_NAME
-### CI_Name(literal)): SECRET_KEY
-### What is it       : A secret used internally by django to encrypt things.
-### Why Config       : prod and dev deployment get the secret key  from AWS
-### Why Config       : LOCAL_DEV just makes one up ("zzzlocal") as its' transient.
-### SECURITY WARNING: keep the secret key used in production secret!
+# SECURITY WARNING: keep the secret key used in production secret!
+if not LOCAL_TESTING:
+    SECRET_KEY = get_aws_secret("SECRET_KEY_SECRET_NAME")
+    SYMPA_CREDS = get_aws_secret("SYMPA_CREDS_SECRET_NAME")
+else:
+    SECRET_KEY = "zzzlocal"
+    SYMPA_CREDS = {}
 
-SECRET_KEY = get_aws_secret_ci("SECRET_KEY_SECRET_NAME")
-if key := get_literal_ci("SECRET_KEY") : SECRET_KEY = key
+if not LOCAL_TESTING:
+    SECURE_SSL_REDIRECT = True
 
-
-###settings.py Name : SYMPA_CREDS
-###CI_Name(aws)     : SYMPA_CREDS_SECRET_NAME
-###CI_Name(literal) : SYMPA_CREDS
-####What is it      : credentials to access SYMPA.
-###What is it       : ALSO  flag indicating to not activate ...
-###What is it       : ... sympa access IF SET TO {}
-### Why Config      : to indicate whther to access SYMPA.
-### WHy Config      : To authenticate to Symps 
-
-SYMPA_CREDS = get_aws_secret_ci("SYMPA_CREDS_SECRET_NAME")
-if key := get_literal_ci("SYMPA_CREDS") : SYMPA_CREDS = json.loads(key)
-
-### Settings.py name: SECURE_SSL_REDIRECT
-### CI_Name          : SECURE_SSL_REDIRECT 
-### What is it : causes django to redirect http to https automatically if true. 
-### Why Config : Some development is simpler if done on http, to avoind the work of setting https stuff.
-SECURE_SSL_REDIRECT = get_boolean_ci("SECURE_SSL_REDIRECT")
-
-
-### settings.py Name : DEBUG
-### CI_Name          : DJANGO_DEBUG
-### What is it       : true-> DEBUG  false -> INFO
-### Why Config       : debug can be useful in development, DEBUG must not be used in prod.
-### Normal Default   : INFO
-### SECURITY WARNING: don't run with debug turned on in production!
-DJANGO_DEBUG = get_boolean_ci("DJANGO_DEBUG")
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = LOCAL_TESTING
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -161,65 +106,65 @@ ALLOWED_HOSTS = ["*"]
 
 try:
     os.stat(os.path.join(BASE_DIR, "home"))
-    HAVE_WEBSITE = True
+    HAVE_WEBSITE=True
 except FileNotFoundError:
-    HAVE_WEBSITE = False
+    HAVE_WEBSITE=False
 
 INSTALLED_APPS = [
-    "hopskotch_auth",
-    "whitenoise.runserver_nostatic",
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "mozilla_django_oidc",
-    "django_bootstrap5",
+    'hopskotch_auth',
+    'whitenoise.runserver_nostatic',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'mozilla_django_oidc',
+    'django_bootstrap5',
     "crispy_forms",
     "crispy_bootstrap5",
-    "rest_framework",
-    "rest_authtoken",
+    'rest_framework',
+    'rest_authtoken',
 ]
 if HAVE_WEBSITE:
-    INSTALLED_APPS.insert(0, "home.apps.HomeConfig")
+    INSTALLED_APPS.insert(0, 'home.apps.HomeConfig')
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
-    "scimma_admin.settings.set_redirect_headers",  # must be placed before SecurityMiddleware to modify redirects
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # Placement after SecurityMiddleware needed as per whitenoise docs
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "hopskotch_auth.api_views.set_scram_auth_info_header",
+    'scimma_admin.settings.set_redirect_headers', # must be placed before SecurityMiddleware to modify redirects
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Placement after SecurityMiddleware needed as per whitenoise docs
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'hopskotch_auth.api_views.set_scram_auth_info_header',
 ]
 
-ROOT_URLCONF = "scimma_admin.urls"
+ROOT_URLCONF = 'scimma_admin.urls'
 
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = "scimma_admin.wsgi.application"
+WSGI_APPLICATION = 'scimma_admin.wsgi.application'
 
 # Magic to work around https://code.djangoproject.com/ticket/27813#comment:7
 # Fix courtesy of Daniele Varrazzo via
@@ -233,7 +178,6 @@ def fix_psycopg_binary():
     except ImportError:
         # Fall back to psycopg2cffi
         from psycopg2cffi import compat
-
         compat.register()
         import psycopg2
 
@@ -252,133 +196,48 @@ def fix_psycopg_binary():
 
 # Database
 
-DATABASES = {}
-#### CI_Name(literal) : ARCHIVE_DB__NAME
-### What is it : The Name of the archive DB instance withing AWS.
-### Why Config : Different DB's are used in proc, dev, and local dev scenario
-DATABASES["archive"] = get_aws_db_ci("ARCHIVE_DB_INSTANCE_NAME")
+DATABASES = {'default': {"ENGINE": "django.db.backends.postgresql"}}
+if not LOCAL_TESTING:
+    # The main Django database
+    DATABASES["default"] = get_rds_db("ADMIN_DB_INSTANCE_NAME")
+    # The external archive database
+    DATABASES["archive"] = get_rds_db("ARCHIVE_DB_INSTANCE_NAME")
 
-#### CI_Name(literal) : ADMIN_DB__overrides (many)
-### What is it : Parameters to allow stand alone local development....
-### What is it : or r/o access via a tunnel for local development....
-### Why Config : Support multiple use scenarios.
-if ci := get_literal_ci("ARCHIVE_DB_NAME") : DATABASES["archive"]["NAME"] = ci
-if ci := get_literal_ci("ARCHIVE_DB_USER") : DATABASES["archive"]["USER"] = ci
-if ci := get_literal_ci("ARCHIVE_DB_HOST") : DATABASES["archive"]["HOST"] = ci
-if ci := get_literal_ci("ARCHIVE_DB_PORT") : DATABASES["archive"]["PORT"] = ci
-if ci := get_literal_ci("ARCHIVE_TUNNEL_LOCAL_PORT") : DATABASES["archive"]["PORT"] = ci
-if ci := get_literal_ci("ARCHIVE_TUNNEL_LOCAL_HOST") : DATABASES["archive"]["HOST"] = ci
-
-###CI_Name(aws)     : ARCHIVE_DB_PASSWORD_SECRET_NAME 
-###CI_Name(literal) : ARCHIVE_DB_PASSWORD
-####What is it      : password to the database 
-### Why Config      : each DB has a distinct password
-DATABASES["archive"]["PASSWORD"] = get_aws_secret_ci("ARCHIVE_DB_PASSWORD_SECRET_NAME")
-if ci := get_literal_ci("ARCHIVE_DB_PASSWORD") : DATABASES["archive"]["PASSWORD"] = ci
-
-
-### CI_Name(literal) : ADMIN_DB__NAME
-### What is it : The Name of the admin DB instance in AWS
-### Why Config : Different DB's are used in proc, dev, and elocal dev seneraio
-DATABASES["default"] = get_aws_db_ci("ADMIN_DB_INSTANCE_NAME")
-
-#### CI_Name(literal) : ADMIN_DB__overrides (many)
-### What is it : Parameters to allow stand alone local development....
-### What is it : or r/o access via a tunnel for local development....
-### Why Config : Support multiple use scenarios.
-if ci := get_literal_ci("ADMIN_DB_NAME") : DATABASES["default"]["NAME"] = ci
-if ci := get_literal_ci("ADMIN_DB_USER") : DATABASES["default"]["USER"] = ci
-if ci := get_literal_ci("ADMIN_DB_HOST") : DATABASES["default"]["HOST"] = ci
-if ci := get_literal_ci("ADMIN_DB_PORT") : DATABASES["default"]["PORT"] = ci
-if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_PORT") : DATABASES["default"]["PORT"] = ci
-if ci := get_literal_ci("ADMIN_TUNNEL_LOCAL_HOST") : DATABASES["default"]["HOST"] = ci
-
-###CI_Name(aws)     : ADMIN_DB_PASSWORD_SECRET_NAME 
-###CI_Name(literal) : ADMIN_DB_PASSWORD
-####What is it      : password to the database 
-### Why Config      : each DB has a distinct password
-DATABASES["default"]["PASSWORD"] = get_aws_secret_ci("ADMIN_DB_PASSWORD_SECRET_NAME")
-if ci := get_literal_ci("ADMIN_DB_PASSWORD") : DATABASES["default"]["PASSWORD"] = ci
-
-
-if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
+if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
     fix_psycopg_binary()
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
-OIDC_OP_AUTHORIZATION_ENDPOINT = (
-    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth"
+OIDC_URL_ROOT = os.getenv("OIDC_URL_ROOT", "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect")
+OIDC_OP_AUTHORIZATION_ENDPOINT = os.getenv("OIDC_OP_AUTHORIZATION_ENDPOINT", f"{OIDC_URL_ROOT}/auth")
+OIDC_OP_TOKEN_ENDPOINT = os.getenv("OIDC_OP_TOKEN_ENDPOINT", f"{OIDC_URL_ROOT}/token")
+OIDC_OP_USER_ENDPOINT = os.getenv("OIDC_OP_USER_ENDPOINT", f"{OIDC_URL_ROOT}/userinfo")
+OIDC_RP_SIGN_ALGO = 'RS256'
+OIDC_OP_JWKS_ENDPOINT = os.getenv("OIDC_OP_JWKS_ENDPOINT", f"{OIDC_URL_ROOT}/certs")
+AUTHENTICATION_BACKENDS = (
+    'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
-OIDC_OP_TOKEN_ENDPOINT = (
-    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token"
-
-)
-OIDC_OP_USER_ENDPOINT = (
-    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo"
-)
-
-OIDC_OP_JWKS_ENDPOINT = (
-    "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs"
-)
-AUTHENTICATION_BACKENDS = ("hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend",)
-
-### Settings.py name : OIDC_OP_USER_ENDPOINT
-### CI_NAME          : OIDC_OP_USER_ENDPOINT
-### What is it       : WHere Django goes to fetch "CLAIMS" about a user to compare...
-### What is it       : given the "identiy" provided when it was a Op_CLIENT..
-### Why config       : we want production database for AWS  but...
-### Why config       : we want to simulate this in local for developement flex...
-### Why config       : e.g spoof uses, invistiagate new claims etc.  e.g. poor man's dev keycloak.
-### Example setting  : 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
-### Example setting  : (bypass keycloak for local dev) http://localhost:8001'
-OIDC_OP_USER_ENDPOINT=get_literal_ci("OIDC_OP_USER_ENDPOINT")
-
-### Settings.py name : OIDC_OP_CLIENT_ID
-### CI_NAME          : OIDC_OP_CLIENT_ID_SECRET_NAME
-### CI_NAME          : OIDC_OP_CLIENT_ID_SECRET_NAME
-### What is it       : Identifies acimmm-admin app to the identity provider.
-### Why config       : AWS inscalletion use keycloak 
-### Why config       : For local devlepoemt no authentication is needed..
-### Example setting  : 
-OIDC_OP_CLIENT_ID = get_aws_secret_ci('OIDC_OP_CLIENT_ID_SECRET_NAME')
-if ci := get_literal_ci("OIDC_OP_CLIENT_ID") : OIDC_OP_CLIENT_ID = ci
-
-OIDC_RP_SIGN_ALGO = "RS256"
-
-### Settings.py name : OIDC_RP_CLIENT_ID
-### CI_Name          : OIDC_RP_CLIENT_ID
-### What is it : scimma-admin  app is a client to  OIDC provider...
-### Example setting  : scimma-admin-keycloak-client-id"
-### Example setting  : cilogon:/client_id/79be6fcf2057dbc381dfb8ba9c17d5fd'
-OIDC_RP_CLIENT_ID = get_literal_ci("OIDC_RP_CLIENT_ID")
+if not LOCAL_TESTING:
+    OIDC_RP_CLIENT_ID = get_aws_secret("OIDC_OP_CLIENT_ID_SECRET_NAME")
+    OIDC_RP_CLIENT_SECRET = get_aws_secret("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
 
 
-### CI_Name(aws)      : OIDC_RP_CLIENT_SECRET_SECRET_NAME
-### CI_Name(literal)  : OIDC_RP_CLIENT_SECRET
-### What is it : A secret to access the OIDC provider specifed in client_id.
-### Example setting  : scimma-admin-keycloak-client-secret
-### Example setting  : scimma-admin-cilogon-localdev-client-secret
-OIDC_RP_CLIENT_SECRET = get_aws_secret_ci("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
-if key := get_literal_ci("OIDC_RP_CLIENT_SECRET") : OIDC_RP_CLIENT_SECRET = key # talk to Chris.
-
-
-LOGIN_URL = "/hopauth/login"
-
-LOGIN_REDIRECT_URL = "/services"
+LOGIN_URL ='/hopauth/login'
+LOGIN_REDIRECT_URL = '/services'
 if HAVE_WEBSITE:
-    LOGOUT_REDIRECT_URL = "/"
+    LOGOUT_REDIRECT_URL = '/'
 else:
-    LOGOUT_REDIRECT_URL = "/hopauth/logout"
-LOGIN_REDIRECT_URL_FAILURE = "/hopauth/login_failure"
+    LOGOUT_REDIRECT_URL = '/hopauth/logout'
+LOGIN_REDIRECT_URL_FAILURE = '/hopauth/login_failure'
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = "America/Los_Angeles"
+TIME_ZONE = 'America/Los_Angeles'
 
 USE_I18N = True
 
@@ -390,42 +249,46 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
-STATIC_URL = "/static/"
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_URL = '/static/'
 
 # Logging
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {"class": "logging.StreamHandler", "formatter": "console",},
-    },
-    "root": {"handlers": ["console"], "level": "INFO",},
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "DEBUG" if DJANGO_DEBUG else "INFO",
-            "propagate": False,
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'console',
         },
-        "django.db.backends": {"level": "INFO",},
     },
-    "formatters": {
-        "console": {
-            "format": "%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(module)s %(process)d %(thread)d %(message)s",
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': "DEBUG" if DEBUG else "INFO",
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'level': "INFO",
+        },
+    },
+    'formatters': {
+        'console': {
+            'format': '%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(module)s %(process)d %(thread)d %(message)s',
         },
     },
 }
 
-
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-### Settings.py name : KAFKA_USER_AUTH_GROUP
-### CI_Name          : KAFKA_USER_AUTH_GROUP
-### What is it       : The name of the group in Keycloak that idenfies users authorized to use HOP. 
-### Why Config       : dunno we have one keycloak and apparently one group shared between dev and prod
-KAFKA_USER_AUTH_GROUP=get_literal_ci("KAFKA_USER_AUTH_GROUP")
+# The name of the group in Keycloak that identifies users authorized to use Hopskotch. 
+KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", "/Hopskotch Users")
 
 # For now we work with just one mailing list, so it gets to be a setting by itself
 OPENMMA_MAILINGLIST = "openmma@lists.scimma.org"
@@ -435,32 +298,19 @@ SCRAM_EXCHANGE_TTL = datetime.timedelta(minutes=15)
 REST_TOKEN_TTL = AUTH_TOKEN_VALIDITY
 
 REST_FRAMEWORK = {
-    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser",],
-    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_authtoken.auth.AuthTokenAuthentication",),
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_authtoken.auth.AuthTokenAuthentication',
+    ),
 }
 
-### Settings.py name : KAFKA_BROKER_URL
-### CI_Name          : KAFKA_BROKER_URL
-### What is it : The URL to a kafka Broker 
-### Why Config : dev and prod use different instances
-### dev.hop.scimma.org or kafka.scimma.org for the AWS versions
+# The DNS name of the associated Kafka broker, if any
+KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
 
-KAFKA_BROKER_URL=get_literal_ci("KAFKA_BROKER_URL")
-
-
-### Settings.py name::  PRINT_CONFIG
-### CI_Name          :  PRINT_CONFIG 
-### What is it : Print all the CI's out  
-### Why Config : control verbosity.
-PRINT_CONFIG = get_boolean_ci("PRINT_CONFIG")
-if PRINT_CONFIG :
-    import pprint
-    print('************************  Configuration report ****************')
-    pprint.pp(DATABASES)
-    pprint.pp(CI_LOG)
-    print('************************  Configuration report ****************')
-
-#try:
-#    from local_settings import *
-#except ImportError:
-#    pass
+if LOCAL_TESTING:
+    try:
+       from local_settings import *
+    except ImportError:
+       pass
