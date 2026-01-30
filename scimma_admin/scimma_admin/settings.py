@@ -53,8 +53,9 @@ def get_rds_db(item_name):
 
 def get_setting_bool(name, default_val=None):
     value  = os.getenv(name, default_val)
-    if value is None:
-        raise RuntimeError(f"{name} not configured and has no default value")
+    if not value :
+        return default_val
+        #raise RuntimeError(f"{name} not configured and has no default value")
     if value.lower() in ["true", "yes", "on", "1"]:
         return True
     if value.lower() in ["false", "yes", "on", "1"]:
@@ -87,10 +88,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not LOCAL_TESTING:
     SECRET_KEY = get_aws_secret("SECRET_KEY_SECRET_NAME")
     SYMPA_CREDS = get_aws_secret("SYMPA_CREDS_SECRET_NAME")
+    if SYMPA_CREDS :
+        SYMPA_CREDS = json.loads(SYMPA_CREDS)
+    else:
+        SYMPA_CREDS = {}
+    # Above: work-around  for issue in sympa_interface.py ~line 59.
+    # importing the module requires SYMP_CREDS to be defined
+    # manage.py collectstatic invoked from "docker build" imports sympa_interface.py
+    # Docker build does not import the config environement nor has access to AWS.
+    # it more than a bit of work to fix all this.
+
 else:
     SECRET_KEY = "zzzlocal"
     SYMPA_CREDS = {}
-
 if not LOCAL_TESTING:
     SECURE_SSL_REDIRECT = True
 
@@ -200,9 +210,11 @@ DATABASES = {'default': {"ENGINE": "django.db.backends.postgresql"}}
 if not LOCAL_TESTING:
     # The main Django database
     DATABASES["default"] = get_rds_db("ADMIN_DB_INSTANCE_NAME")
+    DATABASES["default"]["PASSWORD"] = get_aws_secret("ADMIN_DB_PASSWORD_SECRET_NAME")
     # The external archive database
     DATABASES["archive"] = get_rds_db("ARCHIVE_DB_INSTANCE_NAME")
-
+    DATABASES["archive"]["PASSWORD"] = get_aws_secret("ARCHIVE_DB_PASSWORD_SECRET_NAME")
+    
 if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
     fix_psycopg_binary()
 
@@ -220,8 +232,13 @@ AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
 if not LOCAL_TESTING:
+#<<<<<<< HEAD
     OIDC_RP_CLIENT_ID = get_aws_secret("OIDC_OP_CLIENT_ID_SECRET_NAME")
     OIDC_RP_CLIENT_SECRET = get_aws_secret("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
+#=======
+#    OIDC_RP_CLIENT_ID = get_aws_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-id")
+#    OIDC_RP_CLIENT_SECRET = get_aws_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-secret")
+#>>>>>>> origin/master
 
 
 LOGIN_URL ='/hopauth/login'
@@ -253,6 +270,8 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
+
+print ("XXXXXXXXXXXXXXXXXXXXX LOCAL_TESTING:", LOCAL_TESTING, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
 # Logging
 LOGGING = {
     'version': 1,

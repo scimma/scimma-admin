@@ -1,10 +1,11 @@
 #!/bin/bash
+set -x
 
 docker_build() {
     if [ $# -eq 1 ]; then
         IMAGE_TAG="$1"
     fi
-    docker build --tag scimma-admin-web:"$IMAGE_TAG" .
+    docker build  --provenance=false  --platform linux/amd64  --tag scimma-admin-web:"$IMAGE_TAG" .
     echo "  Built scimma-admin-web:$IMAGE_TAG" 1>&2
 }
 

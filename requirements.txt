@@ -1,11 +1,20 @@
 django>=4.2.14,<5.0
-#psycopg2==2.8.5
-psycopg2-binary 
-boto3
+#<<<<<<< HEAD
+##psycopg2==2.8.5
+#psycopg2-binary 
+#boto3
+#uWSGI==2.0.27
+#requests
+#django-enumfield
+#passlib
+#=======
+psycopg2
+boto3==1.40.70
 uWSGI==2.0.27
-requests
-django-enumfield
-passlib
+requests==2.32.4
+django-enumfield==3.1
+passlib==1.7.2
+#>>>>>>> origin/master
 mozilla-django-oidc>=4.0,<5.0
 psycopg2-binary
 django-bootstrap5
