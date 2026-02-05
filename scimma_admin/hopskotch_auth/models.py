@@ -768,7 +768,6 @@ def sync_mailing_list_membership(user: settings.AUTH_USER_MODEL, list_addr: str)
 
 
 # Thsi is a model recency data for the publc_topics page.
-from datetime import datetime
 
 class RecentMessages(models.Model):
     topic = models.TextField(primary_key=True)
@@ -779,5 +778,5 @@ class RecentMessages(models.Model):
         db_table = 'recent_messages'
 
     def get_datetime(self):
-        return datetime.fromtimestamp(self.timestamp)
+        return datetime.datetime.fromtimestamp(self.timestamp)
 
