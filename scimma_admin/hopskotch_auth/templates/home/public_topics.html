@@ -6,7 +6,7 @@
   {% bootstrap_javascript %}
   {% load static %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
-  <meta name="robots" content="noindex, nofollow"> 
+  <meta name="robots" content="noindex, nofollow">
 </head>
 <script src="https://unpkg.com/@popperjs/core@2"></script>
 </html>
@@ -23,32 +23,47 @@
 
 <span class=lead>
 
-<h2> Hopskotch Topics </h2>
+
+<h2>Hopskotch Topics</h2>
 
 <p>
-  In hopskotch, 
-  Public topics are topics that any registered SCiMMA user may
-  subscribe to. Private topics are used for a group's internal
-  messages. In total, SCiMMA currently supports
-  <strong> {{group_data.summary.n_private_topics}}</strong> private topics and
-  <strong>{{group_data.summary.n_public_topics}}</strong> public topics.
+  In the Hopskotch messaging system,
+  <strong> public topics</strong>
+  are topics that any registered SCiMMA user may subscribe to. 
+  <strong> class="highlight">Private topics</strong>
+  are restricted channels intended for 
+  communication within a specific collaboration or working group.
+</p>
 
+<p>
+  SCiMMA currently supports 
+  <strong>{{ group_data.summary.n_private_topics }}</strong> private topics and
+  <strong>{{ group_data.summary.n_private_topics }}</strong> private topics and 
+  <strong>{{ group_data.summary.n_public_topics }}</strong> public topics.
+</p>
 
-<h2> What Public topics are active?</h2>
-<p> Curious about what's available to anyone in the the community?
-  Use the buttons below to see the {{group_data.summary.total_active_topics }}
-  public topics SCiMMA groups have published in in the last
-  {{ group_data.summary.active_threshold_days}} days.
+<h2>Active Public Topics</h2>
 
-<p> If you are not a registered user, anyone in the community can
-  obtian a free account using the sign up button at the top of this
-  page.  Registered users may subscribe to any or all public topics.
+<p>
+  The sections below list the 
+  <strong>{{ group_data.summary.total_active_topics }}</strong> public topics
+  that have had activity within the past 
+  <strong>{{ group_data.summary.active_threshold_days }}</strong> days. 
+  These represent the communication channels currently in use across the 
+  SCiMMA community.
+</p>
+
+<p>
+  Individuals who are not yet registered may create a free account using the 
+  sign‑up link at <a href="https://www.scimma.org/">www.scimma.org</a>.  Registered
+    users may subscribe to any public topic.
+</p>
 
 </span>
 <br> <br>
 
 <!-- Let a person see current topics so as to appreciate what's in hop   -->
-<!-- When I developed this , the list is impossibly long, so let them Navicate by topic  -->
+<!-- When I developed this , the list is impossibly long, so let them Navigate by topic  -->
 <!-- Use "collapse" to hide information not relevant ot the user.  -->
 
 {% for group in group_data.groups %}
