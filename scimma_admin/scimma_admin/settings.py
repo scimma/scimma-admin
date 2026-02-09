@@ -270,8 +270,6 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
-
-print ("XXXXXXXXXXXXXXXXXXXXX LOCAL_TESTING:", LOCAL_TESTING, "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
 # Logging
 LOGGING = {
     'version': 1,
