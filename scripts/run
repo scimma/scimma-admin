@@ -1,5 +1,4 @@
 #!/bin/sh
-set -x
 HELP="run: run scimma-admin with uwsgi, with supporting background processes
 Options:
   -w, --website        Run the 'static' website as a sub-application
