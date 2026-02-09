@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x 
 set -eo pipefail
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
