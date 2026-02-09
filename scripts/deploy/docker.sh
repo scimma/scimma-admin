@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 
 docker_build() {
     if [ $# -eq 1 ]; then
