@@ -5,6 +5,7 @@ from . import views
 from . import callbacks
 from . import api_views
 
+
 urlpatterns = [
     path("", views.index, name="index"),
     path("login", views.login, name="login"),
@@ -48,7 +49,6 @@ urlpatterns = [
     path("subscribe_openmma", callbacks.subscribe_openmma, name="subscribe_openmma"),
     path("unsubscribe_openmma", callbacks.unsubscribe_openmma, name="unsubscribe_openmma"),
     path("download", views.download, name="download"),
-
 
     #----
 
