@@ -12,37 +12,8 @@ import os
 import time
 from functools import wraps
 from django.apps import apps
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-stream_handler = logging.StreamHandler()
-logger.addHandler(stream_handler)
-log_format = "[%(asctime)s] %(name)s %(levelname)s %(message)s"
-formatter = logging.Formatter(log_format, datefmt="%d/%B/%Y %H:%M:%S,%3d")
-stream_handler.setFormatter(formatter)
-
-
-DAYS_RECENT = os.getenv("DAYS_RECENT",90) 
-
-
-##################################################
-#
-# Utilities
-#
-##################################################
-
-
-def time_me(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        elapsed = end_time - start_time
-        logging.info(f"Function '{func.__name__}' executed in {elapsed:.6f} seconds")
-        return result
-
-    return wrapper
+from django.conf import settings
+DAYS_RECENT = settings.PUBLIC_TOPICS_DISPLAY_MAX_AGE
 
 
 #########################
@@ -50,7 +21,6 @@ def time_me(func):
 # make the model
 #
 #########################
-@time_me
 def main():
     # Get more or less raw information from  underlying sources.
     # Create symbolic offsets to the tuple/lists
@@ -115,7 +85,6 @@ def main():
     info["groups"] = gdata
     return info
 
-@time_me
 def get_archive_info():
     items = []
     messages = apps.get_model(app_label="hopskotch_auth", model_name="RecentMessages")
@@ -125,7 +94,6 @@ def get_archive_info():
         items.append(item)
     return items
 
-@time_me
 def get_admin_info():
     items = []
     KafkaTopic = apps.get_model(app_label="hopskotch_auth", model_name="KafkaTopic")

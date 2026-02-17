@@ -232,13 +232,8 @@ AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
 if not LOCAL_TESTING:
-#<<<<<<< HEAD
     OIDC_RP_CLIENT_ID = get_aws_secret("OIDC_OP_CLIENT_ID_SECRET_NAME")
     OIDC_RP_CLIENT_SECRET = get_aws_secret("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
-#=======
-#    OIDC_RP_CLIENT_ID = get_aws_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-id")
-#    OIDC_RP_CLIENT_SECRET = get_aws_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-secret")
-#>>>>>>> origin/master
 
 
 LOGIN_URL ='/hopauth/login'
@@ -322,6 +317,9 @@ REST_FRAMEWORK = {
         'rest_authtoken.auth.AuthTokenAuthentication',
     ),
 }
+
+# Only inlcude topics active within this number of days in the public topics display
+PUBLIC_TOPICS_DISPLAY_MAX_AGE =  int(os.getenv("PUBLIC_TOPICS_DISPLAY_MAX_AGE", "90"))
 
 # The DNS name of the associated Kafka broker, if any
 KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
