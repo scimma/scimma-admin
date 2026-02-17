@@ -13,35 +13,56 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import os
 import boto3
 import requests
-import configparser
 import datetime
 import json
 from rest_authtoken.settings import AUTH_TOKEN_VALIDITY
 
 
-def get_secret(name):
-    sm = boto3.client("secretsmanager", region_name="us-west-2")
-    return sm.get_secret_value(SecretId=name)["SecretString"]
+AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION"))
+         
+def get_aws_secret(item_name):
+    name = os.getenv(item_name)
+    if name:
+        sm = boto3.client("secretsmanager", region_name=AWS_REGION)
+        return sm.get_secret_value(SecretId=name)["SecretString"]
+    else:
+        return None
 
 
-def get_rds_db(db_instance_id):
-    rds = boto3.client("rds", region_name="us-west-2")
-    resp = rds.describe_db_instances(Filters=[
-        {"Name": "db-instance-id", "Values": [db_instance_id]},
-    ])
-    return resp['DBInstances'][0]
-
-
-def get_localdev_secret(name):
-    """Load a secret which has been stored in the localdev.conf INI file at the root
-    of the repo. This file's contents are set with 'make localdev-setup', using
-    the scripts/setup_localdev_secrets.py script.
-
+def get_rds_db(item_name):
     """
-    cp = configparser.ConfigParser()
-    conf_file = os.path.join(os.path.dirname(BASE_DIR), "localdev.conf")
-    cp.read(os.path.join(conf_file))
-    return cp["secrets"][name]
+    Return a dictionary with RDS database info in the format Django expects.
+
+    https://docs.djangoproject.com/en/3.0/ref/settings/#databases
+    """
+    # make an (mostly) empty template
+    database  = {"ENGINE" : "django.db.backends.postgresql"}
+    
+    # fill out from AWS if the item_name is a defined environment variable
+    db_instance_id = os.getenv(item_name)
+    if db_instance_id:
+        rds = boto3.client("rds", region_name=AWS_REGION)
+        rds_db = rds.describe_db_instances(
+                   Filters=[{"Name": "db-instance-id", "Values": [db_instance_id]},]
+                 )["DBInstances"][0]
+        database["NAME"] = rds_db["DBName"]
+        database["USER"] = rds_db["MasterUsername"]
+        database["HOST"] = rds_db["Endpoint"]["Address"]
+        database["PORT"] = rds_db["Endpoint"]["Port"]
+    return database
+
+def get_setting_bool(name, default_val=None):
+    value  = os.getenv(name, default_val)
+    if not value :
+        return default_val
+        #raise RuntimeError(f"{name} not configured and has no default value")
+    if value.lower() in ["true", "yes", "on", "1"]:
+        return True
+    if value.lower() in ["false", "yes", "on", "1"]:
+        return False
+    raise RuntimeError(f"bad value for {name}: {str}")
+    CI_LOG[name] = value
+
 
 # ELB is extremely picky about the headers on HTTP 301 responses for them to be correctly passed
 # back to the client. This custom middleware tries to keep it happy.
@@ -54,24 +75,7 @@ def set_redirect_headers(get_response):
         return response
     return middleware
 
-SCIMMA_ENVIRONMENT = os.environ.get("SCIMMA_ENVIRONMENT", default="local")
-
-_aws_name_prefixes = {
-    "local": None, # AWS variables are not used for local testing
-    "dev": "", # this is empty for historical reasons, it should probably be renamed in future
-    "demo": "demo-",
-    "prod": "prod-",
-}
-
-if not SCIMMA_ENVIRONMENT in _aws_name_prefixes.keys():
-    raise RuntimeError(f"Specified environment ({SCIMMA_ENVIRONMENT}) is not known")
-
-AWS_NAME_PREFIX = _aws_name_prefixes[SCIMMA_ENVIRONMENT]
-LOCAL_TESTING = SCIMMA_ENVIRONMENT=="local"
-
-print("SCIMMA_ENVIRONMENT:",SCIMMA_ENVIRONMENT)
-print("AWS_NAME_PREFIX:",AWS_NAME_PREFIX)
-print("LOCAL_TESTING:",LOCAL_TESTING)
+LOCAL_TESTING = get_setting_bool("LOCAL_TESTING", False)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -82,17 +86,26 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if not LOCAL_TESTING:
-    SECRET_KEY = get_secret(AWS_NAME_PREFIX+"scimma-admin-django-secret")
-    SYMPA_CREDS = json.loads(get_secret(AWS_NAME_PREFIX+"scimma-admin-sympa-secret"))
+    SECRET_KEY = get_aws_secret("SECRET_KEY_SECRET_NAME")
+    SYMPA_CREDS = get_aws_secret("SYMPA_CREDS_SECRET_NAME")
+    if SYMPA_CREDS :
+        SYMPA_CREDS = json.loads(SYMPA_CREDS)
+    else:
+        SYMPA_CREDS = {}
+    # Above: work-around  for issue in sympa_interface.py ~line 59.
+    # importing the module requires SYMP_CREDS to be defined
+    # manage.py collectstatic invoked from "docker build" imports sympa_interface.py
+    # Docker build does not import the config environement nor has access to AWS.
+    # it more than a bit of work to fix all this.
+
 else:
     SECRET_KEY = "zzzlocal"
     SYMPA_CREDS = {}
-
 if not LOCAL_TESTING:
     SECURE_SSL_REDIRECT = True
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = SCIMMA_ENVIRONMENT != "prod"
+DEBUG = LOCAL_TESTING
 
 # This looks scary, but it's OK because we always run behind a load balancer
 # which verifies the HTTP Host header for us. In production, that's an EKS Load
@@ -181,39 +194,27 @@ def fix_psycopg_binary():
     def bytea2bytes(value, cur):
         if value is None:
             return None
-        buf = psycopg2.BINARY(value.encode('utf-8'), cur)
+        buf = psycopg2.BINARY(value.encode("utf-8"), cur)
         if buf is not None:
             return buf.tobytes()
 
     BYTEA2BYTES = psycopg2.extensions.new_type(
-        psycopg2.BINARY.values, 'BYTEA2BYTES', bytea2bytes
+        psycopg2.BINARY.values, "BYTEA2BYTES", bytea2bytes
     )
     psycopg2.extensions.register_type(BYTEA2BYTES)
 
+
 # Database
-# https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-DATABASES = {'default': {}}
+DATABASES = {'default': {"ENGINE": "django.db.backends.postgresql"}}
 if not LOCAL_TESTING:
-    rds_db = get_rds_db(AWS_NAME_PREFIX+"scimma-admin-postgres")
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': rds_db['DBName'],
-        'USER': rds_db['MasterUsername'],
-        'PASSWORD': get_secret(AWS_NAME_PREFIX+"scimma-admin-db-password"),
-        'HOST': rds_db['Endpoint']['Address'],
-        'PORT': str(rds_db['Endpoint']['Port']),
-    }
-else:
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'postgres',
-        'HOST': 'localhost',
-        'PORT': 5432,
-    }
-
+    # The main Django database
+    DATABASES["default"] = get_rds_db("ADMIN_DB_INSTANCE_NAME")
+    DATABASES["default"]["PASSWORD"] = get_aws_secret("ADMIN_DB_PASSWORD_SECRET_NAME")
+    # The external archive database
+    DATABASES["archive"] = get_rds_db("ARCHIVE_DB_INSTANCE_NAME")
+    DATABASES["archive"]["PASSWORD"] = get_aws_secret("ARCHIVE_DB_PASSWORD_SECRET_NAME")
+    
 if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
     fix_psycopg_binary()
 
@@ -221,17 +222,18 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Authentication
 # https://mozilla-django-oidc.readthedocs.io/en/stable/settings.html
-OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
-OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
-OIDC_OP_USER_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
+OIDC_URL_ROOT = os.getenv("OIDC_URL_ROOT", "https://login.scimma.org/realms/SCiMMA/protocol/openid-connect")
+OIDC_OP_AUTHORIZATION_ENDPOINT = os.getenv("OIDC_OP_AUTHORIZATION_ENDPOINT", f"{OIDC_URL_ROOT}/auth")
+OIDC_OP_TOKEN_ENDPOINT = os.getenv("OIDC_OP_TOKEN_ENDPOINT", f"{OIDC_URL_ROOT}/token")
+OIDC_OP_USER_ENDPOINT = os.getenv("OIDC_OP_USER_ENDPOINT", f"{OIDC_URL_ROOT}/userinfo")
 OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_OP_JWKS_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
+OIDC_OP_JWKS_ENDPOINT = os.getenv("OIDC_OP_JWKS_ENDPOINT", f"{OIDC_URL_ROOT}/certs")
 AUTHENTICATION_BACKENDS = (
     'hopskotch_auth.auth.HopskotchOIDCAuthenticationBackend',
 )
 if not LOCAL_TESTING:
-    OIDC_RP_CLIENT_ID = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-id")
-    OIDC_RP_CLIENT_SECRET = get_secret(AWS_NAME_PREFIX+"scimma-admin-keycloak-client-secret")
+    OIDC_RP_CLIENT_ID = get_aws_secret("OIDC_OP_CLIENT_ID_SECRET_NAME")
+    OIDC_RP_CLIENT_SECRET = get_aws_secret("OIDC_RP_CLIENT_SECRET_SECRET_NAME")
 
 
 LOGIN_URL ='/hopauth/login'
@@ -297,7 +299,8 @@ LOGGING = {
 # TLS termination is handled by an AWS ALB in production
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="/Hopskotch Users")
+# The name of the group in Keycloak that identifies users authorized to use Hopskotch. 
+KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", "/Hopskotch Users")
 
 # For now we work with just one mailing list, so it gets to be a setting by itself
 OPENMMA_MAILINGLIST = "openmma@lists.scimma.org"
@@ -315,15 +318,11 @@ REST_FRAMEWORK = {
     ),
 }
 
+# The DNS name of the associated Kafka broker, if any
 KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
-if KAFKA_BROKER_URL is None:
-    if SCIMMA_ENVIRONMENT == "dev":
-        KAFKA_BROKER_URL = "dev.hop.scimma.org"
-    elif SCIMMA_ENVIRONMENT == "prod":
-        KAFKA_BROKER_URL = "kafka.scimma.org"
 
-
-try:
-    from local_settings import *
-except ImportError:
-    pass
+if LOCAL_TESTING:
+    try:
+       from local_settings import *
+    except ImportError:
+       pass
