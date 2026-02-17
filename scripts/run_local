@@ -62,6 +62,7 @@ while [ "$#" -gt 0 ]; do
     echo "run_local: Unknown or malformed option '$var'" 1>&2; exit 1
 done
 
+export LOCAL_TESTING=True
 COMMAND="uwsgi --chdir=scimma_admin --module=scimma_admin.wsgi:application \
 	--env DJANGO_SETTINGS_MODULE=scimma_admin.settings --master \
     --pidfile=${PID_FILE} --http :${PORT} \
