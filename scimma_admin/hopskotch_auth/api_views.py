@@ -1,4 +1,7 @@
-import collections
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 import datetime
 from django.core.exceptions import PermissionDenied, BadRequest
 from django.db import transaction
@@ -296,13 +299,13 @@ class MultiRequest(APIView):
                     f"requested to execute a multiplexed batch of requests "
                     f"from {client_ip(request)}")
 
-        if not isinstance(request.data, collections.Mapping):
+        if not isinstance(request.data, Mapping):
             return Response(data="Request body must be a mapping",
                             status=status.HTTP_400_BAD_REQUEST)
         response_data = {}
         for key, rdata in request.data.items():
             try:
-                if not isinstance(rdata, collections.Mapping) \
+                if not isinstance(rdata, Mapping) \
                         or "method" not in rdata or not isinstance(rdata["method"], str)\
                         or "path" not in rdata or not isinstance(rdata["path"], str):
                     response_data[key] = {"body":"Invalid request data",
@@ -324,7 +327,7 @@ class MultiRequest(APIView):
                     if auth_header_name in sub_request.META:
                         del sub_request.META[auth_header_name]
                 if "headers" in rdata:
-                    if not isinstance(rdata["headers"], collections.Mapping):
+                    if not isinstance(rdata["headers"], Mapping):
                         response_data[key] = {"body":"Invalid request header data",
                                               "status":status.HTTP_400_BAD_REQUEST}
                         continue
