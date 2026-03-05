@@ -340,6 +340,13 @@ class DirectInterface:
         topic.save()
         return Ok(None)
 
+    def update_topic_text_indexing(self, user: User, topic: KafkaTopic, index: bool) -> Result[None, Error]:
+        if not is_group_owner(user.id, topic.owning_group.id) and not user.is_staff:
+            return Err(Error('Only owning group owners and staff members can change topic archive text indexing status', 403))
+        topic.index_archived_text = index
+        topic.save()
+        return Ok(None)
+
     def add_group_topic_permission(self, user: User, group_name: str, topic_name: str, permission: KafkaOperation) -> Result[None, Error]:
         try:
             topic = KafkaTopic.objects.get(name=topic_name)

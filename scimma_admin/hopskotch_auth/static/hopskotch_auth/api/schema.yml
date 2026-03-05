@@ -2960,6 +2960,8 @@ components:
           maxLength: 1024
         archivable:
           type: boolean
+        index_archived_text:
+          type: boolean
         max_message_bytes:
           type: integer
         retention_ms:
@@ -2978,6 +2980,10 @@ components:
         description:
           type: string
           maxLength: 1024
+        archivable:
+          type: boolean
+        index_archived_text:
+          type: boolean
     KafkaTopic:
       type: object
       properties:
@@ -2997,6 +3003,8 @@ components:
           maxLength: 1024
         archivable:
           type: boolean
+        index_archived_text:
+          type: boolean
         max_message_bytes:
           type: integer
         retention_ms:
@@ -3015,6 +3023,10 @@ components:
         description:
           type: string
           maxLength: 1024
+        archivable:
+          type: boolean
+        index_archived_text:
+          type: boolean
     GroupKafkaPermission_v0:
       type: object
       properties:

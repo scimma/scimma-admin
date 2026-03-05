@@ -76,7 +76,8 @@ class KafkaTopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
         fields = ["id", "owning_group", "name", "publicly_readable", "description", "archivable",
-                  "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
+                  "index_archived_text", "n_partitions", "max_message_bytes",
+                  "retention_ms", "retention_bytes"]
         read_only_fields = ["id", "owning_group", "name",
                             "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
 
@@ -90,7 +91,8 @@ class KafkaTopicAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
         fields = ["id", "owning_group", "name", "publicly_readable", "description", "archivable",
-                  "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
+                  "index_archived_text", "n_partitions", "max_message_bytes",
+                  "retention_ms", "retention_bytes"]
         read_only_fields = ["id", "owning_group", "name"]
 
     owning_group = PrettyForeignKeyField(Group, "name")
@@ -112,7 +114,8 @@ def validate_new_topic_name(data):
 class KafkaTopicCreationSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
-        fields = ["owning_group", "name", "publicly_readable", "description", "archivable"]
+        fields = ["owning_group", "name", "publicly_readable", "description", "archivable",
+                  "index_archived_text"]
 
     owning_group = PrettyForeignKeyField(Group, "name")
 
@@ -127,7 +130,8 @@ class KafkaTopicCreationAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = KafkaTopic
         fields = ["owning_group", "name", "publicly_readable", "description", "archivable",
-                  "n_partitions", "max_message_bytes", "retention_ms", "retention_bytes"]
+                  "index_archived_text", "n_partitions", "max_message_bytes",
+                  "retention_ms", "retention_bytes"]
 
     owning_group = PrettyForeignKeyField(Group, "name")
 

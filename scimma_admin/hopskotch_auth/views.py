@@ -402,6 +402,10 @@ def manage_topic(request, topicname) -> HttpResponse:
             update_result = engine.update_topic_archiving(request.user, topic, ('archive_field' in request.POST))
             if not update_result:
                 return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
+        if topic.index_archived_text != ('index_text_field' in request.POST):
+            update_result = engine.update_topic_text_indexing(request.user, topic, ('index_text_field' in request.POST))
+            if not update_result:
+                return redirect_with_error(request, "manage_topic", update_result.err(), request.path_info)
         return HttpResponseRedirect(request.path_info)
     topic_result = engine.get_topic(topicname)
     if not topic_result:
@@ -450,6 +454,7 @@ def manage_topic(request, topicname) -> HttpResponse:
             'topic_url': topic_url,
             'is_visible': topic.publicly_readable,
             'is_archivable': topic.archivable,
+            'index_archived_text': topic.index_archived_text,
             'all_groups': list(other_groups.values()),
             'group_list': list(groups_with_access.values())}
         )

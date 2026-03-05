@@ -312,6 +312,9 @@ class KafkaTopic(models.Model):
     archivable: models.BooleanField = models.BooleanField(
         default = False,
     )
+    index_archived_text: models.BooleanField = models.BooleanField(
+        default = True,
+    )
     n_partitions: models.IntegerField = models.IntegerField(
         default=2,
         # The maximum of 128 is not a hard limit, and can be increased if there is some reason to
