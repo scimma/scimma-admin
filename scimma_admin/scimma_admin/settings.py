@@ -213,7 +213,10 @@ if not LOCAL_TESTING:
     DATABASES["default"]["PASSWORD"] = get_aws_secret("ADMIN_DB_PASSWORD_SECRET_NAME")
     # The external archive database
     DATABASES["archive"] = get_rds_db("ARCHIVE_DB_INSTANCE_NAME")
-    DATABASES["archive"]["PASSWORD"] = get_aws_secret("ARCHIVE_DB_PASSWORD_SECRET_NAME")
+    if "HOST" in DATABASES["archive"]:
+        DATABASES["archive"]["PASSWORD"] = get_aws_secret("ARCHIVE_DB_PASSWORD_SECRET_NAME")
+    else:
+        del DATABASES["archive"]
     
 if DATABASES["default"]["ENGINE"]=="django.db.backends.postgresql":
     fix_psycopg_binary()
@@ -317,6 +320,9 @@ REST_FRAMEWORK = {
         'rest_authtoken.auth.AuthTokenAuthentication',
     ),
 }
+
+# Only include topics active within this number of days in the public topics display
+PUBLIC_TOPICS_DISPLAY_MAX_AGE =  int(os.getenv("PUBLIC_TOPICS_DISPLAY_MAX_AGE", "90"))
 
 # The DNS name of the associated Kafka broker, if any
 KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
