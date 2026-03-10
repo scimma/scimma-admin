@@ -1,0 +1,81 @@
+{% extends "hopskotch_auth/hopskotch.html" %}
+
+{% block title %}Active Topics{% endblock %}
+{% block page-header %}Active Topics{% endblock %}
+{% load static %}
+
+{% block page-body %}
+<div class="container-fluid p-2 m-4">
+
+<div class=lead>
+
+<h2>Hopskotch Topics</h2>
+
+<p>
+  In the Hopskotch messaging system, <strong> public topics</strong>
+  are topics to which any registered SCiMMA user may subscribe. 
+  <strong>Private topics</strong> are restricted channels intended for 
+  communication within a specific collaboration or working group.
+</p>
+
+<p>
+  SCiMMA currently supports 
+  <strong>{{ group_data.summary.n_private_topics }}</strong> private topics and
+  <strong>{{ group_data.summary.n_public_topics }}</strong> public topics.
+</p>
+
+<h2>Active Public Topics</h2>
+
+{% if have_archive_info %}
+
+<p>
+  The sections below list the 
+  <strong>{{ group_data.summary.total_active_topics }}</strong> public topics
+  which are being archived and have had activity within the past 
+  <strong>{{ group_data.summary.active_threshold_days }}</strong> days,
+  organized by the groups which own them.
+  These represent the communication channels currently in use across the 
+  SCiMMA community.
+</p>
+
+<p>
+  Individuals who are not yet registered may create a free account using the 
+  sign‑up link at <a href="https://www.scimma.org/">www.scimma.org</a>.  Registered
+  users may subscribe to any public topic.
+</p>
+</div>
+
+<br>
+
+<!-- The list rather long, so let them Navigate by group  -->
+<!-- Use "collapse" to hide information not relevant to the user.  -->
+
+{% for group in group_data.groups %}
+  <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{group.group_name}}" aria-expanded="false" aria-controls="{{group.group_name}}">
+    {{group.group_name}} ({{group.n_public}})
+  </button>
+{% endfor %}
+
+{% for group in group_data.groups %}
+<div class="collapse" id="{{ group.group_name }}"</div>
+  <div > <!-- container needed to make collapse work  -->
+    <table class="table">
+      <thead><tr><th>Topic</th><th>Description</th><th>Last Published</th></tr></thead>
+      <tbody>
+      {% for t in group.public_topics %}
+      <tr> <td> {{ t.name }}</td><td> {{ t.description }} </td><td> {{ t.latest }} </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div> <!-- container  -->
+</div>   <!-- collapse   -->
+{% endfor %}
+
+{% else %} <!-- Do not have archive information -->
+
+<p> Data source for recent activity not available.
+
+{% endif %}
+
+</div>  <!-- container-fluid   -->
+{% endblock %}

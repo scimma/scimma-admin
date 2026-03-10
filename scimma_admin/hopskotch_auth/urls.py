@@ -12,6 +12,8 @@ urlpatterns = [
     path("logout", views.logout, name="logout"),
     path("login_failure", views.login_failure, name="login_failure"),
 
+    path("active_topics", views.active_topics, name="active_topics"),
+
     path("create_credential", views.create_credential, name="create_credential"),
     path("suspend_credential/<str:credname>&<str:redirect_to>", views.suspend_credential, name="suspend_credential"),
     path("create_group", views.create_group, name="create_group"),

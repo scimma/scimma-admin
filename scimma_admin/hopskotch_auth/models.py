@@ -768,3 +768,19 @@ def sync_mailing_list_membership(user: settings.AUTH_USER_MODEL, list_addr: str)
         else:
             # the user is not subscribed, but we have an erroneous record, so we delete it
             cur_membership.delete()
+
+
+# This is a model of recency data for the active_topics page.
+
+class RecentMessages(models.Model):
+    topic = models.TextField(primary_key=True)
+    e_timestamp = models.BigIntegerField()  # earliest message timestamp
+    l_timestamp = models.BigIntegerField()  # latest message timestamp
+    n_messages = models.BigIntegerField()   # number of messages
+
+    class Meta:
+        managed = False
+        db_table = 'topics'
+
+    def get_datetime(self):
+        return datetime.datetime.fromtimestamp(self.timestamp)

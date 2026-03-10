@@ -17,6 +17,7 @@ from django.urls import reverse
 from wsgiref.util import FileWrapper
 from io import StringIO
 from django.views.decorators.csrf import csrf_exempt
+import time
 
 from mozilla_django_oidc.auth import get_user_model
 
@@ -168,6 +169,56 @@ def services(request: AuthenticatedHttpRequest) -> HttpResponse:
     openmma_subscription = engine.user_is_member_of_mailinglist(request.user, mlist)
     return render(request, 'hopskotch_auth/services.html',
                   {"openmma_subscription": openmma_subscription.ok()})
+
+
+# NB: Login _not_ required, this page is public!
+def active_topics(request):
+    context = {}
+    context['page'] = {'heading': 'Public Topics', 'lead': 'All Public Topics Anyone Can Subscribe To'}
+
+    all_topics = KafkaTopic.objects.all()
+    topic_descriptions = {t.name: t.description for t in all_topics}
+    all_public_topics = [t for t in all_topics if t.publicly_readable]
+    all_private_topics = [t for t in all_topics if not t.publicly_readable]
+
+    if "archive" in settings.DATABASES:
+        context["have_archive_info"] = True
+        cutoff_time = time.time() - 3600 * 24 * settings.PUBLIC_TOPICS_DISPLAY_MAX_AGE
+        archive_info = {t.topic:t for t in RecentMessages.objects.using("archive").all() if t.l_timestamp / 1000 > cutoff_time}
+    else:
+        context["have_archive_info"] = False
+        archive_info = {}
+
+    groups = {}
+    for topic in all_public_topics:
+        if topic.name not in archive_info:
+            continue
+        group_name = topic.owning_group.name
+        if group_name not in groups:
+            groups[group_name] = {"public_topics":[], "group_name":group_name, "n_public": 0}
+        g_info = groups[group_name]
+        timestamp = archive_info[topic.name].l_timestamp
+        g_info["public_topics"].append({
+            "name": topic.name,
+            "description": topic.description,
+            "latest": datetime.date.fromtimestamp(timestamp / 1000).isoformat(),
+            "timestamp": timestamp,
+        })
+        g_info["n_public"] += 1
+    for group in groups.values():
+        group["public_topics"].sort(key=lambda t: t["timestamp"], reverse=True)
+
+    context["group_data"] = {
+        "summary": {
+            "n_public_topics": len(all_public_topics),
+            "n_private_topics": len(all_private_topics),
+            "active_threshold_days": settings.PUBLIC_TOPICS_DISPLAY_MAX_AGE,
+            "total_active_topics": len(archive_info),
+        },
+        "groups": sorted(groups.values(), key=lambda g: g["group_name"]),
+    }
+
+    return render(request, "hopskotch_auth/active_topics.html", context)
 
 
 @login_required
