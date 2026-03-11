@@ -190,10 +190,12 @@ def active_topics(request):
         archive_info = {}
 
     groups = {}
+    archived_public_topic_count = 0
     for topic in all_public_topics:
         if topic.name not in archive_info:
             continue
         group_name = topic.owning_group.name
+        archived_public_topic_count += 1
         if group_name not in groups:
             groups[group_name] = {"public_topics":[], "group_name":group_name, "n_public": 0}
         g_info = groups[group_name]
@@ -213,7 +215,7 @@ def active_topics(request):
             "n_public_topics": len(all_public_topics),
             "n_private_topics": len(all_private_topics),
             "active_threshold_days": settings.PUBLIC_TOPICS_DISPLAY_MAX_AGE,
-            "total_active_topics": len(archive_info),
+            "total_active_topics": archived_public_topic_count,
         },
         "groups": sorted(groups.values(), key=lambda g: g["group_name"]),
     }
