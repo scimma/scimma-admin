@@ -190,7 +190,7 @@ class ScramAuthentication(BaseAuthentication):
         try:
             auth_header=auth_header.decode("utf-8")
         except:
-            raise AuthenticationFailed("Malformed SCRAM authentication header")
+            return None
         if auth_header.upper().startswith("SCRAM-"):
             m = re.fullmatch("(SCRAM-[A-Z0-9-]+) *([^ ].*)", auth_header, flags=re.IGNORECASE)
             if not m:
@@ -205,8 +205,8 @@ class ScramAuthentication(BaseAuthentication):
                 ex, s = do_scram_first(client_first)
                 sfirst=base64.b64encode(s.get_server_first().encode("utf-8")).decode('utf-8')
                 return f"{scram_mech} sid={ex.sid}, data={sfirst}"
-            except (scramp.ScramException):
-                raise AuthenticationFailed("SCRAM authentication failed")
+            except (ObjectDoesNotExist, scramp.ScramException):
+                return None
 
 def set_scram_auth_info_header(get_response):
 	def middleware(request):
