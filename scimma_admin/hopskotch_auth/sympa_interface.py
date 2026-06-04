@@ -6,6 +6,9 @@ from typing import List
 class SympaClientBase:
     def __init__(self, wsdl_url):
         self.client = Client(wsdl_url)
+        # This is bizarrely load-bearing: requests to Sympa after the initial login fail if they use
+        # the default Python-urllib user-agent string, but ~anything else seems to work.
+        self.client.options.headers["User-Agent"] = "Suds"
     
     def begin_session(self):
         pass
@@ -37,6 +40,10 @@ class IndividualClient(SympaClientBase):
     
     def begin_session(self):
         self.cookie = self.client.service.login(self.email, self.password)
+        # Inject cookie value directly as a header
+        # It is possible but very tedious to insert it into self.client.options.transport.cookiejar
+        # instead, but this should be fine as long as no other cookies are involved
+        self.client.options.headers["Cookie"] = f"sympa_session={self.cookie}"
         
     def request(self, service: str, args: List[str]):
         assert self.cookie
