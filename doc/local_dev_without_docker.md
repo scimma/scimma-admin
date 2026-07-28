@@ -74,7 +74,7 @@ Then bring up the database:
 ### Initializing Database Tables
 
 After using either of the options above, the database itself is now running and ready for django to use. Django itself requires one additional setup step:
-
+    export LOCAL_DEV=1
 	python scimma_admin/manage.py migrate
 
 This creates the database tables in the form django expects to use. 
