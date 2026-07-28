@@ -124,18 +124,6 @@
             {% endblock %}
         </main>
 
-        <!-- NSF Disclaimer Footer -->
-        <footer class="footer mt-auto py-3 bg-light border-top">
-            <div class="container text-center text-muted small">
-                {% block footer %}
-                <p class="mb-0">
-                    This material is based upon work supported by the National Science Foundation under Grant No. OAC-1841625, OAC-1934752, OAC-2311355, AST-2432428]. 
-                    Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) 
-                    and do not necessarily reflect the views of the National Science Foundation.
-                </p>
-                {% endblock %}
-            </div>
-        </footer>
 
         {% block loading-modal %}
         <div class="modal fade" id="loadingBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingBackdropLabel" aria-hidden="true">
@@ -172,6 +160,19 @@
               return new bootstrap.Popover(popoverTriggerEl)
             })
         </script>
+        <!-- NSF Disclaimer Footer -->
+        <footer class="footer mt-auto py-3 bg-light border-top">
+            <div class="container text-center text-muted small">
+                {% block footer %}
+                <p class="mb-0">
+                    This material is based upon work supported by the National Science Foundation under Grant No. OAC-1841625, OAC-1934752, OAC-2311355, AST-2432428]. 
+                    Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) 
+                    and do not necessarily reflect the views of the National Science Foundation.
+                </p>
+                {% endblock %}
+            </div>
+        </footer>
+
         {% endblock %}
     </body>
 </html>
