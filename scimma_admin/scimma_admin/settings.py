@@ -58,7 +58,7 @@ def get_setting_bool(name, default_val=None):
         #raise RuntimeError(f"{name} not configured and has no default value")
     if value.lower() in ["true", "yes", "on", "1"]:
         return True
-    if value.lower() in ["false", "yes", "on", "1"]:
+    if value.lower() in ["false", "yes", "on", "0"]:
         return False
     raise RuntimeError(f"bad value for {name}: {str}")
     CI_LOG[name] = value
