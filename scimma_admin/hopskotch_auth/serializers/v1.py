@@ -49,6 +49,13 @@ class SCRAMCredentialsSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "owner", "username", "created_at"]
     owner = PrettyForeignKeyField(User, "username")
 
+class SCRAMCredentialsAdminSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SCRAMCredentials
+        fields = ["id", "owner", "username", "algorithm", "salt", "server_key", "stored_key", "iterations", "created_at", "suspended", "description"]
+        read_only_fields = ["id", "owner", "username", "algorithm", "salt", "server_key", "stored_key", "iterations", "created_at"]
+    owner = PrettyForeignKeyField(User, "username")
+
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
