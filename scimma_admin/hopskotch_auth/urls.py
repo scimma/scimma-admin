@@ -102,6 +102,7 @@ urlpatterns = [
     path("api/v<int:version>/users/<str:user>/credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}), name="user_credential_detail"),
     path("api/v<int:version>/users/<str:user>/credentials/<str:cred>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="user_credential_permissions"),
     path("api/v<int:version>/users/<str:user>/memberships", api_views.GroupMembershipViewSet.as_view({"get": "list"}), name="user_groups"),
+    path("api/v<int:version>/users/<str:user>/available_permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list_for_user"}), name="user_avail_perms"),
 
     path("api/v<int:version>/current_user", api_views.UserViewSet.as_view({"get": "retrieve_current"}), name="current_user"),
     path("api/v<int:version>/current_user/credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list_for_current_user"}), name="current_user_credentials"),
@@ -111,7 +112,10 @@ urlpatterns = [
     path("api/v<int:version>/scram_credentials", api_views.SCRAMCredentialsViewSet.as_view({"get": "list", "post": "create"}), name="scram_credentials"),
     path("api/v<int:version>/scram_credentials/<str:username>", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="scram_credentials_detail"),
     path("api/v<int:version>/scram_credentials/<str:cred>/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="scram_credential_permissions"),
-	path("api/v<int:version>/scram_credentials/<str:cred>/permissions/topic/<str:topic>", api_views.CredentialPermissionsForTopic.as_view(), name="scram_credential_topic_permissions"),
+    path("api/v<int:version>/scram_credentials/<str:cred>/permissions/topic/<str:topic>", api_views.CredentialPermissionsForTopic.as_view(), name="scram_credential_topic_permissions"),
+
+    path("api/v<int:version>/credential_permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="credential_permissions"),
+    path("api/v<int:version>/credential_permissions/<str:cred>", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list", "post": "create"}), name="specific_credential_permissions"),
 
     path("api/v<int:version>/current_credential", api_views.SCRAMCredentialsViewSet.as_view({"get": "retrieve_current"}), name="current_credential"),
     path("api/v<int:version>/current_credential/permissions", api_views.CredentialKafkaPermissionViewSet.as_view({"get": "list_for_current_credential"}), name="current_credential_permissions"),
@@ -133,6 +137,10 @@ urlpatterns = [
     path("api/v<int:version>/groups/<str:granting_group>/permissions_given", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_given"),
     path("api/v<int:version>/groups/<str:granting_group>/permissions_given/<int:pk>", api_views.GroupKafkaPermissionViewSet.as_view({"get": "retrieve", "delete": "destroy"}), name="group_permissions_given_detail"),
     path("api/v<int:version>/groups/<str:subject_group>/permissions_received", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions_received"),
+
+    path("api/v<int:version>/group_permissions", api_views.GroupKafkaPermissionViewSet.as_view({"get": "list"}), name="group_permissions"),
+
+    path("api/v<int:version>/user_permissions", api_views.UserPermissions.as_view(), name="user_permissions"),
 
     path('api/swagger-ui/', TemplateView.as_view(
          template_name='hopskotch_auth/swagger-ui.html',

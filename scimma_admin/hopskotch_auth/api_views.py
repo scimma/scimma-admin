@@ -219,7 +219,7 @@ def set_scram_auth_info_header(get_response):
 	return middleware
 
 class ScramFirst(APIView):
-	# This is an authentication mechanism, so no other authentication should be enforced
+    # This is an authentication mechanism, so no other authentication should be enforced
     authentication_classes = []
 
     def post(self, request, version):
@@ -243,10 +243,11 @@ class ScramFirst(APIView):
                             status=status.HTTP_401_UNAUTHORIZED)
 
 class ScramFinal(APIView):
-	# This is an authentication mechanism, so no other authentication should be enforced
+    # This is an authentication mechanism, so no other authentication should be enforced
     authentication_classes = []
     
     def post(self, request, version):
+        logger.info(f"Got SCRAM final request from {client_ip(request)}")
         if "client_final" not in request.data:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -589,7 +590,7 @@ class UserViewSet(viewsets.ModelViewSet):
         except PermissionDenied as ex:
             return Response(data={"error": ex.args},
                             status=status.HTTP_400_BAD_REQUEST)
-		
+
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, *args, **kwargs):
@@ -617,6 +618,9 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         super().__init__(*args, **kwargs)
 
     def get_serializer_class(self):
+        if getattr(self.request, "user", None) and self.request.user.is_staff:
+            return serializers[self.kwargs.get("version",current_api_version)].SCRAMCredentialsAdminSerializer
+        # plain serializer for regular users
         return serializers[self.kwargs.get("version",current_api_version)].SCRAMCredentialsSerializer
 
     @staticmethod
@@ -700,10 +704,22 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
-        bundle = new_credentials(request.user)
+        owner_name = self.kwargs["user"]
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to create a SCRAM credential for user {owner_name} "
+                    f"from {client_ip(request)}")
+        try:
+            owner = User.objects.get(username=owner_name)
+        except ObjectDoesNotExist as dne:
+            raise BadRequest(f"No such user: {owner_name}")
+        # non-staff users may create credentials for other users
+        if not self.request.user.is_staff and owner!=self.request.user:
+            raise PermissionDenied
         
-        logger.info(f"Created new credential {bundle.username} on behalf of user "
-                f"{request.user.username} ({request.user.email}) from {client_ip(request)}")
+        bundle = new_credentials(owner)
+        
+        logger.info(f"Created new credential {bundle.username} on for user {owner} at the request of "
+                f"user {request.user.username} ({request.user.email}) from {client_ip(request)}")
         
         try:
             if "description" in request.data:
@@ -914,7 +930,7 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         target_user = serializer.validated_data['user']
         
         if "group" not in kwargs:
-        	raise BadRequest
+            raise BadRequest
         # Not strictly required, but to keep things clear, require that the group to which the
         # membership would be added match what was specified in the URL.
         if version == 0 and group.id!=kwargs["group"]:
@@ -1213,6 +1229,29 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         logger.info(msg)
         return super().list(request, *args, **kwargs)
 
+    def list_for_user(self, request, *args, **kwargs):
+        logger.info(f"User {request.user.username} ({request.user.email}) "
+                    f"requested to list all group permissions available to "
+                    f"{kwargs.get('user','unspecified user')} from {client_ip(request)}")
+        if "user" not in self.kwargs:
+            raise BadRequest
+        target_user = self.kwargs["user"]
+        
+        version = self.kwargs.get("version",current_api_version)
+        if version >= 1:
+            search = User.objects.filter(username=target_user)
+            if not search.exists():
+                raise BadRequest
+            target_user = search[0]
+        
+        # non-staff users may not view other users' permissions
+        if not self.request.user.is_staff and target_user!=self.request.user:
+            raise PermissionDenied
+
+        perms = all_permissions_for_user(target_user)
+        serializer = self.get_serializer(perms, many=True)
+        return Response(serializer.data)
+
     def list_for_current_user(self, request, *args, **kwargs):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested to list all group permissions available to them "
@@ -1254,6 +1293,8 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} ({request.user.email}) "
                     f"requested to remove group permission {kwargs.get('pk','<missing>')} "
                     f"from {client_ip(request)}")
+        if not self.request.user.is_staff:
+            raise PermissionDenied
         
         perm = self.get_object()
         # Only admins and owners of the granting group can revoke group permissions
@@ -1267,6 +1308,25 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
     
     def partial_update(self, request, *args, **kwargs):
         raise PermissionDenied
+
+class UserPermissions(APIView):
+    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, version):
+        logger.info(f"User {request.user.username} ({request.user.email}) " \
+                    f"requested to list all user permissions from {client_ip(request)}")
+
+        op_serializer = serializers[version].ReadableEnumField(KafkaOperation)
+        all_perms = []
+        for user in User.objects.all():
+            user_perms = all_permissions_for_user(user)
+            for perm in user_perms:
+                all_perms.append({"principal": user.username,
+                                  "topic": perm.topic.name,
+                                  "operation": op_serializer.to_representation(perm.operation)})
+        
+        return Response(data=all_perms, status=status.HTTP_200_OK)
 
 class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
@@ -1362,7 +1422,7 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
                                                                  topic=topic,
                                                                  operation=KafkaOperation.All)
         if existing_perm.exists():
-        	return Response(result_data, status=status.HTTP_200_OK)
+            return Response(result_data, status=status.HTTP_200_OK)
         # Specific case
         existing_perm = CredentialKafkaPermission.objects.filter(principal=principal, 
                                                                  topic=topic,
