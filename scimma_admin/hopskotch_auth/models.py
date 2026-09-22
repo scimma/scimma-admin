@@ -522,12 +522,14 @@ def supporting_permission(group_perm: GroupKafkaPermission, cred_perm: Credentia
       or cred_perm.operation == group_perm.operation
 
 
-def all_permissions_for_user(user: User) -> List[GroupKafkaPermission]:
+def all_permissions_for_user(user: User, topic: Optional[KafkaTopic]=None) -> List[GroupKafkaPermission]:
     possible_permissions = []
     for membership in user.groupmembership_set.all():
         group = membership.group
-        group_permissions = GroupKafkaPermission.objects.filter(principal=group)\
-                                                        .select_related('principal', 'topic')
+        query = GroupKafkaPermission.objects.filter(principal=group)
+        if topic is not None:
+            query = query.filter(topic=topic)
+        group_permissions = query.select_related('principal', 'topic')
         for permission in group_permissions:
             possible_permissions.append(permission)
     # sort and eliminate duplicates
