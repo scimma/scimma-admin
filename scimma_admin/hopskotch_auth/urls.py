@@ -1,9 +1,12 @@
 from django.urls import path
 from django.views.generic import TemplateView
 
+from scimma_admin.settings import ENABLE_JWT_ISSUER
+
 from . import views
 from . import callbacks
 from . import api_views
+from . import jwt_views
 
 
 urlpatterns = [
@@ -147,3 +150,10 @@ urlpatterns = [
          extra_context={'schema_url':'openapi-schema'}
     ), name='swagger-ui'),
 ]
+
+if ENABLE_JWT_ISSUER:
+    urlpatterns.extend([
+        path(".well-known/openid-configuration", jwt_views.openid_config),
+	    path("oauth2/certs", jwt_views.jwks),
+	    path("oauth2/token", jwt_views.IssueToken.as_view()),
+	])

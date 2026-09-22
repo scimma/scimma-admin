@@ -53,9 +53,10 @@ def get_rds_db(item_name):
 
 def get_setting_bool(name, default_val=None):
     value  = os.getenv(name, default_val)
-    if not value :
-        return default_val
-        #raise RuntimeError(f"{name} not configured and has no default value")
+    if value is None:
+        raise RuntimeError(f"{name} not configured and has no default value")
+    if isinstance(value, bool):
+        return value
     if value.lower() in ["true", "yes", "on", "1"]:
         return True
     if value.lower() in ["false", "yes", "on", "0"]:
@@ -153,7 +154,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'hopskotch_auth.api_views.set_scram_auth_info_header',
+    'hopskotch_auth.api_authentication.set_scram_auth_info_header',
 ]
 
 ROOT_URLCONF = 'scimma_admin.urls'
@@ -329,6 +330,9 @@ KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
 
 TRUSTED_JWT_ISSUERS = set(os.environ.get("TRUSTED_JWT_ISSUERS", default="").split(','))
 print(f"TRUSTED_JWT_ISSUERS: {TRUSTED_JWT_ISSUERS}")
+
+ENABLE_JWT_ISSUER = get_setting_bool("ENABLE_JWT_ISSUER", False)
+JWT_VALIDITY_PERIOD = datetime.timedelta(minutes=10)
 
 if LOCAL_TESTING:
     try:
