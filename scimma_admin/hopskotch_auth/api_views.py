@@ -12,6 +12,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 import io
 import json
+import jwt
+import requests
 from rest_framework.views import APIView
 from rest_framework import viewsets
 from rest_framework import status
@@ -57,6 +59,11 @@ def describe_auth(request) -> str:
                 return f"Authentication was with token {token}"
             else:
                 return "Authentication was with unknown token"
+        if isinstance(auth, dict):
+            if "jti" in auth: # jti claim is optional
+                return f"Authentication was with JWT {auth['jti']} issued by {auth['iss']}"
+            else: # we elsewhere require the iss claim, however
+                return f"Authentication was with a JWT issued by {auth['iss']}"
     return "Request was not authenticated"
 
 def find_current_credential(request) -> Optional[SCRAMCredentials]:
@@ -208,6 +215,102 @@ class ScramAuthentication(BaseAuthentication):
             except (ObjectDoesNotExist, scramp.ScramException):
                 return None
 
+
+def find_jwks_url(base_url: str):
+    resp = requests.get(base_url+"/.well-known/openid-configuration")
+    if not resp.ok:
+        logger.error(f"Unable to fetch OpenID configuration from {base_url} "
+                     f"(status {resp.status_code}): {resp.text}")
+        return None
+    try:
+        data = resp.json()
+    except requests.exceptions.JSONDecodeError:
+        logger.error(f"Unable to decode OpenID configuration from {base_url} as JSON")
+        return None
+    if "jwks_uri" in data and isinstance(data["jwks_uri"], str):
+        return data["jwks_uri"]
+    logger.error(f"No valid JWKS URI in OpenID configuration from {base_url}")
+    return None
+
+jwks_clients = {}
+def get_jwt_key(issuer, token):
+    if issuer not in settings.TRUSTED_JWT_ISSUERS:
+        raise RuntimeError("Untrusted Issuer")
+    if issuer not in jwks_clients:
+        jwks_url = find_jwks_url(issuer)
+        if jwks_url is None:
+            raise RuntimeError("Unable to determine JWKS url")
+        jwks_clients[issuer] = jwt.PyJWKClient(jwks_url)
+    return jwks_clients[issuer].get_signing_key_from_jwt(token)
+
+
+class JWTAuthentication(BaseAuthentication):
+    def authenticate(self, request):
+        # Pass through auth for multi-requests
+        # This is used by the multi request mechanism to cascade authentication down to sub-requests
+        if hasattr(request._request,"user") and request._request.user.is_authenticated \
+              and hasattr(request._request,"auth"):
+            return (request._request.user, request._request.auth)
+        
+        auth_header = get_authorization_header(request)
+        if not auth_header or len(auth_header)==0:
+            return None
+        
+        try:
+            auth_header=auth_header.decode("utf-8")
+        except:
+            raise AuthenticationFailed("Malformed authentication header")
+        print("Got authentication header:", auth_header)
+
+        if not auth_header.startswith("Bearer "):
+            return None
+        raw_token = auth_header[7:]
+        
+        # we need to parse the claims to figure out the supposed issuer, so we can know against
+        # what to validate the token
+        try:
+            unverified_claims = jwt.decode(raw_token, options={"verify_signature": False})
+        except jwt.exceptions.DecodeError:
+            # if the data does not decode as a JWT, it's not this class's problem
+            print("Token cannot be parsed as a JWT")
+            return None
+        # check whether necessary claims are missing before bothering about any cryptography
+        if not "iss" in unverified_claims:
+            raise AuthenticationFailed("Invalid JWT: missing iss claim")
+        if not "sub" in unverified_claims:
+            raise AuthenticationFailed("Invalid JWT: missing sub claim")
+        issuer = unverified_claims["iss"]
+        try:
+            signing_key = get_jwt_key(issuer, raw_token)
+        except jwt.exceptions.PyJWKClientError:
+            logger.error(f"Unable to get JWK for issuer {issuer}")
+            raise AuthenticationFailed("JWT issuer signing key not found")
+        except RuntimeError as err:
+            if "Untrusted Issuer" in str(err):
+                logger.info(f"Got request with JWT from untrusted issuer {issuer}")
+                raise AuthenticationFailed("Invalid JWT: issuer not trusted")
+            else:
+                raise AuthenticationFailed("JWT validation failed: internal error")
+        try:
+            claims = jwt.decode(raw_token, signing_key, 
+                                algorithms=["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "EdDSA"])
+        except Exception as ex:
+            logger.info(f"JWT validation failed {ex}")
+            raise AuthenticationFailed("Invalid JWT")
+        
+        subject = claims["sub"]
+        search = User.objects.filter(email=subject)
+        if not search.exists():
+            raise AuthenticationFailed("Unknown user")
+        user = search[0]
+        return (user, claims)
+
+
+standard_auth_classes = [ScramAuthentication, 
+                         rest_authtoken.auth.AuthTokenAuthentication, 
+                         JWTAuthentication]
+
+
 def set_scram_auth_info_header(get_response):
 	def middleware(request):
 		response = get_response(request)
@@ -290,7 +393,7 @@ class ScramFinal(APIView):
             ex.delete()  # clean up the exchange session record
 
 class MultiRequest(APIView):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def post(self, request, version):
@@ -397,7 +500,7 @@ class MultiRequest(APIView):
                         status=status.HTTP_200_OK)
 
 class TokenForOidcUser(APIView):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     # TODO !!! must also have special authority to use this privileged feature
     permission_classes = [IsAuthenticated, IsAdminUser]
     
@@ -510,7 +613,7 @@ class ReplaceToken(APIView):
         
 
 class UserViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     queryset = User.objects.all()
@@ -610,7 +713,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     
 class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def __init__(self, *args, **kwargs):
@@ -764,7 +867,7 @@ class SCRAMCredentialsViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class GroupViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     # all users are allowed to see the full list of groups
@@ -834,7 +937,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class GroupMembershipViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -982,7 +1085,7 @@ class GroupMembershipViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class KafkaTopicViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def __init__(self, *args, **kwargs):
@@ -1142,7 +1245,7 @@ class KafkaTopicViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
@@ -1310,7 +1413,7 @@ class GroupKafkaPermissionViewSet(viewsets.ModelViewSet):
         raise PermissionDenied
 
 class UserPermissions(APIView):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def get(self, request, version):
@@ -1329,7 +1432,7 @@ class UserPermissions(APIView):
         return Response(data=all_perms, status=status.HTTP_200_OK)
 
 class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
@@ -1386,6 +1489,14 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         version = self.kwargs.get("version",current_api_version)
         cred = find_current_credential(request)
         if not cred:
+            # as a special case to support JWT auth, if there is no associated credential, we
+            # re-interpret the request as being about user permissions
+            group_perms = all_permissions_for_user(request.user)
+            print("Found group permissions:",group_perms)
+            serializer = serializers[self.kwargs.get("version",current_api_version)]\
+                         .GroupKafkaPermissionSerializer()
+            return Response(data=[serializer.to_representation(p) for p in group_perms])
+            
             raise BadRequest("No SCRAM credential associated with this request")
         self.kwargs[self.get_credential_identifier_name(version)] \
             = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
@@ -1480,7 +1591,7 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
         raise PermissionDenied
 
 class CredentialPermissionsForTopic(APIView):
-    authentication_classes = [ScramAuthentication, rest_authtoken.auth.AuthTokenAuthentication]
+    authentication_classes = standard_auth_classes
     permission_classes = [IsAuthenticated]
 
     def get(self, request, already_logged=False, *args, **kwargs):
@@ -1524,6 +1635,22 @@ class CurrentCredentialPermissionsForTopic(CredentialPermissionsForTopic):
         version = self.kwargs.get("version",current_api_version)
         cred = find_current_credential(request)
         if not cred:
-            raise BadRequest("No SCRAM credential associated with this request")
+            # as a special case to support JWT auth, if there is no associated credential, we
+            # re-interpret the request as being about user permissions
+            topic = self.kwargs["topic"]
+            search = KafkaTopic.objects.filter(**{KafkaTopicViewSet.get_lookup_field(version): topic})
+            if not search.exists():
+                raise BadRequest
+            topic = search[0]
+            group_perms = all_permissions_for_user(request.user, topic)
+            perms = set()
+            if topic.publicly_readable:
+                perms.add(KafkaOperation.Read)
+            for permission in group_perms:
+                perms.add(permission.operation)
+            
+            serializer = serializers[self.kwargs.get("version",current_api_version)].ReadableEnumField(KafkaOperation)
+            return Response(data={"allowed_operations": [serializer.to_representation(p) for p in perms]})
+        
         kwargs["cred"] = getattr(cred, SCRAMCredentialsViewSet.get_lookup_field(version))
         return super().get(request, already_logged=True, *args, **kwargs)
