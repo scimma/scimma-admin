@@ -327,6 +327,9 @@ PUBLIC_TOPICS_DISPLAY_MAX_AGE =  int(os.getenv("PUBLIC_TOPICS_DISPLAY_MAX_AGE", 
 # The DNS name of the associated Kafka broker, if any
 KAFKA_BROKER_URL = os.environ.get("KAFKA_BROKER_URL", default=None)
 
+TRUSTED_JWT_ISSUERS = set(os.environ.get("TRUSTED_JWT_ISSUERS", default="").split(','))
+print(f"TRUSTED_JWT_ISSUERS: {TRUSTED_JWT_ISSUERS}")
+
 if LOCAL_TESTING:
     try:
        from local_settings import *
