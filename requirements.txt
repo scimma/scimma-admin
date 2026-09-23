@@ -13,7 +13,7 @@ django-crispy-forms
 crispy-bootstrap5
 djangorestframework
 django-rest-authtoken
-scramp>=1.4.4
+scramp>=1.4.13
 suds>=1.1.2
 markdown
 GitPython

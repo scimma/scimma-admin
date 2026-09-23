@@ -58,15 +58,20 @@ def do_scram_first(client_first: str):
     Return: If successful, the SCRAMExchange and the SCRAM server object
     """
     # all credentials we issue are SHA-512
-    s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(scram_user_lookup)
+    username = ""
+    def user_lookup_wrapper(uname):
+        nonlocal username
+        username = uname
+        return scram_user_lookup(username)
+    s = scramp.ScramMechanism("SCRAM-SHA-512").make_server(user_lookup_wrapper)
     s.set_client_first(client_first)
 
     # If scramp did not complain, the exchange can proceed.
     # First, we record the state so that it can be picked up later.
     ex = SCRAMExchange()
-    ex.cred = SCRAMCredentials.objects.get(username=s.user)
-    ex.j_nonce = s.nonce
-    ex.s_nonce_len = len(s.s_nonce)
+    ex.cred = SCRAMCredentials.objects.get(username=username)
+    ex.j_nonce = str(s.nonce)
+    ex.s_nonce_len = len(str(s.s_nonce))
     ex.client_first = client_first
     ex.began = datetime.datetime.now(datetime.timezone.utc)
     ex.save()
