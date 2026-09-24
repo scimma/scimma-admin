@@ -1223,7 +1223,6 @@ class CredentialKafkaPermissionViewSet(viewsets.ModelViewSet):
             # as a special case to support JWT auth, if there is no associated credential, we
             # re-interpret the request as being about user permissions
             group_perms = all_permissions_for_user(request.user)
-            print("Found group permissions:",group_perms)
             serializer = serializers[self.kwargs.get("version",current_api_version)]\
                          .GroupKafkaPermissionSerializer()
             return Response(data=[serializer.to_representation(p) for p in group_perms])
