@@ -3,24 +3,28 @@ from __future__ import annotations
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 from dataclasses import dataclass
 
-import secrets
-import string
-from enum import EnumMeta
+import base64
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+import datetime
 from django.db import models, transaction
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.core import validators
 from django_enumfield import enum
+from enum import EnumMeta
+from functools import cache
 import hashlib
-import uuid
-import base64
+import hmac
 from passlib.hash import scram
 from passlib.utils import saslprep
-import hmac
 import re
-import datetime
 import rest_authtoken.models
+import secrets
+import string
+import time
+import uuid
 
 from . import sympa_interface
 
@@ -786,3 +790,102 @@ class RecentMessages(models.Model):
 
     def get_datetime(self):
         return datetime.datetime.fromtimestamp(self.timestamp)
+
+class JSONWebKey(models.Model):
+    # An opaque, public identifier for this key, expected to be a UUID string
+    kid = models.CharField(
+        max_length=128,
+        editable=False,
+        unique=True,
+    )
+    # The private key data, serialized in PEM format
+    private_data = models.BinaryField(
+        max_length=4096,
+        editable=False,
+    )
+    not_before = models.BigIntegerField()
+    expiration = models.BigIntegerField()
+    
+    @property
+    def is_valid(self):
+        cur_time = time.time()
+        return cur_time >= self.not_before and cur_time < self.expiration
+    
+    @property
+    @cache
+    def private_key(self):
+        return serialization.load_pem_private_key(self.private_data, password=None)
+    
+    @property
+    @cache
+    def public_key(self):
+        return self.private_key.public_key()
+    
+    @classmethod
+    def generate(cls, validity_period: int=7200, validity_delay: int=0):
+        """Generate a new key
+        
+        Args:
+            validity_period: The number of seconds for which the key will be valid
+            validity_delay: The number of seconds after the current time until the key becomes valid
+        """
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+        pem = private_key.private_bytes(encoding=serialization.Encoding.PEM,
+                                        format=serialization.PrivateFormat.TraditionalOpenSSL,
+                                        encryption_algorithm=serialization.NoEncryption())
+        kid = str(uuid.uuid4())
+        begin_time = int(time.time()) + validity_delay
+        expire_time = begin_time + validity_period
+        return JSONWebKey(kid=kid, private_data=pem, not_before=begin_time, expiration=expire_time)
+    
+    @classmethod
+    def remove_expired(cls, cur_time=None):
+        """Remove keys which are no longer useful because they are no longer valid for issuing
+        tokens, and all tokens which may have been issued with them are themselves expired.
+        """
+        if cur_time is None:
+            cur_time = time.time()
+        # pad with a grace period to avoid making things unecessrily difficult
+        grace_period = 30
+        cutoff = cur_time - settings.JWT_VALIDITY_PERIOD.total_seconds() - grace_period
+        expired = cls.objects.filter(expiration__lt=cutoff)
+        expired.delete()
+    
+    @classmethod
+    def ensure_next_key(cls, cur_time=None):
+        """Make sure that there is a key pre-generated which will be used in the future, so that
+        clients performing token verification can learn about it now and generally have it cached
+        by the time they see tokens signed with it.
+        """
+        if cur_time is None:
+            cur_time = time.time()
+        future_keys = cls.objects.filter(not_before__gt=cur_time)
+        if future_keys.exists():
+            return  # nothing to do
+        # of there are no keys ready, create one which will become valid in an hour
+        new_key = cls.generate(validity_delay=3600)
+        new_key.save()
+    
+    @classmethod
+    def get_current(cls):
+        """Get a key which is currently valid, generating it if necessary.
+        If there are multiple valid keys extant, it is undefined which this will return.
+        """
+        cur_time = time.time()
+        
+        # take this opportunity to garbage collect expired keys, and make sure that we have future
+        # keys ready
+        cls.remove_expired(cur_time=cur_time)
+        cls.ensure_next_key(cur_time=cur_time)
+        
+        valid_now = cls.objects.filter(not_before__lte=cur_time, expiration__gt=cur_time)
+        if valid_now.exists():
+            return valid_now[0]
+        
+        # if no currently valid key exists, one must be created
+        # We would prefer to avoid ending up here, but it can happen e.g. when first starting up,
+        # as there was no prior opportunity to plan keys ahead of time.
+        new_key = cls.generate(validity_delay=0)
+        new_key.save()
+        
+        return new_key
