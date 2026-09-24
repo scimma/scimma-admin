@@ -63,7 +63,7 @@ class ScramFirst(APIView):
         client_first = request.data["client_first"]
         try:
             ex, s = do_scram_first(client_first)
-            logger.info(f"Began a SCRAM exchange for user {s.user} from {client_ip(request)}")
+            logger.info(f"Began a SCRAM exchange for user {ex.cred.usename} from {client_ip(request)}")
             return Response(data={"server_first": s.get_server_first(), "sid": ex.sid}, status=status.HTTP_200_OK)
         except ValueError:
             logger.info(f"Rejected invalid SCRAM request (first) from {client_ip(request)}")
