@@ -146,7 +146,6 @@ class ScramAuthentication(BaseAuthentication):
         m = re.fullmatch("(SCRAM-[A-Z0-9-]+) *([^ ].*)", auth_header, flags=re.IGNORECASE)
         if not m:
             raise AuthenticationFailed("Malformed SCRAM authentication header")
-        print("Got attempt at SCRAM auth")
         scram_mech=m.group(1).upper()
         auth_data = parse_dict_header(m.group(2))
         if "data" in auth_data and "sid" in auth_data:
@@ -254,7 +253,6 @@ class JWTAuthentication(BaseAuthentication):
             unverified_claims = jwt.decode(raw_token, options={"verify_signature": False})
         except jwt.exceptions.DecodeError:
             # if the data does not decode as a JWT, it's not this class's problem
-            print("Token cannot be parsed as a JWT")
             return None
         # check whether necessary claims are missing before bothering about any cryptography
         if not "iss" in unverified_claims:
