@@ -88,7 +88,7 @@ def do_scram_final(client_final: str, sid: Optional[str]=None):
         # the nonce from the request. We can either reimplement the parsing logic, or underhandedly
         # reach inside of scramp to use its parse function. We do the latter.
         try:
-            parsed = scramp.core._parse_message(client_final, "client final", "crp")
+            parsed = scramp.core._parse_message(client_final, "client final", {"c", "r", "p"})
         except:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         ex = SCRAMExchange.objects.get(j_nonce=parsed['r'])
